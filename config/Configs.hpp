@@ -9,11 +9,11 @@
 
 class Configs {
     public:
-        Configs(std::string configFileName);
+        Configs(const std::string & configFileName);
         
         void readConfigFile();
         void parseConfigFile();
-        const std::vector<ServerConfig> & getPasrsedConfigs() const;
+        std::vector<ServerConfig> getParsedConfigs() const;
 
     private:
         std::string configFileName;
