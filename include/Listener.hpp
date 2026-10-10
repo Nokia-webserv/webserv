@@ -1,17 +1,17 @@
 /* ************************************************************************** */
 /*                                                                            */
 /*                                                        :::      ::::::::   */
-/*   listner.hpp                                        :+:      :+:    :+:   */
+/*   Listener.hpp                                       :+:      :+:    :+:   */
 /*                                                    +:+ +:+         +:+     */
 /*   By: damohame <damohame@student.42berlin.d>     +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/10/06 14:16:57 by damohame          #+#    #+#             */
-/*   Updated: 2026/10/07 14:38:02 by damohame         ###   ########.fr       */
+/*   Updated: 2026/10/10 19:23:23 by damohame         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
-#ifndef LISTNER_HPP
-#define LISTNER_HPP
+#ifndef LISTENER_HPP
+#define LISTENER_HPP
 
 #include "ServerConfig.hpp"
 #include <string>
@@ -24,12 +24,12 @@
 #include <sstream>
 #include <stdexcept>
 
-// we will create a listner FD for each *unique* host:port
+// we will create a listener FD for each *unique* host:port
 // example : listen 127.0.0.1:8080; server_name cat.com;
 //           listen 127.0.0.1:8080; server_name dog.com;
-// --------> only one listner
+// --------> only one listener
 
-class Listner {
+class Listener {
     
     private:
         int listen_fd;
@@ -39,8 +39,8 @@ class Listner {
         std::vector<const ServerConfig*> configs;
 
     public:
-        Listner(const std::string &host, int port);
-        ~Listner();
+        Listener(const std::string &host, int port);
+        ~Listener();
         
         int getFd() const;
         const std::string&  getHost() const;

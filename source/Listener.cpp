@@ -1,7 +1,7 @@
 /* ************************************************************************** */
 /*                                                                            */
 /*                                                        :::      ::::::::   */
-/*   listner.cpp                                        :+:      :+:    :+:   */
+/*   listener.cpp                                        :+:      :+:    :+:   */
 /*                                                    +:+ +:+         +:+     */
 /*   By: damohame <damohame@student.42berlin.d>     +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
@@ -10,7 +10,7 @@
 /*                                                                            */
 /* ************************************************************************** */
 
-#include "listner.hpp"
+#include "Listener.hpp"
 
 // creates an IPv4 TCP listening socket and return a listening fd
 static int create_listener(const std::string& host, int port)
@@ -92,41 +92,41 @@ static int create_listener(const std::string& host, int port)
 }
 
 //  contructor will create (fd = -1) then creates listener_fd if valid
-Listner::Listner(const std::string &host, int port)
+Listener::Listener(const std::string &host, int port)
     :listen_fd(-1),host(host), port(port) 
 {
     listen_fd = create_listener(host,port);
 }
 
-Listner::~Listner()
+Listener::~Listener()
 {
     //in case we have an fd
     if (listen_fd >= 0)
         close(listen_fd);
 }
 
-int Listner::getFd() const
+int Listener::getFd() const
 {
     return this->listen_fd;
 }
 
-const std::string &Listner::getHost() const
+const std::string &Listener::getHost() const
 {
     return this->host;
 }
-int Listner::getPort() const
+int Listener::getPort() const
 {
     return this->port;
 }
 
-bool Listner::matches(const std::string &host, int port) const
+bool Listener::matches(const std::string &host, int port) const
 {
     if (this->host == host && this->port == port)
         return true;
     return false;
 }
 
-void Listner::addConfig(const ServerConfig *config)
+void Listener::addConfig(const ServerConfig *config)
 {
     configs.push_back(config);
 }

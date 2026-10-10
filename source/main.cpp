@@ -6,7 +6,7 @@
 /*   By: damohame <damohame@student.42berlin.d>     +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/10/02 15:51:49 by damohame          #+#    #+#             */
-/*   Updated: 2026/10/07 14:38:30 by damohame         ###   ########.fr       */
+/*   Updated: 2026/10/10 19:32:15 by damohame         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -16,7 +16,8 @@
 #include <iostream>
 
 // function to setup the values for host and port
-// create & Test 2 different server configuration
+// create & Test 3 differents server configuration
+// the duplicates for testing
 void setConfig(std::vector<ServerConfig>& configs)
 {
     configs.push_back(ServerConfig("127.0.0.1", 8080));
