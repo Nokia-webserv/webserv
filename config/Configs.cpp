@@ -2,13 +2,18 @@
 #include "Configs.hpp"
 #include <fstream>
 #include <iostream>
+#include <cctype>
 
 // creates an object which reads and parses the file
 Configs::Configs(const std::string & configFileName) : configFileName(configFileName)
 {
     readConfigFile();
-    //parseConfigFile();
+    parseConfigFile();
 }
+
+
+//----------- Read File Format  
+// the fileContent will contain all the file raw data
 
 void Configs::readConfigFile()
 {
@@ -33,4 +38,188 @@ void Configs::readConfigFile()
 std::vector<ServerConfig> Configs::getParsedConfigs() const
 {
     return serverConfigsParsed;
+}
+
+
+//----------- Validate File Format  
+//including paired braces ({}), paired quotes (" / '), and the presence of semicolons on non-block directives.
+
+// Example :
+//------------------------
+//server {
+//    listen 0.0.0.0.0:8080;
+//    server_name "localhost";
+//
+//    location / {
+//        root '/var/www';
+//    }
+//}
+//-----------------------
+
+//validates braces nesting
+// level1 inside the server block
+// level2 inside the location block
+// Max 2 block
+void Configs::validateBrace(char c, bool &level1, bool &level2,
+    int &braces)
+{
+    if (c == '{')
+    {
+        if (!level1 && !level2)
+            level1 = true;
+        else if (level1  && !level2)
+            level2 = true;
+            
+        braces++;
+    }
+
+    else if (c == '}')
+    {
+        if(level1 && level2)
+            level2 = false;
+        else if (level1 && !level2)
+            level1 = false;
+            
+        braces--;
+    }
+
+    if (braces < 0 || braces > 2) 
+            throw std::runtime_error("Invalid brace structure");
+}
+
+// odd number of consecutive '\' before a quote means it is escaped.
+// even number means the quote is not escaped
+// \"   -> escaped
+// \\"  -> not escaped
+bool Configs::isEscaped(size_t i) const
+{
+    size_t backslashes = 0;
+
+    while (i > 0 && fileContent[i - 1] == '\\')
+    {
+        backslashes++;
+        i--;
+    }
+
+    return (backslashes % 2 != 0);
+}
+
+//check if inside Single or Double quotes and modify the quote status
+void Configs::validateQuote(size_t i, bool &inDoubleQuote,
+        bool &inSingleQuote)
+{
+    char c = fileContent[i];
+
+    if (isEscaped(i))
+        return;
+        
+    if (c == '"' && !inSingleQuote)
+        inDoubleQuote = !inDoubleQuote;
+    else if (c == '\'' && !inDoubleQuote)
+        inSingleQuote = !inSingleQuote;
+}
+
+// Validates some semicolon placement
+// it stills needs more validation in the tokenization process 
+// ex: server { listen 8080 server_name blabla;} 
+// hasContent to validate if there is a valid character before it
+void Configs::validateSemicolon(char c, bool &hasContent, bool level1)
+{
+
+    if (c == ';')
+    {
+        if(!level1)
+            throw std::runtime_error("Wrong placement for semicolon");
+        if(!hasContent)
+            throw std::runtime_error("Wrong placement for semicolon");
+
+        hasContent = false;
+    }
+    else if (c == '{' )
+        hasContent = false;
+    else if (c == '}')
+    {
+        if (hasContent)
+            throw std::runtime_error("Missing semicolon");
+        hasContent = false;
+    }
+    else if (!std::isspace(static_cast<unsigned char>(c)))
+        hasContent = true;
+}
+
+// validateFileFormat : Main structure Validation of config file.
+// loops through the file character one by one.
+// - comments #: it skips the rest if the line.
+// - quotes " ' \' \" \\' \\"" : tracks single and double and skiped quotes
+// - braces { } : tracks nesting using level1 and level2
+// - semicolons ; : checks basic places for semicolon (not all errors are covered) 
+// - anything inside a quote is treated as a normal content
+// ex: server_name "name 1 } ; #  { world";
+void Configs::validateFileFormat()
+{
+    bool level1 = false;
+    bool level2 = false;
+    bool inDoubleQuote = false;
+    bool inSingleQuote = false;
+    bool hasContent = false;
+    bool isComment = false;
+
+    int braces = 0;
+
+    for (size_t i = 0; i <fileContent.size(); i++)
+    {
+        char c = fileContent[i];
+
+        // if a comment skips the rest of the line
+        if (isComment)
+        {
+            if (c == '\n')
+                isComment = false;
+            continue;
+        }
+        
+        // A Comment is only when outside of quotes
+        if (c == '#' && !inDoubleQuote && !inSingleQuote)
+        {
+            isComment = true;
+            continue;
+        }
+        
+        //tracks single and double quotes
+        if (c == '\'' || c == '"' )
+        {
+            if(level1)
+                validateQuote(i, inDoubleQuote, inSingleQuote );
+            else
+                throw std::runtime_error("Invalide quote structure");
+        }
+
+        // braces and semicolons are syntax only when outside of quotes
+        else if (!inDoubleQuote && !inSingleQuote)
+        {
+            validateSemicolon(c, hasContent, level1);
+            validateBrace(c, level1, level2, braces);
+        }
+
+    }
+
+    if (inDoubleQuote || inSingleQuote)
+        throw std::runtime_error("Unclosed quote");
+    
+    if (braces != 0)
+        throw std::runtime_error("Unclosed brace");
+
+    if (hasContent)
+        throw std::runtime_error("Missing semicolon");
+    
+    //testing (uncomment below)
+    //std::cout << "Test result:\n\n" << fileContent;
+
+}
+
+void Configs::parseConfigFile()
+{
+    validateFileFormat();
+
+    // tokenizeContent();
 }

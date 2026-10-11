@@ -1,18 +1,28 @@
-# temp Makefile for testing
+NAME = webserv
 
-.PHONY: all clean fclean re run
+CXX = c++
+CXXFLAGS = -Wall -Wextra -Werror -std=c++98
 
-all:
-	$(MAKE) -f config/test/Makefile
+SRCS = main.cpp \
+       config/Configs.cpp \
+       # config/ServerConfig.cpp
+
+OBJS = $(SRCS:.cpp=.o)
+
+all: $(NAME)
+
+$(NAME): $(OBJS)
+	$(CXX) $(CXXFLAGS) $(OBJS) -o $(NAME)
+
+%.o: %.cpp
+	$(CXX) $(CXXFLAGS) -c $< -o $@
 
 clean:
-	$(MAKE) -f config/test/Makefile clean
+	rm -f $(OBJS)
 
-fclean:
-	$(MAKE) -f config/test/Makefile fclean
+fclean: clean
+	rm -f $(NAME)
 
-re:
-	$(MAKE) -f config/test/Makefile re
+re: fclean all
 
-run:
-	$(MAKE) -f config/test/Makefile run
+.PHONY: all clean fclean re

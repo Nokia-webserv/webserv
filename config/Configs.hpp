@@ -13,6 +13,11 @@ class Configs {
         
         void readConfigFile();
         void parseConfigFile();
+        void validateFileFormat();
+        void validateBrace(char c, bool &level1, bool &level2,int &braces);
+        void validateQuote(size_t i, bool &inDoubleQuote,bool &inSingleQuote);
+        void validateSemicolon(char c, bool &hasContent, bool level1);
+        bool isEscaped(size_t i) const;
         std::vector<ServerConfig> getParsedConfigs() const;
 
     private:

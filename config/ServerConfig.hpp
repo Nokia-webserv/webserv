@@ -7,10 +7,10 @@
 
 class ServerConfig {
     public:
-        ServerConfig(int host, int listeningPort, const std::string & serverName);
+        ServerConfig(std::string host, int port, const std::string & serverName);
     
     private:
-        int host;
-        int listeningPort;
+        std::string host;
+        int port;
         std::string serverName;
 };
