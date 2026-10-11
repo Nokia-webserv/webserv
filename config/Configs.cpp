@@ -217,9 +217,97 @@ void Configs::validateFileFormat()
 
 }
 
+//----------- Sanitize The File   
+
+// sanitize the BOM:
+// if present is at the very beginning of the file
+// UTF-8 BOM = EF BB BF
+void Configs::sanitizeBOM()
+{
+    if (fileContent.size() >= 3
+        && static_cast<unsigned char>(fileContent[0]) == 0xEF
+        && static_cast<unsigned char>(fileContent[1]) == 0xBB
+        && static_cast<unsigned char>(fileContent[2]) == 0xBF)
+    {
+        fileContent.erase(0,3);
+    }
+}
+
+void Configs::sanitizeConfigFile()
+{
+    // remove the BOM
+    sanitizeBOM();    
+
+    // same logic quote/comment as validateFileFormat
+    bool inDoubleQuote = false;
+    bool inSingleQuote = false;
+    bool isComment = false;
+    bool oneSpace = false;
+
+    // temp string to hold the sanitized file content
+    std::string sanitizedContent;
+
+    for (size_t i = 0; i <fileContent.size(); i++)
+    {
+        char c = fileContent[i];
+
+        // skip the rest of the line if after a comment
+        if (isComment)
+        {
+            if (c == '\n')
+                isComment = false;
+            else
+                continue;
+        }
+        
+        // A Comment is only when outside of quotes
+        if (c == '#' && !inDoubleQuote && !inSingleQuote)
+        {
+            isComment = true;
+            continue;
+        }
+        
+        // only one white space
+        if (std::isspace(static_cast<unsigned char>(c)) 
+                && !inDoubleQuote && !inSingleQuote)
+        {
+            if(!oneSpace)
+            {
+                sanitizedContent.append(1,' ');
+                oneSpace = true;
+            }
+            continue;
+        }
+        //tracks single and double quotes
+        if (c == '\'' || c == '"' )
+            validateQuote(i, inDoubleQuote, inSingleQuote );
+
+        
+        sanitizedContent.append(1,c);
+        oneSpace = false;
+    }
+
+    if (!sanitizedContent.empty() && sanitizedContent[0] == ' ')
+        sanitizedContent.erase(0, 1);
+
+    if (!sanitizedContent.empty()
+            && sanitizedContent[sanitizedContent.size() - 1] == ' ')
+        sanitizedContent.erase(sanitizedContent.size() - 1, 1);
+
+    if (sanitizedContent.empty())
+        throw std::runtime_error("Config file is empty");
+        
+    fileContent = sanitizedContent;
+
+    //testing (uncomment below)
+    //std::cout << "Test result:" << fileContent;
+}
+
+
 void Configs::parseConfigFile()
 {
     validateFileFormat();
+    sanitizeConfigFile();
 
     // tokenizeContent();
 }

@@ -18,6 +18,9 @@ class Configs {
         void validateQuote(size_t i, bool &inDoubleQuote,bool &inSingleQuote);
         void validateSemicolon(char c, bool &hasContent, bool level1);
         bool isEscaped(size_t i) const;
+
+        void sanitizeConfigFile();
+        void sanitizeBOM();
         std::vector<ServerConfig> getParsedConfigs() const;
 
     private:
