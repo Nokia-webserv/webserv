@@ -13,7 +13,7 @@
 #ifndef LISTENER_HPP
 #define LISTENER_HPP
 
-#include "ServerConfig.hpp"
+#include "tempServerConfig.hpp"
 #include <string>
 #include <vector>
 #include <sys/socket.h>
@@ -23,6 +23,8 @@
 #include <cstring>
 #include <sstream>
 #include <stdexcept>
+#include <fcntl.h>
+#include <iostream>
 
 // we will create a listener FD for each *unique* host:port
 // example : listen 127.0.0.1:8080; server_name cat.com;

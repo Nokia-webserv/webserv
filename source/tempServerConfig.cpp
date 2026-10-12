@@ -10,7 +10,7 @@
 /*                                                                            */
 /* ************************************************************************** */
 
-#include "ServerConfig.hpp"
+#include "tempServerConfig.hpp"
 
 // default contrustor with default values
 ServerConfig::ServerConfig()

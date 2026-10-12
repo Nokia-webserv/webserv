@@ -54,11 +54,11 @@ void Server::start()
             listeners.push_back(unique_listener);
             
             // test -> the output should be only unique listeners
-            std::cout << "\n OUTPUT \n";
-            std::cout << "Listening on " << configs[i].host << ":" << configs[i].port << " fd=" << unique_listener->getFd() << "\n";
+            //std::cout << "\n OUTPUT \n";
+            //std::cout << "Listening on " << configs[i].host << ":" << configs[i].port << " fd=" << unique_listener->getFd() << "\n";
         }
         
-    // adding to configs new or already a match (reuse or create new)
-    unique_listener->addConfig(&configs[i]);
+        // adding to configs new or already a match (reuse or create new)
+        unique_listener->addConfig(&configs[i]);
     }
 }
