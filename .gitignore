@@ -1,0 +1,18 @@
+# Compiled object files
+*.o
+
+# Webserv executable
+webserv
+
+# macOS files
+.DS_Store
+
+# Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Debug / temporary files
+*.log
+*.tmp
