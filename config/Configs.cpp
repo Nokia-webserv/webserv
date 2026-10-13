@@ -235,8 +235,6 @@ void Configs::sanitizeBOM()
 
 void Configs::sanitizeConfigFile()
 {
-    // remove the BOM
-    sanitizeBOM();    
 
     // same logic quote/comment as validateFileFormat
     bool inDoubleQuote = false;
@@ -267,8 +265,20 @@ void Configs::sanitizeConfigFile()
             continue;
         }
         
-        // only one white space
-        if (std::isspace(static_cast<unsigned char>(c)) 
+        // preserve newline
+        if (c == '\n'  && !inDoubleQuote && !inSingleQuote)
+        {
+            if (!sanitizedContent.empty() 
+                    && sanitizedContent[sanitizedContent.size() - 1] == ' ')
+            {
+                sanitizedContent.erase(sanitizedContent.size() - 1);
+            }
+                sanitizedContent.append(1,'\n');
+                oneSpace = false;
+                continue;
+        }
+
+         if (std::isspace(static_cast<unsigned char>(c)) 
                 && !inDoubleQuote && !inSingleQuote)
         {
             if(!oneSpace)
@@ -276,7 +286,7 @@ void Configs::sanitizeConfigFile()
                 sanitizedContent.append(1,' ');
                 oneSpace = true;
             }
-            continue;
+                continue;
         }
         //tracks single and double quotes
         if (c == '\'' || c == '"' )
@@ -296,16 +306,20 @@ void Configs::sanitizeConfigFile()
 
     if (sanitizedContent.empty())
         throw std::runtime_error("Config file is empty");
-        
+
+    if (sanitizedContent.find_first_not_of(" \t\n\r") == std::string::npos)
+        throw std::runtime_error("Config file is empty");
+
     fileContent = sanitizedContent;
 
     //testing (uncomment below)
-    //std::cout << "Test result:" << fileContent;
+    std::cout << "Test result:" << fileContent;
 }
 
 
 void Configs::parseConfigFile()
 {
+    sanitizeBOM();  
     validateFileFormat();
     sanitizeConfigFile();
 
