@@ -32,7 +32,7 @@ std::string HttpRequest::getVersion() const {
 const std::map<std::string, std::string>& HttpRequest::getHeaders() const {
     return _headers;
 }
-std::string HttpRequest::getHeader(std::string& key) const {
+std::string HttpRequest::getHeader(const std::string& key) const {
     std::map<std::string, std::string>::const_iterator it = _headers.find(key);
 
     if (it != _headers.end()) {
