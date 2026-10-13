@@ -20,6 +20,13 @@ int main(int argc, char * argv[])
     {
         std::vector<ServerConfig> configs; // this is how data is expected by server part
         configs = configParser(argv[1]); // running the config part
+
+        // testing (uncomment below)
+        /*for (size_t i = 0; i < configs.size(); ++i)
+        {
+            Configs::printConfig(configs[i]);
+        }*/
+        
     }
     catch(const std::exception & e)
     {
