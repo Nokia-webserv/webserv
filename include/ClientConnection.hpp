@@ -3,15 +3,23 @@
 #include <sys/socket.h>
 #include <unistd.h>
 #include <string>
+#include <netinet/in.h>
+#include <sstream>
 
 class ClientConnection {
     public:
-        ClientConnection(int fd, sockaddr * addr);
+        ClientConnection(int fd, sockaddr_in * addr);
         ~ClientConnection();
+
+        int getFd() const;
+        std::string getIp() const;
+        int getPort() const;
 
     private:
         int clientSocket_fd;
-        sockaddr * address;
+        sockaddr_in * addressInfo;
         //std::string buffer;
         //class httpParser to be added to each client
+    
+    
 };
