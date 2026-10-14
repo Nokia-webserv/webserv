@@ -114,14 +114,16 @@ void Server::acceptNewConnections()
             }
             
             // set socket to non-blocking mode
-            int flags = fcntl(clientSocket, F_GETFL, 0); // receive actual flags
-            if (flags == -1 || fcntl(clientSocket, F_SETFL, flags | O_NONBLOCK) == -1) // set new flags + check success
+            std::ostringstream fd_ss;
+            fd_ss << clientSocket;
+            std::string error_msg = "Non-blocking mode for fd #" + fd_ss.str() + " failed";
+            if (fcntl(clientSocket, F_SETFL, O_NONBLOCK) == -1) // set new set of flags + check success
             {
                 close(clientSocket);
                 delete clientAddress;
-                throw std::runtime_error("Attempt to retrieve or set client fd flags failed");
+                throw std::runtime_error(error_msg);
             }
-            
+                    
             // store the new connection
             ClientConnection * newClient = new ClientConnection(clientSocket, clientAddress);
             clients.push_back(newClient);
