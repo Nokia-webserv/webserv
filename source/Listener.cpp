@@ -69,7 +69,7 @@ static int create_listener(const std::string& host, int port)
 // D. Turn to non-blocking mode
 // (normal practice is to make it before bind)
 
-    int flags = fcntl(fd, F_GETFL, 0); // receive actual falgs
+    int flags = fcntl(fd, F_GETFL, 0); // receive actual flags
     if (flags == -1 || fcntl(fd, F_SETFL, flags | O_NONBLOCK) == -1) // set new set of flags + check success
     {
         freeaddrinfo(output);
