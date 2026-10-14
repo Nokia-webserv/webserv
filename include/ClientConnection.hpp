@@ -6,6 +6,8 @@
 #include <netinet/in.h>
 #include <sstream>
 
+// class for managing a TCP-connection
+
 class ClientConnection {
     public:
         ClientConnection(int fd, sockaddr_in * addr);
