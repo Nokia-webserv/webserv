@@ -68,13 +68,15 @@ static int create_listener(const std::string& host, int port)
 
 // D. Turn to non-blocking mode
 // (normal practice is to make it before bind)
+    std::ostringstream fd_ss;
+    fd_ss << fd;
+    std::string error_msg = "Non-blocking mode for fd #" + fd_ss.str() + " failed";
 
-    int flags = fcntl(fd, F_GETFL, 0); // receive actual flags
-    if (flags == -1 || fcntl(fd, F_SETFL, flags | O_NONBLOCK) == -1) // set new set of flags + check success
+    if (fcntl(fd, F_SETFL, O_NONBLOCK) == -1) // set new set of flags + check success
     {
         freeaddrinfo(output);
         close(fd);
-        throw std::runtime_error("Attempt to retrieve or set fd flags failed");
+        throw std::runtime_error(error_msg);
     }
 
     // testing not possible at this stage - to be done when the server will be running
