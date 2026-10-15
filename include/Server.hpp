@@ -15,14 +15,17 @@
 
 #include "tempServerConfig.hpp"
 #include "Listener.hpp"
+#include "ClientConnection.hpp"
 #include <vector>
 #include <iostream>
+#include <cerrno>
 
 class Server {
 
     private:
         std::vector<ServerConfig> configs;
         std::vector<Listener*> listeners;
+        std::vector<ClientConnection*> clients;
         
         Listener* findListener(const std::string& host, int port);
 
@@ -31,6 +34,9 @@ class Server {
         ~Server();
 
         void start();
+        void prepare();
+        void run();
+        void acceptNewConnections();
 };
 
 #endif

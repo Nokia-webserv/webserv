@@ -21,8 +21,8 @@
 void setConfig(std::vector<ServerConfig>& configs)
 {
     configs.push_back(ServerConfig("127.0.0.1", 8080));
-    configs.push_back(ServerConfig("127.0.0.1", 8080));
-    configs.push_back(ServerConfig("127.0.0.1",9090));
+    configs.push_back(ServerConfig("127.0.0.1", 8081));
+    configs.push_back(ServerConfig("127.0.0.2",9090));
 }
 
 int main()
