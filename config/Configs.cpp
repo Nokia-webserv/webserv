@@ -504,7 +504,7 @@ ServerConfig Configs::parseServer()
     {
         // a valid directive
         if(tokens[tokenIndex].type != Token::WORD)
-           throwParseError("Not a valid directive");
+           throwParseError("Expected a directive name");
         
         // if location
         if (tokens[tokenIndex].value == "location")
@@ -538,7 +538,7 @@ void Configs::parseServers()
         // it starts with the server
         if (tokens[tokenIndex].type != Token::WORD ||
             tokens[tokenIndex].value != "server")
-                throwParseError("server block is missing");
+                throwParseError("Expected 'server' block");
         
         // go to next token
         tokenIndex++;
@@ -656,7 +656,7 @@ void Configs::parseListen(ServerConfig &server)
     tokenIndex++;
 
     if(tokens[tokenIndex].type != Token::WORD)
-        throwParseError("Expected Listen");
+        throwParseError("Expected a port number or host:port after Listen");
 
     // value : 8080
     std::string value = tokens[tokenIndex].value;
@@ -682,7 +682,7 @@ void Configs::parseListen(ServerConfig &server)
     // check the port value
     if (portStr.empty() || 
         portStr.find_first_not_of("0123456789") != std::string::npos)
-            throwParseError("Invalid port");
+            throwParseError("Invalid port: expected a numeric value");
     
     // str to int
 
@@ -692,13 +692,13 @@ void Configs::parseListen(ServerConfig &server)
     long port = std::strtol(portStr.c_str(), &end, 10);
     if (errno == ERANGE || *end != '\0' ||
         port < 1 || port > 65535)
-            throwParseError("Invalid port number");
+            throwParseError("Invalid port: expected a number between 1 and 65535");
     
     listen.port = static_cast<int>(port);
 
     tokenIndex++;
     if (tokens[tokenIndex].type != Token::SEMI)
-        throwParseError("Missing ';'");
+        throwParseError("Expected ';' after listen");
     tokenIndex++;
     server.listens.push_back(listen);
 }
@@ -710,7 +710,7 @@ void Configs::parseServerNames(ServerConfig &server)
     tokenIndex++;
 
     if(tokens[tokenIndex].type != Token::WORD)
-        throwParseError("Error in server name");
+        throwParseError("Expected at least one server name");
 
     // add all the server names
     while (tokens[tokenIndex].type == Token::WORD)
@@ -733,7 +733,7 @@ void Configs::parseClientMaxBodySize(ServerConfig &server)
     tokenIndex++;
 
     if(tokens[tokenIndex].type != Token::WORD)
-        throwParseError("Missing client_max_body_size");
+        throwParseError("Expected a size after client_max_body_size");
 
     std::string value = tokens[tokenIndex].value;
     long converter = 1;
@@ -800,7 +800,7 @@ void Configs::parseErrorPages(ServerConfig &server)
         std::string value = tokens[tokenIndex].value;
 
         if (tokenIndex + 1 >= tokens.size())
-            throwParseError("Missing error page");
+            throwParseError("Expected an error page path");
         if (tokens[tokenIndex + 1].type == Token::SEMI)
             break;
         
@@ -825,10 +825,10 @@ void Configs::parseErrorPages(ServerConfig &server)
 
     // error page path
     if (tokenIndex + 1 >= tokens.size())
-        throwParseError("Missing error page");
+        throwParseError("Expected an error page path");
 
     if(tokens[tokenIndex].type != Token::WORD)
-        throwParseError("Missing error page");
+        throwParseError("Expected an error page path");
 
     std::string path = tokens[tokenIndex].value;
     tokenIndex++;
@@ -905,14 +905,14 @@ void Configs::parseAutoindex(LocationConfig &location)
 {
     tokenIndex++;
     if(tokens[tokenIndex].type != Token::WORD)
-        throwParseError("Missing autoindex value");
+        throwParseError("Expected 'on' or 'off' after autoindex");
 
     if (tokens[tokenIndex].value == "on")
         location.autoindex = true;
     else if (tokens[tokenIndex].value == "off")
         location.autoindex = false;
     else
-        throwParseError("Invalid autoindex value");
+        throwParseError("Expected 'on' or 'off' after autoindex");
     
     tokenIndex++;
     if (tokens[tokenIndex].type != Token::SEMI)
@@ -925,7 +925,7 @@ void Configs::parseMethods(LocationConfig &location)
 {
     tokenIndex++;
     if(tokens[tokenIndex].type != Token::WORD)
-        throwParseError("Missing HTTP methods");
+        throwParseError("Expected at least one HTTP method");
     while (tokens[tokenIndex].type == Token::WORD )
     {
         if (tokens[tokenIndex].value == "GET")
@@ -935,7 +935,7 @@ void Configs::parseMethods(LocationConfig &location)
         else if (tokens[tokenIndex].value == "DELETE")
             location.methods.push_back("DELETE");
         else
-            throwParseError("Invalid HTTP method");
+            throwParseError("Expected GET, POST or DELETE");
     
         tokenIndex++;
     }
@@ -952,7 +952,7 @@ void Configs::parseClientMaxBodySize (LocationConfig &location)
     tokenIndex++;
 
     if(tokens[tokenIndex].type != Token::WORD)
-        throwParseError("Missing client_max_body_size");
+        throwParseError("Expected a size after client_max_body_size");
 
     std::string value = tokens[tokenIndex].value;
     long converter = 1;
@@ -1036,7 +1036,7 @@ void Configs::parseReturn(LocationConfig &location)
     else if (tokens[tokenIndex].value == "302")
         location.redirect_code = 302;
     else
-        throwParseError("invalid redirect status code");
+        throwParseError("Invalid redirect status code: expected 301 or 302");
     tokenIndex++;
 
     // redirect url
@@ -1067,7 +1067,7 @@ void Configs::parseCgiExtension(LocationConfig &location)
 
     // validate extension
     if (extension.size() < 2 || extension[0] != '.')
-        throwParseError("Invalid CGI extension");
+        throwParseError("CGI extension must start with '.'");
     
     // no duplicates 
     if (location.cgi_handlers.find(extension) != location.cgi_handlers.end())
@@ -1118,22 +1118,22 @@ LocationConfig Configs::parseLocation()
     tokenIndex++;
 
     if(tokens[tokenIndex].type != Token::WORD)
-           throwParseError("Missing path");
+           throwParseError("Expected a location path after 'location'");
     if (tokens[tokenIndex].value.empty() ||
             tokens[tokenIndex].value[0] != '/')
-        throwParseError("Invalid location path structure");
+        throwParseError("Location path must start with '/'");
     
     location.path = tokens[tokenIndex].value;
     tokenIndex++;
      if(tokens[tokenIndex].type != Token::OPENBRACE)
-           throwParseError("Expected { in location block");
+           throwParseError("Expected '{' after location path");
     tokenIndex++;
     // now we are in the location block
      while (tokens[tokenIndex].type != Token::CLOSEBRACE 
             && tokens[tokenIndex].type != Token::END)
     {
         if(tokens[tokenIndex].type != Token::WORD)
-           throwParseError("Not a valid location directive");
+           throwParseError("Expected a location directive name");
         
         parseLocationDirective(location);
        
