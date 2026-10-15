@@ -70,5 +70,16 @@ class Configs {
         void parseClientMaxBodySize(ServerConfig &server);
         void parseErrorPages(ServerConfig &server);
         void throwParseError(const std::string &message) const;
-    
+        LocationConfig parseLocation();
+        void parseLocationDirective(LocationConfig &location);
+
+
+        void parseRoot(LocationConfig &location);
+        void parseIndex(LocationConfig &location);
+        void parseAutoindex(LocationConfig &location);
+        void parseMethods(LocationConfig &location);
+        void parseClientMaxBodySize (LocationConfig &location);
+        void parseUploadStore(LocationConfig &location);
+        void parseReturn(LocationConfig &location);
+        void parseCgiExtension(LocationConfig &location);
 };

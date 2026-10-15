@@ -509,10 +509,8 @@ ServerConfig Configs::parseServer()
         // if location
         if (tokens[tokenIndex].value == "location")
         {
-            throwParseError("Location parsing not implemented yet");
-            // remove the commnets and continue the code
-            // LocationConfig location = parseLocation();
-            // server.locations.push_back(location);
+            LocationConfig location = parseLocation();
+            server.locations.push_back(location);
         }
         else 
         {
@@ -589,6 +587,60 @@ void Configs::printConfig(const ServerConfig& server)
                   << it->second << std::endl;
     }
 
+
+    // Locations
+    for (size_t i = 0; i < server.locations.size(); ++i)
+    {
+        const LocationConfig& location = server.locations[i];
+
+        std::cout << "\n---------- LOCATION CONFIG ----------" << std::endl;
+
+        std::cout << "Path: " << location.path << std::endl;
+        std::cout << "Root: " << location.root << std::endl;
+        std::cout << "Index: " << location.index << std::endl;
+
+        std::cout << "Autoindex: "
+                  << (location.autoindex ? "on" : "off") << std::endl;
+
+        // Methods
+        std::cout << "Methods: ";
+        for (size_t j = 0; j < location.methods.size(); ++j)
+        {
+            if (j > 0)
+                std::cout << " ";
+            std::cout << location.methods[j];
+        }
+        std::cout << std::endl;
+
+        // Client max body size
+        std::cout << "Client Max Body Size: "
+                  << location.client_max_body_size << " bytes" << std::endl;
+
+        // Upload store
+        std::cout << "Upload Store: "
+                  << location.upload_store << std::endl;
+
+        // Redirect
+        if (location.has_redirect)
+        {
+            std::cout << "Redirect: "
+                      << location.redirect_code << " -> "
+                      << location.redirect_url << std::endl;
+        }
+
+        // CGI handlers
+        for (std::map<std::string, std::string>::const_iterator it =
+                 location.cgi_handlers.begin();
+             it != location.cgi_handlers.end(); ++it)
+        {
+            std::cout << "CGI Extension: "
+                      << it->first << " -> "
+                      << (it->second.empty() ? "(direct execution)" : it->second)
+                      << std::endl;
+        }
+
+        std::cout << "-------------------------------------" << std::endl;
+    }
     std::cout << "===================================" << std::endl;
 }
 */
@@ -816,6 +868,284 @@ void Configs::parseServerDirective(ServerConfig &server)
 
 //----------- 7. Location Block Parsing ----------- 
 
+// root www/demo;
+void Configs::parseRoot(LocationConfig &location)
+{
+    tokenIndex++;
+    if(tokens[tokenIndex].type != Token::WORD)
+        throwParseError("Missing root path");
+    
+    location.root = tokens[tokenIndex].value;
+    tokenIndex++;
+
+    if (tokens[tokenIndex].type != Token::SEMI)
+        throwParseError("Expected ';' after root");
+
+    tokenIndex++;
+}
+
+//  index index.html;
+void Configs::parseIndex(LocationConfig &location)
+{
+    tokenIndex++;
+    if(tokens[tokenIndex].type != Token::WORD)
+        throwParseError("Missing index filename");
+    
+    location.index = tokens[tokenIndex].value;
+    tokenIndex++;
+
+    if (tokens[tokenIndex].type != Token::SEMI)
+        throwParseError("Expected ';' after index");
+
+    tokenIndex++;   
+}
+
+//autoindex on;
+void Configs::parseAutoindex(LocationConfig &location)
+{
+    tokenIndex++;
+    if(tokens[tokenIndex].type != Token::WORD)
+        throwParseError("Missing autoindex value");
+
+    if (tokens[tokenIndex].value == "on")
+        location.autoindex = true;
+    else if (tokens[tokenIndex].value == "off")
+        location.autoindex = false;
+    else
+        throwParseError("Invalid autoindex value");
+    
+    tokenIndex++;
+    if (tokens[tokenIndex].type != Token::SEMI)
+        throwParseError("Expected ';' after autoindex");
+    tokenIndex++;  
+}
+
+// methods GET POST DELETE;
+void Configs::parseMethods(LocationConfig &location)
+{
+    tokenIndex++;
+    if(tokens[tokenIndex].type != Token::WORD)
+        throwParseError("Missing HTTP methods");
+    while (tokens[tokenIndex].type == Token::WORD )
+    {
+        if (tokens[tokenIndex].value == "GET")
+            location.methods.push_back("GET");
+        else if (tokens[tokenIndex].value == "POST")
+            location.methods.push_back("POST");
+        else if (tokens[tokenIndex].value == "DELETE")
+            location.methods.push_back("DELETE");
+        else
+            throwParseError("Invalid HTTP method");
+    
+        tokenIndex++;
+    }
+    if (tokens[tokenIndex].type != Token::SEMI)
+        throwParseError("Expected ';' after methods");
+    tokenIndex++;  
+}
+
+// client_max_body_size 1024;  # 1024 bytes
+// client_max_body_size 512k;  # 512 KB
+// client_max_body_size 2m;    # 2 MB
+void Configs::parseClientMaxBodySize (LocationConfig &location)
+{
+    tokenIndex++;
+
+    if(tokens[tokenIndex].type != Token::WORD)
+        throwParseError("Missing client_max_body_size");
+
+    std::string value = tokens[tokenIndex].value;
+    long converter = 1;
+
+    // define the converter for later use
+    if (!value.empty())
+    {
+        char unit = value[value.size() - 1];
+
+        if (unit == 'k' || unit == 'K')
+        {
+            converter = 1024;
+            value.erase(value.size()-1);
+        }
+        else if (unit == 'm' || unit == 'M')
+        {
+            converter = 1024 * 1024;
+            value.erase(value.size()-1);
+        }
+        else if (unit == 'g' || unit == 'G')
+        {
+            converter = 1024L * 1024 *1024;
+            value.erase(value.size()-1);
+        }
+    }
+
+    // check if all is number and valid
+    if (value.empty() || 
+        value.find_first_not_of("0123456789") != std::string::npos)
+            throwParseError("Invalid client_max_body_size");
+    
+    // str to number
+    char *end;
+    errno = 0;
+
+    long size = std::strtol(value.c_str(), &end, 10);
+    if (errno == ERANGE || *end != '\0' ||
+        size > LONG_MAX / converter)
+            throwParseError("Invalid client_max_body_size");
+    
+    location.client_max_body_size = size * converter;
+    
+    tokenIndex++;
+
+    if (tokens[tokenIndex].type != Token::SEMI)
+        throwParseError("Missing ';' after client_max_body_size");
+
+    tokenIndex++;
+}
+
+//upload_store www/uploads;
+void Configs::parseUploadStore(LocationConfig &location)
+{
+    tokenIndex++;
+    if(tokens[tokenIndex].type != Token::WORD)
+        throwParseError("Missing upload path");
+    
+    location.upload_store = tokens[tokenIndex].value;
+    tokenIndex++;
+
+    if (tokens[tokenIndex].type != Token::SEMI)
+        throwParseError("Expected ';' after upload_store");
+
+    tokenIndex++;
+}
+
+// return 301 /new-demo;
+// return STATUS_CODE TARGET;
+//location.has_redirect = true;
+//location.redirect_code = 301;
+//location.redirect_url = "/new-demo";
+void Configs::parseReturn(LocationConfig &location)
+{
+    tokenIndex++;
+    if(tokens[tokenIndex].type != Token::WORD)
+        throwParseError("Missing redirect status code");
+    
+    // redirect code
+    if (tokens[tokenIndex].value == "301")
+        location.redirect_code = 301;
+    else if (tokens[tokenIndex].value == "302")
+        location.redirect_code = 302;
+    else
+        throwParseError("invalid redirect status code");
+    tokenIndex++;
+
+    // redirect url
+    if (tokens[tokenIndex].type != Token::WORD)
+        throwParseError("Missing redirect URL");
+    location.redirect_url = tokens[tokenIndex].value;
+    tokenIndex++;
+
+    if (tokens[tokenIndex].type != Token::SEMI)
+        throwParseError("Expected ';' after return");
+
+    tokenIndex++;
+    location.has_redirect = true;
+}
+
+// cgi_extension  .py        /usr/bin/python3;
+// cgi_extension  .sh        /bin/bash;
+// cgi_extension  .cgi                ;
+// std::map<std::string, std::string> cgi_handlers;
+void Configs::parseCgiExtension(LocationConfig &location)
+{
+    tokenIndex++;
+
+    if(tokens[tokenIndex].type != Token::WORD)
+        throwParseError("Missing CGI extension");
+    
+    std::string extension = tokens[tokenIndex].value;
+
+    // validate extension
+    if (extension.size() < 2 || extension[0] != '.')
+        throwParseError("Invalid CGI extension");
+    
+    // no duplicates 
+    if (location.cgi_handlers.find(extension) != location.cgi_handlers.end())
+        throwParseError("Duplicate CGI extension");
+    tokenIndex++;
+    // cgi_handlers
+    std::string interpreter = "";
+    if (tokens[tokenIndex].type == Token::WORD)
+    {
+        interpreter = tokens[tokenIndex].value;
+        tokenIndex++;
+    }
+
+    if (tokens[tokenIndex].type != Token::SEMI)
+        throwParseError("Expected ';' after cgi_extension");
+    tokenIndex++;
+    
+    location.cgi_handlers[extension] = interpreter;
+}
+
+void Configs::parseLocationDirective(LocationConfig &location)
+{
+    if (tokens[tokenIndex].value == "root")
+        parseRoot(location);
+    else if (tokens[tokenIndex].value == "index")
+        parseIndex(location);
+    else if (tokens[tokenIndex].value == "autoindex")
+        parseAutoindex(location);
+    else if (tokens[tokenIndex].value == "methods")
+        parseMethods(location);
+    else if (tokens[tokenIndex].value == "client_max_body_size")
+        parseClientMaxBodySize(location);
+    else if (tokens[tokenIndex].value == "upload_store")
+        parseUploadStore(location);
+    else if (tokens[tokenIndex].value == "return")
+        parseReturn(location);
+    else if (tokens[tokenIndex].value == "cgi_extension")
+        parseCgiExtension(location);
+    else
+        throwParseError("Unknown location directive \"" + tokens[tokenIndex].value + "\"");
+
+}
+
+// same logic as server block
+LocationConfig Configs::parseLocation()
+{
+    LocationConfig location;
+    tokenIndex++;
+
+    if(tokens[tokenIndex].type != Token::WORD)
+           throwParseError("Missing path");
+    if (tokens[tokenIndex].value.empty() ||
+            tokens[tokenIndex].value[0] != '/')
+        throwParseError("Invalid location path structure");
+    
+    location.path = tokens[tokenIndex].value;
+    tokenIndex++;
+     if(tokens[tokenIndex].type != Token::OPENBRACE)
+           throwParseError("Expected { in location block");
+    tokenIndex++;
+    // now we are in the location block
+     while (tokens[tokenIndex].type != Token::CLOSEBRACE 
+            && tokens[tokenIndex].type != Token::END)
+    {
+        if(tokens[tokenIndex].type != Token::WORD)
+           throwParseError("Not a valid location directive");
+        
+        parseLocationDirective(location);
+       
+    }
+    // end of the location block expect a }
+    if (tokens[tokenIndex].type != Token::CLOSEBRACE)
+        throwParseError("Expected '}' ");
+
+    // skip the }
+    tokenIndex++;
+    return location;
+}
 
 // ----------- 8. Parsing error function with line ----------- 
 void Configs::throwParseError(const std::string &message) const
