@@ -10,7 +10,7 @@
 /*                                                                            */
 /* ************************************************************************** */
 
-#include "ServerConfig.hpp"
+#include "tempServerConfig.hpp"
 #include "Server.hpp"
 #include <vector>
 #include <iostream>

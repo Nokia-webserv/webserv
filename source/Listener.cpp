@@ -66,7 +66,22 @@ static int create_listener(const std::string& host, int port)
         throw std::runtime_error("setsockopt() failed");
     }
 
-// D. Bind 
+// D. Turn to non-blocking mode
+// (normal practice is to make it before bind)
+    std::ostringstream fd_ss;
+    fd_ss << fd;
+    std::string error_msg = "Non-blocking mode for fd #" + fd_ss.str() + " failed";
+
+    if (fcntl(fd, F_SETFL, O_NONBLOCK) == -1) // set new set of flags + check success
+    {
+        freeaddrinfo(output);
+        close(fd);
+        throw std::runtime_error(error_msg);
+    }
+
+    // testing not possible at this stage - to be done when the server will be running
+
+// E. Bind 
 
     // bind(fd, address, address_size);
     if (bind(fd, output->ai_addr, output->ai_addrlen) == -1)
@@ -76,7 +91,7 @@ static int create_listener(const std::string& host, int port)
         throw std::runtime_error("Bind() failed");
     }
     
-// E. listen
+// F. listen
     
     // listen(fd, backlog)
     // backlog : SOMAXCONN supported maximum/sensible limit in the queue
