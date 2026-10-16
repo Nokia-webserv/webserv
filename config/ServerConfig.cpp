@@ -1,6 +1,8 @@
 #include "ServerConfig.hpp"
 
-ServerConfig::ServerConfig(std::string host, int port, const std::string & serverName)
-: host(host), port(port), serverName(serverName)
+ServerConfig::ServerConfig()
+: client_max_body_size(1048576)
 {}
 
+ServerConfig::~ServerConfig()
+{}
