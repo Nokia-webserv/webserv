@@ -1,5 +1,6 @@
 #include "ClientConnection.hpp"
 
+<<<<<<< HEAD
 ClientConnection::ClientConnection(int fd,
 	sockaddr_in *addr) : clientSocket_fd(fd), addressInfo(addr),
     writeOffset(0), clientLastActive(std::time(NULL)), readClosed(false)
@@ -11,11 +12,25 @@ ClientConnection::~ClientConnection()
 	delete	addressInfo;
 
 	close(clientSocket_fd);
+=======
+ClientConnection::ClientConnection(int fd, sockaddr_in * addr)
+: clientSocket_fd(fd), addressInfo(addr)
+{}
+
+ClientConnection::~ClientConnection()
+{
+    delete addressInfo;
+    close(clientSocket_fd);
+>>>>>>> b43f4a7 (added ClientConnection class)
 }
 
 int ClientConnection::getFd() const
 {
+<<<<<<< HEAD
 	return (clientSocket_fd);
+=======
+    return clientSocket_fd;
+>>>>>>> b43f4a7 (added ClientConnection class)
 }
 
 std::string ClientConnection::getIp() const
@@ -34,6 +49,7 @@ std::string ClientConnection::getIp() const
 
 int ClientConnection::getPort() const
 {
+<<<<<<< HEAD
 	return (ntohs(addressInfo->sin_port));
 		// convert network byte order to host byte order
 }
@@ -183,3 +199,7 @@ void ClientConnection::printReceivedData() const
     std::cout << "Received (" << recvBuffer.size()
               << " bytes): " << recvBuffer << std::endl;
 }*/
+=======
+    return ntohs(addressInfo->sin_port); // convert network byte order to host byte order
+}
+>>>>>>> b43f4a7 (added ClientConnection class)
