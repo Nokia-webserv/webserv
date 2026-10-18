@@ -19,13 +19,14 @@
 #include <vector>
 #include <iostream>
 #include <cerrno>
+#include <map>
 
 class Server {
 
     private:
         std::vector<ServerConfig> configs;
         std::vector<Listener*> listeners;
-        std::vector<ClientConnection*> clients;
+        std::map<int, ClientConnection*> clients;
         
         Listener* findListener(const std::string& host, int port);
 

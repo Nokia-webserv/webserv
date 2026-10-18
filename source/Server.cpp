@@ -21,8 +21,8 @@ Server::~Server()
 {
     for (size_t i = 0; i < listeners.size(); i++)
         delete listeners[i];
-    for (size_t i = 0; i < clients.size(); i++)
-        delete clients[i];
+    for (std::map<int, ClientConnection*>::iterator i = clients.begin(); i != clients.end(); ++i)
+        delete i->second;
 }
 
 Listener *Server::findListener(const std::string &host, int port)
@@ -82,10 +82,11 @@ void Server::run()
         // windows use curl http://<IP:port> targeted to any listening port
         // (uncomment below)
         // std::cout << "Connected clients:\n";
-        // for (size_t i = 0; i < clients.size(); i++)
+        // int n = 1;
+        // for (std::map<int, ClientConnection*>::iterator i = clients.begin(); i != clients.end(); ++i, n++)
         // {
-        //     ClientConnection * client = clients[i];
-        //     std::cout << "Client #" << i+1 << " socket: " << client->getFd() << " IP: " << client->getIp() 
+        //     ClientConnection * client = i->second;
+        //     std::cout << "Client #" << n << " socket: " << client->getFd() << " IP: " << client->getIp() 
         //     << " Port: " << client->getPort() << "\n";   
         // }
         // std::cout << "\n";
@@ -130,7 +131,7 @@ void Server::acceptNewConnections()
                 else if (savedErrno == EINTR)
                     continue;
                 else
-                    throw std::runtime_error("System failure while trying to accept a new client connection");
+                    std::cerr << "System failure while trying to accept a new client connection";
             }
 
             // set socket to non-blocking mode
@@ -145,8 +146,8 @@ void Server::acceptNewConnections()
             }
 
             // store the new connection
-            ClientConnection *newClient = new ClientConnection(clientSocket, clientAddress);
-            clients.push_back(newClient);
+            ClientConnection * newClient = new ClientConnection(clientSocket, clientAddress);
+            clients[clientSocket] = newClient;
         }
     }
 }
