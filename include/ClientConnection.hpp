@@ -7,6 +7,7 @@
 #include <sstream>
 #include <ctime>
 #include <iostream>
+#include "HttpParser.hpp"
 
 // class for managing a TCP-connection
 
@@ -41,5 +42,6 @@ class ClientConnection {
         time_t clientLastActive;
         bool readClosed;
 
-        //class httpParser to be added to each client
+        HttpParser httpParser;
+        HttpRequest & httpRequest; // refers to the parsed http request owned by parser for easier access
 };

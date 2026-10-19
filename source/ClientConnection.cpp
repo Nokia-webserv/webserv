@@ -2,9 +2,9 @@
 
 ClientConnection::ClientConnection(int fd,
 	sockaddr_in *addr) : clientSocket_fd(fd), addressInfo(addr),
-    writeOffset(0), clientLastActive(std::time(NULL)), readClosed(false)
-{
-}
+    writeOffset(0), clientLastActive(std::time(NULL)), readClosed(false),
+	httpRequest(httpParser.shareRequest())
+{}
 
 ClientConnection::~ClientConnection()
 {
