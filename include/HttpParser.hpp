@@ -32,18 +32,19 @@ struct HttpParsingResult
 
 class HttpParser {
     public:
-        HttpParser();
+        HttpParser(std::string & recvBuffer);
 
-        HttpParsingResult run(std::string & recvBuffer); // main function
+        HttpParsingResult run(); // main function
         void reset(); // for reuse
-        HttpRequest & shareRequest(); // getter of the http request, but allows to modify it - used by ClientConnection
+        HttpRequest & getRequest(); // getter of the http request that allows to modify it - used by ClientConnection
         // to initialize a reference to HttpRequest
+        void setStatus(HttpRequestStatus status); // setter (for testing)
     
     private:
-        HttpRequestStatus _checkHead(std::string & recvBuffer); // checks if head part is complete
-        HttpRequestStatus _checkBody(std::string & recvBuffer); // checks if body is complete
-        void _extractHead(std::string & recvBuffer); // extracts the head part from recvBuffer
-        void _extractBody(std::string & recvBuffer); // extreacts body from recvBuffer
+        HttpRequestStatus _checkHead(); // checks if head part is complete
+        HttpRequestStatus _checkBody(); // checks if body is complete
+        void _extractHead(); // extracts the head part from recvBuffer
+        void _extractBody(); // extreacts body from recvBuffer
         HttpRequestStatus _parseHead(); // parses and validates the head
         HttpRequestStatus _parseBody(); // parses and validates the body
         bool _hasBody(); // checks if http request has body
@@ -51,6 +52,7 @@ class HttpParser {
         HttpRequestStatus _status;
         HttpRequestError _error;
         size_t _scanPosition; // for incremental recvBuffer scanning
+        std::string & _recvBuffer; // reference to recvBuffer for easier access
         std::string _strExtractedRequest; // buffer for the http request extracted from recvBuffer
         HttpRequest _parsedRequest;
         HttpParsingResult _result; // value returned to TCP connection layer

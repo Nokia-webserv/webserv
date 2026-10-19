@@ -1,7 +1,7 @@
 #include "ClientConnection.hpp"
 
 ClientConnection::ClientConnection(int fd, sockaddr_in * addr)
-: clientSocket_fd(fd), addressInfo(addr), httpRequest(httpParser.shareRequest())
+: clientSocket_fd(fd), addressInfo(addr), httpParser(recvBuffer) ,httpRequest(httpParser.getRequest())
 {}
 
 ClientConnection::~ClientConnection()
@@ -32,4 +32,29 @@ std::string ClientConnection::getIp() const
 int ClientConnection::getPort() const
 {
     return ntohs(addressInfo->sin_port); // convert network byte order to host byte order
+}
+
+std::string ClientConnection::getBuffer() const
+{
+    return recvBuffer;
+}
+        
+HttpParser & ClientConnection::getParser()
+{
+    return httpParser;
+}
+
+HttpRequest & ClientConnection::getRequest()
+{
+    return httpRequest;
+}
+
+void ClientConnection::addRecvBuffer(std::string rawStr)
+{
+    recvBuffer.append(rawStr);
+}
+
+HttpParsingResult ClientConnection::callParser()
+{
+    return httpParser.run();
 }
