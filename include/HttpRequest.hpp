@@ -12,6 +12,7 @@ class HttpRequest {
         std::string _version;
         std::map<std::string, std::string> _headers;
         std::string _body;
+        
     public:
         //OCF
         HttpRequest();
@@ -35,6 +36,8 @@ class HttpRequest {
         void setVersion(const std::string& version);
         void setHeader(const std::string& key, const std::string& value);
         void setBody(const std::string& body);
+
+        void clear(); // to reuse the object for the next request
 };
 
 #endif

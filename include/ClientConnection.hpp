@@ -5,11 +5,9 @@
 #include <string>
 #include <netinet/in.h>
 #include <sstream>
-<<<<<<< HEAD
 #include <ctime>
 #include <iostream>
-=======
->>>>>>> b43f4a7 (added ClientConnection class)
+#include "HttpParser.hpp"
 
 // class for managing a TCP-connection
 
@@ -21,12 +19,22 @@ class ClientConnection {
         int getFd() const;
         std::string getIp() const;
         int getPort() const;
+        std::string getBuffer() const;
+        HttpParser & getParser();
+        HttpRequest & getRequest();
 
-<<<<<<< HEAD
+
         bool hasDataToSend();
         bool readData();
         bool writeData();
         void addDataToSend(const std::string &data);
+
+        void addRecvBuffer(std::string rawStr);
+        void clearBuffer();
+        HttpParsingResult callParser();
+
+        const HttpRequest& getHttpRequest() const;
+        const std::string& getRecvBuffer() const;
 
         bool isReadClosed();
         void setReadClosed();
@@ -46,14 +54,6 @@ class ClientConnection {
         bool readClosed;
 
         //class httpParser to be added to each client
+        HttpParser httpParser;
+        HttpRequest & httpRequest; // refers to the parsed http request owned by parser for easier access
 };
-=======
-    private:
-        int clientSocket_fd;
-        sockaddr_in * addressInfo;
-        //std::string buffer;
-        //class httpParser to be added to each client
-    
-    
-};
->>>>>>> b43f4a7 (added ClientConnection class)
