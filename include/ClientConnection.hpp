@@ -19,6 +19,12 @@ class ClientConnection {
         int getFd() const;
         std::string getIp() const;
         int getPort() const;
+        std::string getBuffer() const;
+        HttpParser & getParser();
+        HttpRequest & getRequest();
+
+        void addRecvBuffer(std::string rawStr);
+        HttpParsingResult callParser();
 
         bool hasDataToSend();
         bool readData();

@@ -3,7 +3,7 @@
 ClientConnection::ClientConnection(int fd,
 	sockaddr_in *addr) : clientSocket_fd(fd), addressInfo(addr),
     writeOffset(0), clientLastActive(std::time(NULL)), readClosed(false),
-	httpRequest(httpParser.shareRequest())
+ 	httpParser(recvBuffer) ,httpRequest(httpParser.getRequest())
 {}
 
 ClientConnection::~ClientConnection()
@@ -181,3 +181,28 @@ void ClientConnection::printReceivedData() const
     std::cout << "Received (" << recvBuffer.size()
               << " bytes): " << recvBuffer << std::endl;
 }*/
+
+std::string ClientConnection::getBuffer() const
+{
+    return recvBuffer;
+}
+        
+HttpParser & ClientConnection::getParser()
+{
+    return httpParser;
+}
+
+HttpRequest & ClientConnection::getRequest()
+{
+    return httpRequest;
+}
+
+void ClientConnection::addRecvBuffer(std::string rawStr)
+{
+    recvBuffer.append(rawStr);
+}
+
+HttpParsingResult ClientConnection::callParser()
+{
+    return httpParser.run();
+}
