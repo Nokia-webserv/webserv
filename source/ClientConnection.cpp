@@ -1,7 +1,7 @@
 #include "ClientConnection.hpp"
 
 ClientConnection::ClientConnection(int fd, sockaddr_in * addr)
-: clientSocket_fd(fd), addressInfo(addr)
+: clientSocket_fd(fd), addressInfo(addr), httpRequest(httpParser.shareRequest())
 {}
 
 ClientConnection::~ClientConnection()

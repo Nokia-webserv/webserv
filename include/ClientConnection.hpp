@@ -5,6 +5,7 @@
 #include <string>
 #include <netinet/in.h>
 #include <sstream>
+#include "HttpParser.hpp"
 
 // class for managing a TCP-connection
 
@@ -20,8 +21,7 @@ class ClientConnection {
     private:
         int clientSocket_fd;
         sockaddr_in * addressInfo;
-        //std::string buffer;
-        //class httpParser to be added to each client
-    
-    
+        std::string recvBuffer;
+        HttpParser httpParser;
+        HttpRequest & httpRequest; // refers to the parsed http request owned by parser for easier access
 };
