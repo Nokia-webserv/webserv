@@ -6,7 +6,7 @@
 /*   By: damohame <damohame@student.42berlin.d>     +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/10/02 16:24:47 by damohame          #+#    #+#             */
-/*   Updated: 2026/10/20 15:09:41 by damohame         ###   ########.fr       */
+/*   Updated: 2026/10/20 19:00:52 by damohame         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -36,6 +36,13 @@ class Server {
         std::vector<struct pollfd> poll_fds;
         Listener* findListenerByFd(int fd);
         static const int POLL_TIMEOUT_MS = 1000;
+        static const int CLIENT_TIMEOUT_SECONDS = 30;
+
+        void handleListenersEvents(Listener *listener, short revents);
+        void handleClientEvents(int fd, short revents);
+        void disconnectClient(int fd);
+        void checkClientTimeout();
+
 
     public:
         Server(const std::vector<ServerConfig>& configs);

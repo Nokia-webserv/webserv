@@ -6,11 +6,12 @@
 /*   By: damohame <damohame@student.42berlin.d>     +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/10/02 16:24:40 by damohame          #+#    #+#             */
-/*   Updated: 2026/10/20 16:39:42 by damohame         ###   ########.fr       */
+/*   Updated: 2026/10/20 18:42:16 by damohame         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
 #include "Server.hpp"
+#include <ctime>
 
 Server::Server(const std::vector<ServerConfig> &configs)
     : configs(configs)
@@ -97,8 +98,7 @@ void Server::run()
             throw std::runtime_error("No file descriptors available for poll()");
 
         int ready = poll(&poll_fds[0], poll_fds.size(), POLL_TIMEOUT_MS);
-        if (ready == 0)
-            continue;
+
         if (ready < 0)
         {
             //poll() was interrupted by a signal
@@ -118,71 +118,99 @@ void Server::run()
             Listener *listener = findListenerByFd(poll_fds[i].fd);
 
             if (listener != NULL)
-            {
-                if (poll_fds[i].revents & (POLLERR | POLLHUP | POLLNVAL))
-                    throw std::runtime_error("Listening socket poll error");
-                 // if there is an event == POLLIN on the listener
-                 // accept client
-                if (poll_fds[i].revents & POLLIN)
-                    acceptNewConnections(listener);
-            }
+                handleListenersEvents(listener, poll_fds[i].revents);
             else
             {
                 // if not listener than client
                 // get the client with the right fd
-                std::map<int, ClientConnection*>::iterator client = clients.find(poll_fds[i].fd);
-                if (client != clients.end())
-                {
-                    if (poll_fds[i].revents & (POLLERR | POLLHUP | POLLNVAL))
-                    {
-                        delete client->second;
-                        clients.erase(client);
-                        continue;
-                    }
-                    // client has data to be read
-                    if (poll_fds[i].revents & POLLIN)
-                    {
-                        // if true the recvBuffer will contain the data
-                        // if not true remove the client(closed connection/ failed)
-                        if (!client->second->readData())
-                        {
-                            delete client->second;
-                            clients.erase(client);
-                            continue;
-                        }
-
-                    }
-                    // client socket is ready for the server to send pending data
-                    if (poll_fds[i].revents & POLLOUT)
-                    {
-                        if (!client->second->writeData())
-                        {
-                            delete client->second;
-                            clients.erase(client);
-                            continue;
-                        }
-                    }
-                }
+               handleClientEvents(poll_fds[i].fd, poll_fds[i].revents);
             }
     
         }
-        
-		// Testing:
-        
-		// to test accepting of new connections run the server and in separate terminal
-		// windows use curl http://<IP:port> targeted to any listening port
-		// (uncomment below)
-		// std::cout << "Connected clients:\n";
-        // int n = 1;
-        // for (std::map<int, ClientConnection*>::iterator i = clients.begin(); i != clients.end(); ++i, n++)
-        // {
-        //     ClientConnection * client = i->second;
-        //     std::cout << "Client #" << n << " socket: " << client->getFd() << " IP: " << client->getIp() 
-        //     << " Port: " << client->getPort() << "\n";
-		// }
-		// std::cout << "\n";
-		// sleep(1);
+        checkClientTimeout();
 	}
+}
+
+
+
+// handle events for listening sockets
+void Server::handleListenersEvents(Listener *listener, short revents)
+{
+    if (revents & (POLLERR | POLLHUP | POLLNVAL))
+            throw std::runtime_error("Listening socket poll error");
+    // if there is an event == POLLIN on the listener
+    // accept client
+    if (revents & POLLIN)
+        acceptNewConnections(listener);
+}
+
+void Server::handleClientEvents(int fd, short revents)
+{
+    std::map<int, ClientConnection*>::iterator client = clients.find(fd);
+    if (client != clients.end())
+    {
+        if (revents & (POLLERR | POLLHUP | POLLNVAL))
+        {
+            disconnectClient(fd);
+            return;
+        }
+        // client has data to be read
+        if (revents & POLLIN)
+        {
+        // if true the recvBuffer will contain the data
+        // if not true remove the client(closed connection/ failed)
+            if (!client->second->readData())
+            {
+                disconnectClient(fd);
+                return;
+            }
+        }
+        
+        // client socket is ready for the server to send pending data
+        if (revents & POLLOUT)
+        {
+            if (!client->second->writeData())
+            {
+                disconnectClient(fd);
+                return;
+            }
+        }
+    }
+}
+
+// Removes and cleans up a client connection by its fd.
+void Server::disconnectClient(int fd)
+{
+    // get the client with the gived fd
+    std::map<int, ClientConnection*>::iterator client = clients.find(fd);
+    // if not found, return
+    if (client == clients.end())
+        return;
+    // else clean
+    delete client->second;
+    clients.erase(client);
+}
+
+// check all connected clients
+// find inactive ones
+// disconnect them
+void Server::checkClientTimeout()
+{
+    // get the current time to compare
+    time_t now = std::time(NULL);
+    // temp vector
+    std::vector<int> timedOutClients;
+    // loop on every client
+    for (std::map<int, ClientConnection*>::iterator it = clients.begin();
+         it != clients.end(); ++it)
+    {
+        // inactive time calculation, add in the vector
+        if (now - it->second->getClientLastActive() > CLIENT_TIMEOUT_SECONDS)
+            timedOutClients.push_back(it->first);
+    }
+    // disconnect all the timedout client from the server
+    for (size_t i = 0; i < timedOutClients.size(); ++i)
+        disconnectClient(timedOutClients[i]);   
 }
 
 // build the pollfd struct to match the poll events and builtin format
