@@ -1,7 +1,8 @@
 #include "HttpParser.hpp"
 
 HttpParser::HttpParser(std::string & recvBuffer)
-: _status(INCOMPLETE_HEAD), _error(NO_ERROR), _scanPosition(0), _recvBuffer(recvBuffer), _result(_status, _error)
+: _status(INCOMPLETE_HEAD), _error(NO_ERROR), _scanPosition(0), _recvBuffer(recvBuffer), _result(_status, _error),
+_r1(false), _n1(false), _r2(false), _n2(false)
 {}
 
 HttpParsingResult HttpParser::run()
@@ -34,9 +35,14 @@ HttpParsingResult HttpParser::run()
 void HttpParser::reset()
 {
     _status = INCOMPLETE_HEAD;
+    _error = NO_ERROR;
     _scanPosition = 0;
     _strExtractedRequest.clear();
     _parsedRequest.clear();
+    _r1 = false;
+    _n1 = false;
+    _r2 = false;
+    _n2 = false;
 }
 
 HttpRequest & HttpParser::getRequest()
@@ -44,32 +50,221 @@ HttpRequest & HttpParser::getRequest()
     return _parsedRequest;
 }
 
+// header max size!
 HttpRequestStatus HttpParser::_checkHead()
 {
-    // read buffer
-    // validate the read part (incremental framing validation)
-    // save where it stopped in _scanPosition
-    // return the status (COMPLETE, INCOMPLETE_HEAD, ERROR) accordingly
-    return (HttpRequestStatus)0;
+    size_t pos;
+    for (pos = _scanPosition; pos < _recvBuffer.size(); pos++)
+    {
+        char c = _recvBuffer.c_str()[pos];
+        switch (c)
+        {
+            case '\r':
+            {
+                if (!_r1)
+                    _r1 = true;
+                else if (_n1 && !_r2)
+                    _r2 = true;
+                else
+                {
+                    _status = ERROR;
+                    _error = BAD_REQUEST;
+                }
+                break;
+            }
+            case '\n':
+            {
+                if (_r1 && !_n1)
+                    _n1 = true;
+                else if (_r2 && !_n2)
+                {
+                    _n2 = true;
+                    _status = COMPLETE;
+                }
+                else
+                {
+                    _status = ERROR;
+                    _error = BAD_REQUEST;
+                }
+                break;
+            }
+            default:
+            {
+                if ((_r1 && !_n1) || (_r2 && !_n2))
+                {
+                    _status = ERROR;
+                    _error = BAD_REQUEST;
+                }
+                _r1 = false;
+                _n1 = false;
+                _r2 = false;
+                _n2 = false;
+                break;
+            }
+        }
+        if (_status == COMPLETE || _status == ERROR)
+            break;
+    }
+    _scanPosition = pos;
+    return _status;
 }
 
 void HttpParser::_extractHead()
 {
-    // cut the read buffer where the complete head ends and paste it to _strExtractedRequest
-    // reset _scanPosition
+    std::string head = _recvBuffer.substr(0, _scanPosition + 1);
+    _strExtractedRequest.append(head);
+    _recvBuffer.erase(0, _scanPosition + 1);
+    _scanPosition = 0;
 }
 
 HttpRequestStatus HttpParser::_parseHead()
 {
-    // parse and validate the head (structural and semantic validation)
-    // return COMPLETE on success and ERROR otherwise
-    return (HttpRequestStatus)0;
+    if (!_parseRequestLine() || !_parseHeaders())
+    {
+        _error = BAD_REQUEST;
+        return ERROR;
+    }
+    return COMPLETE;
+}
+
+bool extractToken(std::string & source, std::string delimiter, std::string & destination)
+{
+    size_t dLen = delimiter.size();
+    
+    if (!dLen)
+    {
+        destination.append(source);
+        source.clear();
+        return true;
+    }
+    
+    size_t dPos = source.find(delimiter);
+    
+    if (dPos == std::string::npos)
+        return false;
+
+    destination = source.substr(0, dPos);
+    source.erase(0, dPos + dLen);
+    return true;
+}
+
+bool HttpParser::_parseRequestLine()
+{
+    std::string requestLine;
+
+    if (!extractToken(_strExtractedRequest, "\r\n", requestLine))
+        return false;
+
+    std::string temp;
+    
+    if (!extractToken(requestLine, " ", temp))
+        return false;
+    _parsedRequest.setMethod(temp);
+
+    std::string pathAndQuery;
+    if (!extractToken(requestLine, " ", pathAndQuery))
+        return false;
+
+    if (extractToken(pathAndQuery, "?", temp))
+    {
+        _parsedRequest.setPath(temp);
+        _parsedRequest.setQuery(pathAndQuery);
+    }
+    else
+        _parsedRequest.setPath(pathAndQuery);
+
+    _parsedRequest.setVersion(requestLine);
+    requestLine.clear();
+
+    return _validateRequestLine();
+}
+
+bool HttpParser::_validateRequestLine() const
+{
+    if (_parsedRequest.getMethod() != "POST" && _parsedRequest.getMethod() != "GET" && _parsedRequest.getMethod() != "DELETE")
+        return false;
+
+    if (_parsedRequest.getPath().empty() || _parsedRequest.getPath().c_str()[0] != '/')
+        return false;
+
+    if (_parsedRequest.getVersion() != "HTTP/1.0" && _parsedRequest.getVersion() != "HTTP/1.1")
+        return false;
+
+    return true;
+}
+
+void trimValue(std::string & value)
+{
+    while (!value.empty() && value.find_first_of(" \t") == 0)
+        value.erase(0, 1);
+}
+
+bool HttpParser::_parseHeaders()
+{
+    std::string name;
+    std::string value;
+
+    while (_strExtractedRequest != "\r\n")//!? dangerous but guaranteed. checkHead should guarantee a proper ending with \r\n\r\n so infinite loop must be excluded
+    {
+        if (!extractToken(_strExtractedRequest, ":", name))
+            return false;
+        if (!extractToken(_strExtractedRequest, "\r\n", value))
+            return false;
+
+        trimValue(value);
+        if (!_validateHeaders(name, value))
+            return false;
+        _parsedRequest.setHeader(name, value);
+    }
+    if (_parsedRequest.getVersion() == "HTTP/1.1")
+    {
+        if (_parsedRequest.getHeader("Host").empty())
+            return false;
+    }
+    return true;
+}
+
+bool isSameHeader(std::string A, std::string B)
+{
+    for (size_t i = 0; i < A.size() && i < B.size(); i++)
+    {
+        std::tolower(A.c_str()[i]);
+        std::tolower(B.c_str()[i]);
+    }
+    return A == B;
+}
+
+bool HttpParser::_validateHeaders(std::string name, std::string value) const
+{
+    std::string charsAllowedInName =
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+        "abcdefghijklmnopqrstuvwxyz"
+        "0123456789"
+        "!#$%&'*+-.^_`|~";
+
+    if 
+    (
+        name.empty() ||
+        name.find_first_not_of(charsAllowedInName) ||
+        value.find_first_not_of("\r\n") ||
+        (isSameHeader(name, "Content-Length") && value.find_first_not_of("0123456789"))
+    )
+        return false;
+
+    if (isSameHeader(name, "Host") || isSameHeader(name, "Content-Length"))
+    {
+        if (!_parsedRequest.getHeader(name).empty())
+            return false;
+    }
+    
+    return true;
 }
 
 bool HttpParser::_hasBody()
 {
-    // determine if http request has body
-    return 0;
+    if (!_parsedRequest.getHeader("Content-Length").empty())
+        return false;
+    return true;
 }
 
 HttpRequestStatus HttpParser::_checkBody()
