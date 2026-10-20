@@ -17,11 +17,15 @@ class ClientConnection {
         std::string getIp() const;
         int getPort() const;
 
+        bool hasDataToSend();
+        bool readData();
+        bool writeData();
+
     private:
         int clientSocket_fd;
         sockaddr_in * addressInfo;
-        //std::string buffer;
+
+        std::string sendBuffer;
+        std::string recvBuffer;
         //class httpParser to be added to each client
-    
-    
 };
