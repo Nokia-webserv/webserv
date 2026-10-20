@@ -42,8 +42,19 @@ std::string HttpRequest::getVersion() const {
 const std::map<std::string, std::string>& HttpRequest::getHeaders() const {
     return _headers;
 }
+
+std::string keyTolower(std::string key)
+{
+    std::string keyLowerCase;
+
+    for (size_t i = 0; i < key.size(); i++)
+        keyLowerCase.append(1, std::tolower(key.c_str()[i]));
+    
+    return keyLowerCase;
+}
+
 std::string HttpRequest::getHeader(const std::string& key) const {
-    std::map<std::string, std::string>::const_iterator it = _headers.find(key);
+    std::map<std::string, std::string>::const_iterator it = _headers.find(keyTolower(key));
 
     if (it != _headers.end()) {
         return it->second;
@@ -69,7 +80,7 @@ void HttpRequest::setVersion(const std::string& version) {
     _version = version;
 }
 void HttpRequest::setHeader(const std::string& key, const std::string& value) {
-    _headers[key] = value;
+    _headers[keyTolower(key)] = value;
 }
 void HttpRequest::setBody(const std::string& body) {
     _body = body;
