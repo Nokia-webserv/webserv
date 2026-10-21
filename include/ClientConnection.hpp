@@ -6,6 +6,7 @@
 #include <netinet/in.h>
 #include <sstream>
 #include <ctime>
+#include <iostream>
 
 // class for managing a TCP-connection
 
@@ -25,6 +26,8 @@ class ClientConnection {
 
         time_t getClientLastActive() const;
         void updateLastActive();
+        // testing
+        //void printReceivedData() const;
 
     private:
         int clientSocket_fd;
@@ -34,5 +37,6 @@ class ClientConnection {
         std::string::size_type writeOffset;
         std::string recvBuffer;
         time_t clientLastActive;
+
         //class httpParser to be added to each client
 };

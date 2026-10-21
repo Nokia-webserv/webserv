@@ -6,7 +6,7 @@
 /*   By: damohame <damohame@student.42berlin.d>     +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/10/02 16:24:47 by damohame          #+#    #+#             */
-/*   Updated: 2026/10/20 19:00:52 by damohame         ###   ########.fr       */
+/*   Updated: 2026/10/21 15:34:14 by damohame         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -42,7 +42,6 @@ class Server {
         void handleClientEvents(int fd, short revents);
         void disconnectClient(int fd);
         void checkClientTimeout();
-
 
     public:
         Server(const std::vector<ServerConfig>& configs);

@@ -59,6 +59,20 @@ bool ClientConnection::readData()
 			static_cast<std::string::size_type>(bytesToRead));
         // update the time of the client last active
         updateLastActive();
+		// testing
+		/*std::cout << "Client FD: " << clientSocket_fd
+        << " | Total received: " << recvBuffer.size()
+        << " bytes"
+		<< " | First character: " << recvBuffer[0] << std::endl;*/
+		// testing 
+		// TEMPORARY: Echo received data back to the client
+		/*addDataToSend(std::string(buffer,
+            	static_cast<std::string::size_type>(bytesToRead)));*/
+		// TEMPORARY: Queue 10 MB only for the first received data
+		/*if (recvBuffer.size() == static_cast<std::string::size_type>(bytesToRead))
+		{
+   			addDataToSend(std::string(10 * 1024 * 1024, 'X'));
+		}*/
 		return (true);
 	}
     if (bytesToRead == 0)
@@ -97,6 +111,14 @@ bool ClientConnection::writeData()
         sendBuffer.size() - writeOffset, 0);
 	if (bytesToWrite > 0)
 	{
+		// TEMPORARY: Test partial writes
+       /*std::cout << "FD: " << clientSocket_fd
+                  << " | Requested: " << (sendBuffer.size() - writeOffset)
+                  << " | Sent: " << bytesToWrite
+                  << " | Remaining: "
+                  << (sendBuffer.size() - writeOffset - bytesToWrite)
+                  << std::endl;*/
+
         writeOffset +=
             static_cast<std::string::size_type>(bytesToWrite);
 		// update the time of the client last active
@@ -112,11 +134,11 @@ bool ClientConnection::writeData()
 	return (false);
 }
 
+
 void ClientConnection::addDataToSend(const std::string &data)
 {
 	sendBuffer += data;
 }
-
 // return the lastactive for a client
 time_t ClientConnection::getClientLastActive() const
 {
@@ -129,3 +151,17 @@ void ClientConnection::updateLastActive()
 {
     clientLastActive = std::time(NULL);
 }
+
+
+// testing
+// uncommnet bellow
+/*
+void ClientConnection::printReceivedData() const
+{
+    std::cout << "Client FD: " << clientSocket_fd << std::endl;
+    std::cout << "Received (" << recvBuffer.size()
+              << " bytes): " << recvBuffer << std::endl;
+	std::cout << "Client FD: " << clientSocket_fd << std::endl;
+    std::cout << "Received (" << recvBuffer.size()
+              << " bytes): " << recvBuffer << std::endl;
+}*/

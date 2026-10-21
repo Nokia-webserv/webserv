@@ -6,7 +6,7 @@
 /*   By: damohame <damohame@student.42berlin.d>     +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/10/02 16:24:40 by damohame          #+#    #+#             */
-/*   Updated: 2026/10/20 18:42:16 by damohame         ###   ########.fr       */
+/*   Updated: 2026/10/21 15:33:25 by damohame         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -144,12 +144,17 @@ void Server::handleListenersEvents(Listener *listener, short revents)
         acceptNewConnections(listener);
 }
 
+
+// POLLERR (Socket error)
+// POLLNVAL (Invalid file descriptor)
+// POLLHUP ( Connection hangup)
 void Server::handleClientEvents(int fd, short revents)
 {
     std::map<int, ClientConnection*>::iterator client = clients.find(fd);
     if (client != clients.end())
     {
-        if (revents & (POLLERR | POLLHUP | POLLNVAL))
+        // socket + invalid fd errors
+        if (revents & (POLLERR | POLLNVAL))
         {
             disconnectClient(fd);
             return;
@@ -164,8 +169,15 @@ void Server::handleClientEvents(int fd, short revents)
                 disconnectClient(fd);
                 return;
             }
+            // Testing
+            //client->second->printReceivedData();
         }
-        
+        // connection hangup  after taking the data
+        else if (revents & POLLHUP)
+        {
+            disconnectClient(fd);
+            return;
+        }
         // client socket is ready for the server to send pending data
         if (revents & POLLOUT)
         {
@@ -186,6 +198,8 @@ void Server::disconnectClient(int fd)
     // if not found, return
     if (client == clients.end())
         return;
+    // testing
+    //std::cout << "Client disconnected: fd=" << fd << std::endl;
     // else clean
     delete client->second;
     clients.erase(client);
@@ -204,9 +218,17 @@ void Server::checkClientTimeout()
     for (std::map<int, ClientConnection*>::iterator it = clients.begin();
          it != clients.end(); ++it)
     {
+        time_t inactiveSeconds = now - it->second->getClientLastActive();
+
         // inactive time calculation, add in the vector
-        if (now - it->second->getClientLastActive() > CLIENT_TIMEOUT_SECONDS)
+        if (inactiveSeconds >= CLIENT_TIMEOUT_SECONDS)
+        {
+            //testing
+            /*std::cout << "Client FD: " << it->first << " timed out after " 
+            << inactiveSeconds << " seconds" << std::endl;*/
+            
             timedOutClients.push_back(it->first);
+        }
     }
     // disconnect all the timedout client from the server
     for (size_t i = 0; i < timedOutClients.size(); ++i)
