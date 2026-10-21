@@ -53,10 +53,10 @@ HttpRequest & HttpParser::getRequest()
 // header max size!
 HttpRequestStatus HttpParser::_checkHead()
 {
-    size_t pos;
+    size_t pos = 0;
     for (pos = _scanPosition; pos < _recvBuffer.size(); pos++)
     {
-        char c = _recvBuffer.c_str()[pos];
+        char c = _recvBuffer[pos];
         switch (c)
         {
             case '\r':
@@ -184,7 +184,7 @@ bool HttpParser::_validateRequestLine() const
     if (_parsedRequest.getMethod() != "POST" && _parsedRequest.getMethod() != "GET" && _parsedRequest.getMethod() != "DELETE")
         return false;
 
-    if (_parsedRequest.getPath().empty() || _parsedRequest.getPath().c_str()[0] != '/')
+    if (_parsedRequest.getPath().empty() || _parsedRequest.getPath()[0] != '/')
         return false;
 
     if (_parsedRequest.getVersion() != "HTTP/1.0" && _parsedRequest.getVersion() != "HTTP/1.1")
@@ -197,6 +197,8 @@ void trimValue(std::string & value)
 {
     while (!value.empty() && value.find_first_of(" \t") == 0)
         value.erase(0, 1);
+    while (!value.empty() && (value[value.size()-1] == ' ' || value[value.size()-1] == '\t'))
+        value.erase(value.size() - 1);
 }
 
 bool HttpParser::_parseHeaders()
@@ -210,28 +212,14 @@ bool HttpParser::_parseHeaders()
             return false;
         if (!extractToken(_strExtractedRequest, "\r\n", value))
             return false;
-
         trimValue(value);
+
         if (!_validateHeaders(name, value))
             return false;
         _parsedRequest.setHeader(name, value);
     }
-    if (_parsedRequest.getVersion() == "HTTP/1.1")
-    {
-        if (_parsedRequest.getHeader("Host").empty())
-            return false;
-    }
-    return true;
-}
 
-bool isSameHeader(std::string A, std::string B)
-{
-    for (size_t i = 0; i < A.size() && i < B.size(); i++)
-    {
-        std::tolower(A.c_str()[i]);
-        std::tolower(B.c_str()[i]);
-    }
-    return A == B;
+    return _headersPostValidation();
 }
 
 bool HttpParser::_validateHeaders(std::string name, std::string value) const
@@ -243,26 +231,58 @@ bool HttpParser::_validateHeaders(std::string name, std::string value) const
         "!#$%&'*+-.^_`|~";
 
     if 
-    (
+        (
         name.empty() ||
-        name.find_first_not_of(charsAllowedInName) ||
-        value.find_first_not_of("\r\n") ||
-        (isSameHeader(name, "Content-Length") && value.find_first_not_of("0123456789"))
-    )
-        return false;
+        name.find_first_not_of(charsAllowedInName) != std::string::npos ||
+        value.find_first_of("\r\n") != std::string::npos ||
+        (
+            strTolower(name) == "content-length" && 
+            (value.find_first_not_of("0123456789") != std::string::npos || value.empty())
+        )
+        )
+            return false;
 
-    if (isSameHeader(name, "Host") || isSameHeader(name, "Content-Length"))
+    if (strTolower(name) == "host" || strTolower(name) == "content-length")
     {
-        if (!_parsedRequest.getHeader(name).empty())
+        const std::map<std::string, std::string> & headers = _parsedRequest.getHeaders();
+        if (headers.find(strTolower(name)) != headers.end()) 
             return false;
     }
     
     return true;
 }
 
+bool HttpParser::_headersPostValidation() const
+{
+    const std::map<std::string, std::string> & headers = _parsedRequest.getHeaders();
+    
+    if (headers.find("content-length") != headers.end())
+    {   
+        size_t tempClientMaxBodySize = 2000;
+        
+        IntLongOverflow length = strToIntLongOverflow(headers.find("content-length")->second, "long");
+        if (length.overflow != 1 || length.number > tempClientMaxBodySize)
+            return false;
+    }
+
+    if (headers.find("content-length") != headers.end() && headers.find("transfer-encoding") != headers.end())
+        return false;
+
+    if (_parsedRequest.getVersion() == "HTTP/1.1")
+    {
+        if (headers.find("host") == headers.end())
+            return false;
+        if (headers.find("host")->second.empty())
+            return false;
+    }
+    return true;
+}
+
 bool HttpParser::_hasBody()
 {
-    if (!_parsedRequest.getHeader("Content-Length").empty())
+    const std::map<std::string, std::string> & headers = _parsedRequest.getHeaders();
+
+    if (headers.find("content-length") == headers.end() || strToIntLongOverflow(headers.find("content-length")->second, "long").number == 0)
         return false;
     return true;
 }
