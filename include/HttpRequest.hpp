@@ -3,6 +3,7 @@
 
 #include <string>
 #include <map>
+#include "utils.hpp"
 
 class HttpRequest {
     private:
@@ -26,7 +27,7 @@ class HttpRequest {
         std::string getQuery() const;
         std::string getVersion() const;
         const std::map<std::string, std::string>& getHeaders() const;
-        std::string getHeader(const std::string& key) const;
+        //std::string getHeader(const std::string& key) const; has a bug
         std::string getBody() const;
 
         //setters
