@@ -1,7 +1,7 @@
 #pragma once
 
 #include "HttpRequest.hpp"
-#include <sstream>
+#include "utils.hpp"
 
 enum HttpRequestStatus
 {
@@ -53,6 +53,7 @@ class HttpParser {
         bool _validateRequestLine() const;
         bool _parseHeaders();
         bool _validateHeaders(std::string name, std::string value) const;
+        bool _headersPostValidation() const;
 
         HttpRequestStatus _status;
         HttpRequestError _error;
@@ -67,4 +68,6 @@ class HttpParser {
         bool _r2;
         bool _n2;
 };
+
+
 
