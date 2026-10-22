@@ -1,0 +1,5 @@
+GET /search? HTTP/1.1
+Host: example.com
+Accept: text/html
+User-Agent: test-client
+
