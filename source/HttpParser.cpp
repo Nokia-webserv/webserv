@@ -258,7 +258,7 @@ bool HttpParser::_headersPostValidation() const
     
     if (headers.find("content-length") != headers.end())
     {   
-        size_t tempClientMaxBodySize = 2000;
+        long tempClientMaxBodySize = 2000;
         
         IntLongOverflow length = strToIntLongOverflow(headers.find("content-length")->second, "long");
         if (length.overflow != 1 || length.number > tempClientMaxBodySize)
