@@ -7,9 +7,11 @@ _r1(false), _n1(false), _r2(false), _n2(false)
 
 HttpParsingResult HttpParser::run()
 {   
+    std::cout << "_status = " << _status << " (0 - incompl. head, 1 - incompl. body, 2 - complete, 3 - error)\n"; // Debug
     if (_status == INCOMPLETE_HEAD) // recvBuffer hasn't received a complete head yet
     {
         _status = _checkHead(); // scan recvBuffer to check if the head is complete
+        std::cout << "head _status = " << _status << " (0 - incompl. head, 1 - incompl. body, 2 - complete, 3 - error)\n"; // Debug
         if (_status == COMPLETE) // head is complete
         {
             _extractHead(); // move head section from recvBuffer to http parser's buffer
@@ -19,6 +21,8 @@ HttpParsingResult HttpParser::run()
         }
     }
     
+    std::cout << "_status = " << _status << " (0 - incompl. head, 1 - incompl. body, 2 - complete, 3 - error)\n"; // Debug
+
     if (_status == INCOMPLETE_BODY)
     {
         _status = _checkBody();
@@ -53,6 +57,8 @@ HttpRequest & HttpParser::getRequest()
 // header max size!
 HttpRequestStatus HttpParser::_checkHead()
 {
+    std::cout << "checking the head\n\n"; // Debug
+    std::cout << "start _scan position = " << _scanPosition << "\n";
     size_t pos = 0;
     for (pos = _scanPosition; pos < _recvBuffer.size(); pos++)
     {
@@ -106,24 +112,50 @@ HttpRequestStatus HttpParser::_checkHead()
             break;
     }
     _scanPosition = pos;
+    std::cout << "end _scan position = " << _scanPosition << "\n"; // Debug
     return _status;
 }
 
 void HttpParser::_extractHead()
 {
+    std::cout << "extracting the head\n\n";
+    std::cout << "recvBuffer state before:\n";
+    std::cout << "---\n";
+    std::cout << _recvBuffer;
+    std::cout << "\n---\n";
+    std::cout << "http buffer state before:\n";
+    std::cout << "---\n";
+    std::cout << _strExtractedRequest;
+    std::cout << "\n---\n";
+
     std::string head = _recvBuffer.substr(0, _scanPosition + 1);
     _strExtractedRequest.append(head);
     _recvBuffer.erase(0, _scanPosition + 1);
     _scanPosition = 0;
+
+    std::cout << "recvBuffer state after:\n";
+    std::cout << "---\n";
+    std::cout << _recvBuffer;
+    std::cout << "\n---\n";
+    std::cout << "http buffer state after:\n";
+    std::cout << "---\n";
+    std::cout << _strExtractedRequest;
+    std::cout << "\n---\n\n";    
 }
 
 HttpRequestStatus HttpParser::_parseHead()
 {
+    std::cout << "parsing the head\n\n"; // Debug
+    
     if (!_parseRequestLine() || !_parseHeaders())
     {
+        std::cout << "Head validation failed\n"; // Debug
+        std::cout << "_status = " << _status << " (0 - incompl. head, 1 - incompl. body, 2 - complete, 3 - error)\n\n"; // Debug
         _error = BAD_REQUEST;
         return ERROR;
     }
+    std::cout << "Head validation successful\n"; // Debug
+    std::cout << "_status = " << _status << " (0 - incompl. head, 1 - incompl. body, 2 - complete, 3 - error)\n\n"; // Debug
     return COMPLETE;
 }
 
@@ -150,11 +182,14 @@ bool extractToken(std::string & source, std::string delimiter, std::string & des
 
 bool HttpParser::_parseRequestLine()
 {
+    std::cout << "parsing request line\n\n"; // Debug
+    
     std::string requestLine;
 
     if (!extractToken(_strExtractedRequest, "\r\n", requestLine))
         return false;
-
+    std::cout << "Extracted request line: " << requestLine << "\n\n"; // Debug
+    
     std::string temp;
     
     if (!extractToken(requestLine, " ", temp))
@@ -176,6 +211,12 @@ bool HttpParser::_parseRequestLine()
     _parsedRequest.setVersion(requestLine);
     requestLine.clear();
 
+    std::cout << "Result:\n"; // Debug
+    std::cout << "Method: " << _parsedRequest.getMethod() << "\n";
+    std::cout << "Path: " << _parsedRequest.getPath() << "\n";
+    std::cout << "Query: " << _parsedRequest.getQuery() << "\n";
+    std::cout << "Version: " << _parsedRequest.getVersion() << "\n\n";
+
     return _validateRequestLine();
 }
 
@@ -193,26 +234,32 @@ bool HttpParser::_validateRequestLine() const
     return true;
 }
 
-void trimValue(std::string & value)
-{
-    while (!value.empty() && value.find_first_of(" \t") == 0)
-        value.erase(0, 1);
-    while (!value.empty() && (value[value.size()-1] == ' ' || value[value.size()-1] == '\t'))
-        value.erase(value.size() - 1);
-}
-
 bool HttpParser::_parseHeaders()
 {
+    std::cout << "parsing headers\n\n"; // Debug
+    
     std::string name;
     std::string value;
 
     while (_strExtractedRequest != "\r\n")//!? dangerous but guaranteed. checkHead should guarantee a proper ending with \r\n\r\n so infinite loop must be excluded
     {
+        std::cout << "http buffer state:\n"; // Debug
+        std::cout << "---\n";
+        std::cout << _strExtractedRequest;
+        std::cout << "\n---\n";
+        
         if (!extractToken(_strExtractedRequest, ":", name))
             return false;
         if (!extractToken(_strExtractedRequest, "\r\n", value))
             return false;
-        trimValue(value);
+
+        std::cout << "extracting tokens\n\n"; // Debug
+        std::cout << "Name: \"" << name << "\"\n";
+        std::cout << "Value: \"" << value << "\"\n";
+
+        trimStr(value);
+
+        std::cout << "Trimmed value: \"" << value << "\"\n\n";
 
         if (!_validateHeaders(name, value))
             return false;
