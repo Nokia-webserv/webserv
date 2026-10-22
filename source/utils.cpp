@@ -17,7 +17,7 @@ std::string strTolower(std::string str)
 
 IntLongOverflow strToIntLongOverflow(const std::string & type, const std::string & s_number)
 {
-    IntLongOverflow result = {0};
+    IntLongOverflow result = {0, 0};
     long limit_a;
     long limit_b;
     int sign;
@@ -77,7 +77,7 @@ IntLongOverflow strToIntLongOverflow(const std::string & type, const std::string
     {
         size_t extent = s_number.size() - i - 1;
         long multiplier = 1;
-        for (int m = 0; m < extent; m++)
+        for (size_t m = 0; m < extent; m++)
         {
             if (multiplier * sign > limit_a / 10 || multiplier * sign < limit_b / 10)
             {
@@ -92,7 +92,7 @@ IntLongOverflow strToIntLongOverflow(const std::string & type, const std::string
             result.overflow = 0;
             return result;
         }
-        long temp = multiplier * digit * sign;
+        long temp = multiplier * sign * digit;
         if ((sign == 1 && l_number > limit_a -  temp) || (sign == -1 && l_number < limit_b - temp))
         {
             result.overflow = 0;
