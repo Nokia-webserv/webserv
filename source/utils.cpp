@@ -105,3 +105,11 @@ IntLongOverflow strToIntLongOverflow(const std::string & type, const std::string
     result.number = l_number;
     return result;
 }
+
+void trimStr(std::string & value)
+{
+    while (!value.empty() && value.find_first_of(" \t") == 0)
+        value.erase(0, 1);
+    while (!value.empty() && (value[value.size()-1] == ' ' || value[value.size()-1] == '\t'))
+        value.erase(value.size() - 1);
+}
