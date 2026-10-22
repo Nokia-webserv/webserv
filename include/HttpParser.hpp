@@ -2,6 +2,7 @@
 
 #include "HttpRequest.hpp"
 #include "utils.hpp"
+#include <iostream>
 
 enum HttpRequestStatus
 {
