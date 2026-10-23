@@ -44,6 +44,7 @@ class Configs {
 
         // Converts configuration text into tokens.
         void tokenizeContent();
+        void cleanTokens();
 
         void addWord(std::string &word, int line);
 
