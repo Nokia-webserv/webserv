@@ -1,6 +1,8 @@
 #pragma once
 
 #include "HttpRequest.hpp"
+#include "utils.hpp"
+#include <iostream>
 
 enum HttpRequestStatus
 {
@@ -48,6 +50,11 @@ class HttpParser {
         HttpRequestStatus _parseHead(); // parses and validates the head
         HttpRequestStatus _parseBody(); // parses and validates the body
         bool _hasBody(); // checks if http request has body
+        bool _parseRequestLine(); // parses request line
+        bool _validateRequestLine() const; // validates request line
+        bool _parseHeaders(); // parses headers
+        bool _validateHeaders(std::string name, std::string value) const; // validates headers
+        bool _headersPostValidation() const; // provides additional validation on headers
 
         HttpRequestStatus _status;
         HttpRequestError _error;
@@ -56,5 +63,13 @@ class HttpParser {
         std::string _strExtractedRequest; // buffer for the http request extracted from recvBuffer
         HttpRequest _parsedRequest;
         HttpParsingResult _result; // value returned to TCP connection layer
+
+        // booleans for CRLF validation
+        bool _r1;
+        bool _n1;
+        bool _r2;
+        bool _n2;
 };
+
+
 
