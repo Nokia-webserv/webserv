@@ -8,7 +8,8 @@ INCLUDES = -Iinclude
 SRCS = source/main.cpp \
        source/Server.cpp \
        source/tempServerConfig.cpp \
-       source/Listener.cpp
+       source/Listener.cpp \
+	   source/ClientConnection.cpp
 
 OBJS = $(SRCS:.cpp=.o)
 
