@@ -1,18 +1,25 @@
 
 #include "Configs.hpp"
 #include <fstream>
+#include <sstream>
 #include <iostream>
 #include <cctype>
+#include <cstdlib>
+#include <cerrno>
+#include <stdexcept>
+#include <climits>
 
 // creates an object which reads and parses the file
-Configs::Configs(const std::string & configFileName) : configFileName(configFileName)
+Configs::Configs(const std::string & configFileName) : configFileName(configFileName), 
+            tokenIndex(0)
 {
     readConfigFile();
     parseConfigFile();
 }
 
 
-//----------- Read File Format  
+//----------- 1. Read Config File -----------
+
 // the fileContent will contain all the file raw data
 
 void Configs::readConfigFile()
@@ -41,7 +48,7 @@ std::vector<ServerConfig> Configs::getParsedConfigs() const
 }
 
 
-//----------- Validate File Format  
+//----------- 2. Validate File Format -----------  
 //including paired braces ({}), paired quotes (" / '), and the presence of semicolons on non-block directives.
 
 // Example :
@@ -55,6 +62,12 @@ std::vector<ServerConfig> Configs::getParsedConfigs() const
 //    }
 //}
 //-----------------------
+
+void Configs::validateNotEmpty() const
+{
+    if (fileContent.find_first_not_of(" \t\n\r") == std::string::npos)
+        throw std::runtime_error("Config file is empty");
+}
 
 //validates braces nesting
 // level1 inside the server block
@@ -192,6 +205,7 @@ void Configs::validateFileFormat()
                 validateQuote(i, inDoubleQuote, inSingleQuote );
             else
                 throw std::runtime_error("Invalide quote structure");
+            hasContent = true;
         }
 
         // braces and semicolons are syntax only when outside of quotes
@@ -200,7 +214,6 @@ void Configs::validateFileFormat()
             validateSemicolon(c, hasContent, level1);
             validateBrace(c, level1, level2, braces);
         }
-
     }
 
     if (inDoubleQuote || inSingleQuote)
@@ -217,7 +230,7 @@ void Configs::validateFileFormat()
 
 }
 
-//----------- Sanitize The File   
+//----------- 3. Sanitize The File  ----------- 
 
 // sanitize the BOM:
 // if present is at the very beginning of the file
@@ -259,6 +272,8 @@ void Configs::sanitizeConfigFile()
         }
         
         // A Comment is only when outside of quotes
+        // if : server_name hello\#world; - > not a comment
+        // hello#world -> word 
         if (c == '#' && !inDoubleQuote && !inSingleQuote)
         {
             isComment = true;
@@ -313,15 +328,513 @@ void Configs::sanitizeConfigFile()
     fileContent = sanitizedContent;
 
     //testing (uncomment below)
-    std::cout << "Test result:" << fileContent;
+    //std::cout << "Test result:" << fileContent;
+}
+
+//----------- 4.  Tokenize The File  ----------- 
+// at this stage the fileContent is similar to this
+// server { listen 8080; location / { root /var/www; } }
+// server { listen 8080; location / { root /var/www; } }
+// server{listen 8080; location / { root /var/www; } }
+
+
+//testing (uncomment below)
+/*
+void Configs::printTokens(const std::vector<Token> &tokens)
+{
+    for (size_t i = 0; i < tokens.size(); i++)
+    {
+        std::string type;
+
+        switch (tokens[i].type)
+        {
+            case Token::WORD:
+                type = "WORD";
+                break;
+            case Token::OPENBRACE:
+                type = "OPENBRACE";
+                break;
+            case Token::CLOSEBRACE:
+                type = "CLOSEBRACE";
+                break;
+            case Token::SEMI:
+                type = "SEMI";
+                break;
+            case Token::END:
+                type = "END";
+                break;
+        }
+
+        std::cout << i + 1 << " | "
+          << type << " | "
+          << tokens[i].value
+          << " | Line: " << tokens[i].line
+          << std::endl;
+    }
+}
+*/
+
+// tokenize the word
+void Configs::addWord(std::string &word, int line)
+{
+    if (word.empty())
+        return;
+
+    Token token;
+    token.type = Token::WORD;
+    token.value = word;
+    token.line = line;
+
+    tokens.push_back(token);
+    word.clear();
 }
 
 
+void Configs::tokenizeContent()
+{
+    // remove any stored tokens/garbage
+    // protects against repeated tokenization.
+    tokens.clear();
+
+    // temp str to contain the word
+    std::string word;
+
+    bool inDoubleQuote = false;
+    bool inSingleQuote = false;
+
+    int line = 1;
+    int wordLine = 1;
+
+    for (size_t i = 0; i <fileContent.size(); i++)
+    {
+        char c = fileContent[i];
+        
+        if (c == '\n')
+        {
+            if (inDoubleQuote || inSingleQuote)
+                word.append(1, c);
+            else
+                addWord(word, wordLine);
+
+            line++;
+            continue;
+        }
+        // track quotes
+        if (c == '\'' || c == '"' )
+        {
+            if (word.empty())
+                wordLine = line;
+            
+            validateQuote(i, inDoubleQuote, inSingleQuote );
+            word.append(1,c);
+            continue;
+        }
+
+        // if inside quotes should be one token
+        if (inDoubleQuote || inSingleQuote)
+        {
+            word.append(1, c);
+            continue;
+        }
+
+        // space = word is finished
+        if(c == ' ')
+        {
+            addWord(word, wordLine);
+            continue;
+        }
+        //if no space but { } ;
+        if (c == '{' || c == '}' || c == ';')
+        {
+            addWord(word,wordLine);
+
+            Token token;
+            if (c == '{')
+                token.type = Token::OPENBRACE;
+            else if (c == '}')
+                token.type = Token::CLOSEBRACE;
+            else if (c == ';')
+                token.type = Token::SEMI;
+
+            token.value = std::string(1, c);
+            token.line = line;
+            tokens.push_back(token);
+            continue;
+        }
+        // building the word
+        if(word.empty())
+            wordLine = line;
+        word.append(1, c);
+    }
+    addWord(word, wordLine);
+
+    Token end;
+    end.type = Token::END;
+    end.value = "";
+    end.line = line;
+    tokens.push_back(end);
+
+    //testing (uncomment below)
+    //printTokens(tokens);
+}
+
+//----------- 5.  Server Block Parsing  ----------- 
+// the code looks smth like this: 
+// tokens: 
+// [server] [{]   [listen] [8080]   [;]     [}].     [END]
+//   0       1       2       3       4       5         6
+// WORD  OPENBRACE  WORD    WORD    SEMI. CLOSEBRACE  END
+
+
+
+// parseServer will parse one server block
+ServerConfig Configs::parseServer()
+{
+    ServerConfig server;
+
+    //next token is {
+    if (tokens[tokenIndex].type != Token::OPENBRACE)
+        throwParseError("Expected '{'");
+    
+    tokenIndex++;
+
+    // start of the config inside the server block
+    while (tokens[tokenIndex].type != Token::CLOSEBRACE 
+            && tokens[tokenIndex].type != Token::END)
+    {
+        // a valid directive
+        if(tokens[tokenIndex].type != Token::WORD)
+           throwParseError("Not a valid directive");
+        
+        // if location
+        if (tokens[tokenIndex].value == "location")
+        {
+            throwParseError("Location parsing not implemented yet");
+            // remove the commnets and continue the code
+            // LocationConfig location = parseLocation();
+            // server.locations.push_back(location);
+        }
+        else 
+        {
+            // a directive
+            parseServerDirective(server);
+        }
+    }
+    // end of the server block expect a }
+    if (tokens[tokenIndex].type != Token::CLOSEBRACE)
+        throwParseError("Expected '}'");
+
+    // skip the }
+    tokenIndex++;
+    // return the server to be added as serverConfig
+    return server;
+}
+
+
+// ParseServers will loop through the server block
+// and add one server config then the next one.
+void Configs::parseServers()
+{
+    while(tokens[tokenIndex].type != Token::END)
+    {
+        // it starts with the server
+        if (tokens[tokenIndex].type != Token::WORD ||
+            tokens[tokenIndex].value != "server")
+                throwParseError("server block is missing");
+        
+        // go to next token
+        tokenIndex++;
+        
+        // parse the server
+        ServerConfig server = parseServer();
+        
+        // add it to server config
+        serverConfigsParsed.push_back(server);
+    }
+    if (serverConfigsParsed.empty())
+        throwParseError("No server blocks");
+
+}
+
+//----------- 6. Server Directive Parsing ----------- 
+
+//testing (uncomment below)
+/*
+void Configs::printConfig(const ServerConfig& server)
+{
+    std::cout << "========== SERVER CONFIG ==========" << std::endl;
+
+    for (size_t i = 0; i < server.listens.size(); ++i)
+    {
+        std::cout << "Listen: "
+                  << server.listens[i].host << ":"
+                  << server.listens[i].port << std::endl;
+    }
+
+    for (size_t i = 0; i < server.server_names.size(); ++i)
+    {
+        std::cout << "Server Name: "
+                  << server.server_names[i] << std::endl;
+    }
+
+    std::cout << "Client Max Body Size: "
+              << server.client_max_body_size << " bytes" << std::endl;
+
+    for (std::map<int, std::string>::const_iterator it =
+             server.error_pages.begin();
+         it != server.error_pages.end(); ++it)
+    {
+        std::cout << "Error Page: "
+                  << it->first << " -> "
+                  << it->second << std::endl;
+    }
+
+    std::cout << "===================================" << std::endl;
+}
+*/
+
+// example : for nginx must be without quotes
+// listen  127.0.0.1:8080;
+// listen  8080    ;
+// WORD    WORD   SEMI
+
+void Configs::parseListen(ServerConfig &server)
+{
+    //skip listen
+    tokenIndex++;
+
+    if(tokens[tokenIndex].type != Token::WORD)
+        throwParseError("Expected Listen");
+
+    // value : 8080
+    std::string value = tokens[tokenIndex].value;
+
+    ListenConfig listen;
+    // default value
+    listen.host = "0.0.0.0";
+    std::string portStr;
+    
+    size_t separator = value.find(':');
+    // the : is found
+    if (separator != std::string::npos)
+    {
+        listen.host = value.substr(0,separator);
+        portStr = value.substr(separator + 1);
+        if (listen.host.empty())
+            throwParseError("Empty host");
+    } 
+    else
+    {
+        portStr = value;
+    }
+    // check the port value
+    if (portStr.empty() || 
+        portStr.find_first_not_of("0123456789") != std::string::npos)
+            throwParseError("Invalid port");
+    
+    // str to int
+
+    char *end;
+    errno = 0;
+
+    long port = std::strtol(portStr.c_str(), &end, 10);
+    if (errno == ERANGE || *end != '\0' ||
+        port < 1 || port > 65535)
+            throwParseError("Invalid port number");
+    
+    listen.port = static_cast<int>(port);
+
+    tokenIndex++;
+    if (tokens[tokenIndex].type != Token::SEMI)
+        throwParseError("Missing ';'");
+    tokenIndex++;
+    server.listens.push_back(listen);
+}
+
+// server_name "example1" name2 'name3';
+void Configs::parseServerNames(ServerConfig &server)
+{
+    // skip server_name
+    tokenIndex++;
+
+    if(tokens[tokenIndex].type != Token::WORD)
+        throwParseError("Error in server name");
+
+    // add all the server names
+    while (tokens[tokenIndex].type == Token::WORD)
+    {
+        server.server_names.push_back(tokens[tokenIndex].value);
+        tokenIndex++;
+    }
+
+    if (tokens[tokenIndex].type != Token::SEMI)
+        throwParseError("Missing ';' after server_name");
+
+    tokenIndex++;
+}
+
+// client_max_body_size 1024;  # 1024 bytes
+// client_max_body_size 512k;  # 512 KB
+// client_max_body_size 2m;    # 2 MB
+void Configs::parseClientMaxBodySize(ServerConfig &server)
+{
+    tokenIndex++;
+
+    if(tokens[tokenIndex].type != Token::WORD)
+        throwParseError("Missing client_max_body_size");
+
+    std::string value = tokens[tokenIndex].value;
+    long converter = 1;
+
+    // define the converter for later use
+    if (!value.empty())
+    {
+        char unit = value[value.size() - 1];
+
+        if (unit == 'k' || unit == 'K')
+        {
+            converter = 1024;
+            value.erase(value.size()-1);
+        }
+        else if (unit == 'm' || unit == 'M')
+        {
+            converter = 1024 * 1024;
+            value.erase(value.size()-1);
+        }
+        else if (unit == 'g' || unit == 'G')
+        {
+            converter = 1024L * 1024 *1024;
+            value.erase(value.size()-1);
+        }
+    }
+
+    // check if all is number and valid
+    if (value.empty() || 
+        value.find_first_not_of("0123456789") != std::string::npos)
+            throwParseError("Invalid client_max_body_size");
+    
+    // str to number
+    char *end;
+    errno = 0;
+
+    long size = std::strtol(value.c_str(), &end, 10);
+    if (errno == ERANGE || *end != '\0' ||
+        size > LONG_MAX / converter)
+            throwParseError("Invalid client_max_body_size");
+    
+    server.client_max_body_size = size * converter;
+    
+    tokenIndex++;
+
+    if (tokens[tokenIndex].type != Token::SEMI)
+        throwParseError("Missing ';' after client_max_body_size");
+
+    tokenIndex++;
+}
+
+
+// error_page 404 /errors/404.html;
+// error_page 500 502 503 /errors/50x.html;
+// does not reject dups like nginx but override
+void Configs::parseErrorPages(ServerConfig &server)
+{
+    tokenIndex++;
+
+    std::vector<int> codes;
+
+    // loop through the codes
+    while (tokens[tokenIndex].type == Token::WORD)
+    {
+        std::string value = tokens[tokenIndex].value;
+
+        if (tokenIndex + 1 >= tokens.size())
+            throwParseError("Missing error page");
+        if (tokens[tokenIndex + 1].type == Token::SEMI)
+            break;
+        
+        if (value.empty() || 
+            value.find_first_not_of("0123456789") != std::string::npos)
+                throwParseError("Invalid error code");
+    
+        // str to number
+        char *end;
+        errno = 0;
+
+        long code = std::strtol(value.c_str(), &end, 10);
+        if (errno == ERANGE || *end != '\0' ||
+            code < 300 || code > 599)
+            throwParseError("Invalid error code");
+    
+        codes.push_back(static_cast<int>(code));
+        tokenIndex++;
+    }
+    if (codes.empty())
+        throwParseError("Missing error code");
+
+    // error page path
+    if (tokenIndex + 1 >= tokens.size())
+        throwParseError("Missing error page");
+
+    if(tokens[tokenIndex].type != Token::WORD)
+        throwParseError("Missing error page");
+
+    std::string path = tokens[tokenIndex].value;
+    tokenIndex++;
+    if (tokens[tokenIndex].type != Token::SEMI)
+        throwParseError("Missing ';' after error page");
+
+    tokenIndex++;
+    // stores the code with the path
+    for (size_t i = 0; i < codes.size(); i++)
+        server.error_pages[codes[i]] = path;
+
+}
+
+void Configs::parseServerDirective(ServerConfig &server)
+{
+    if (tokens[tokenIndex].value == "listen")
+    {
+        parseListen(server);
+    }
+    else if(tokens[tokenIndex].value == "server_name")
+    {
+        parseServerNames(server);
+    }
+    else if(tokens[tokenIndex].value == "client_max_body_size")
+    {
+        parseClientMaxBodySize(server);
+    }
+    else if(tokens[tokenIndex].value == "error_page")
+    {
+        parseErrorPages(server);
+    }
+    else
+        throwParseError("Unknown server directive \"" + tokens[tokenIndex].value + "\"");
+
+}
+
+
+//----------- 7. Location Block Parsing ----------- 
+
+
+// ----------- 8. Parsing error function with line ----------- 
+void Configs::throwParseError(const std::string &message) const
+{
+    std::ostringstream ss;
+
+    ss << message << ":" << tokens[tokenIndex].line;
+    throw std::runtime_error(ss.str());
+}
+
 void Configs::parseConfigFile()
 {
-    sanitizeBOM();  
+    sanitizeBOM();
+    validateNotEmpty();
     validateFileFormat();
     sanitizeConfigFile();
 
-    // tokenizeContent();
+    tokenizeContent();
+    tokenIndex = 0;
+    serverConfigsParsed.clear();
+    parseServers();
 }
