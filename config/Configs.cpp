@@ -500,18 +500,25 @@ void Configs::cleanTokens()
         for (size_t j = 0; j < value.size(); j++)
         {
             char current = value[j];
-            if (current == '\\' && j + 1 < value.size())
+            if (current == '"' || current == '\'' )
             {
-                char next = value[j + 1];
-
-                if (next == '"' || next == '\'' || next == '\\')
+                size_t backslashes = 0;
+                size_t k = j;
+                //counting the backslashes to decide if escaped ot not
+                while (k > 0 && value[k - 1] == '\\')
                 {
-                    temp +=next;
-                    j++;
-                    continue;
+                    backslashes++;
+                    k--;
                 }
+                if (backslashes % 2 != 0)
+                {
+                    // ex : it\'s -? it's
+                    // Remove only one escaping backslash
+                    temp.erase(temp.size() - 1, 1);
+                    temp += current;
+                    continue;
+                }  
             }
-            
             // remove double quote delimiters
             if (current == '"' && !inSingleQuote)
             {
@@ -1218,6 +1225,7 @@ void Configs::parseConfigFile()
     sanitizeConfigFile();
 
     tokenizeContent();
+    //printTokens(tokens);
     cleanTokens();
     // TEMPORARY: Testing cleanTokens()
     //printTokens(tokens);
