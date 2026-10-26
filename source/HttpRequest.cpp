@@ -16,6 +16,16 @@ HttpRequest& HttpRequest::operator=(const HttpRequest& other) {
 }
 HttpRequest::~HttpRequest() {}
 
+void HttpRequest::clear()
+{
+    _method.clear();
+    _path.clear();
+    _query.clear();
+    _version.clear();
+    _headers.clear();
+    _body.clear();
+}
+
 //getters
 std::string HttpRequest::getMethod() const {
     return _method;
