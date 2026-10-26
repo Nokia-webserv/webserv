@@ -42,7 +42,9 @@ class Configs {
         void sanitizeConfigFile();
         void sanitizeBOM();
 
+        // Converts configuration text into tokens.
         void tokenizeContent();
+
         void addWord(std::string &word, int line);
 
         // for testing tokens
@@ -61,14 +63,32 @@ class Configs {
         size_t tokenIndex;
 
         std::vector<ServerConfig> serverConfigsParsed;
+
+        // Parses all server blocks.
         void parseServers();
+        // Parse a single server at a time
         ServerConfig parseServer();
 
+        // parse the server direcctives
         void parseServerDirective(ServerConfig &server);
+
         void parseListen(ServerConfig &server);
         void parseServerNames(ServerConfig &server);
         void parseClientMaxBodySize(ServerConfig &server);
         void parseErrorPages(ServerConfig &server);
+
         void throwParseError(const std::string &message) const;
-    
+        
+        // Parse a single server at a time
+        LocationConfig parseLocation();
+
+        void parseLocationDirective(LocationConfig &location);
+        void parseRoot(LocationConfig &location);
+        void parseIndex(LocationConfig &location);
+        void parseAutoindex(LocationConfig &location);
+        void parseMethods(LocationConfig &location);
+        void parseClientMaxBodySize (LocationConfig &location);
+        void parseUploadStore(LocationConfig &location);
+        void parseReturn(LocationConfig &location);
+        void parseCgiExtension(LocationConfig &location);
 };

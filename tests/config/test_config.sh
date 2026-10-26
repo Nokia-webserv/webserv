@@ -65,7 +65,6 @@ do
     echo
 done
 
-
 # -----------------------
 # Sanitization - valid
 # -----------------------
@@ -203,6 +202,41 @@ do
 
     echo
 done
+
+# -----------------------
+# Location Parser - valid
+# -----------------------
+
+echo "LOCATION PARSER - VALID CONFIGS"
+echo "--------------------------------------"
+
+file="tests/config/parserLocation/test_location.conf"
+
+if [ -f "$file" ]; then
+    OUTPUT=$($WEBSERV "$file" 2>&1)
+    EXIT_CODE=$?
+
+    if [ $EXIT_CODE -eq 0 ]; then
+        echo "[PASS] $file"
+        echo "       Exit: 0"
+        PASSED=$((PASSED + 1))
+
+        # Print parsed configuration
+        echo "$OUTPUT"
+    else
+        echo "[FAIL] $file"
+        echo "       Exit: $EXIT_CODE"
+        echo "       Error: $OUTPUT"
+        FAILED=$((FAILED + 1))
+    fi
+else
+    echo "[FAIL] $file"
+    echo "       Error: Test file not found"
+    FAILED=$((FAILED + 1))
+fi
+
+echo
+
 
 # -----------------------
 # Results

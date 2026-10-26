@@ -26,7 +26,6 @@ class LocationConfig
                                                         // .sh =  /bin/bash;  
                                                         // .cgi = "";
 
-                                
         LocationConfig();
         ~LocationConfig();
         
