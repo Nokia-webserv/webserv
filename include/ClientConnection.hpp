@@ -24,6 +24,8 @@ class ClientConnection {
         bool writeData();
         void addDataToSend(const std::string &data);
 
+        bool isReadClosed();
+        void setReadClosed();
         time_t getClientLastActive() const;
         void updateLastActive();
         // testing
@@ -37,6 +39,7 @@ class ClientConnection {
         std::string::size_type writeOffset;
         std::string recvBuffer;
         time_t clientLastActive;
+        bool readClosed;
 
         //class httpParser to be added to each client
 };

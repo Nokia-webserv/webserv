@@ -6,7 +6,7 @@
 /*   By: damohame <damohame@student.42berlin.d>     +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/10/02 16:24:40 by damohame          #+#    #+#             */
-/*   Updated: 2026/10/21 15:33:25 by damohame         ###   ########.fr       */
+/*   Updated: 2026/10/27 02:21:58 by damohame         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -159,11 +159,12 @@ void Server::handleClientEvents(int fd, short revents)
             disconnectClient(fd);
             return;
         }
-        // client has data to be read
+        // client socket has data to be read
         if (revents & POLLIN)
-        {
-        // if true the recvBuffer will contain the data
-        // if not true remove the client(closed connection/ failed)
+        {            
+            // if true the recvBuffer will contain the data
+            // if not true remove the client(closed connection/ failed)
+            // only false in case of < 0
             if (!client->second->readData())
             {
                 disconnectClient(fd);
@@ -172,12 +173,11 @@ void Server::handleClientEvents(int fd, short revents)
             // Testing
             //client->second->printReceivedData();
         }
-        // connection hangup  after taking the data
+        // connection hangup (the client is not going to send data)
+        // set the readClosed to wait 
         else if (revents & POLLHUP)
-        {
-            disconnectClient(fd);
-            return;
-        }
+            client->second->setReadClosed();
+            
         // client socket is ready for the server to send pending data
         if (revents & POLLOUT)
         {
@@ -186,6 +186,14 @@ void Server::handleClientEvents(int fd, short revents)
                 disconnectClient(fd);
                 return;
             }
+        }
+        // the client has no data to send
+        // the server has no data to send
+        if (client->second->isReadClosed()
+            && !client->second->hasDataToSend())
+        {
+            disconnectClient(fd);
+            return;
         }
     }
 }
@@ -199,7 +207,7 @@ void Server::disconnectClient(int fd)
     if (client == clients.end())
         return;
     // testing
-    //std::cout << "Client disconnected: fd=" << fd << std::endl;
+    std::cout << "Client disconnected: fd=" << fd << std::endl;
     // else clean
     delete client->second;
     clients.erase(client);
@@ -255,6 +263,10 @@ void Server::buildPollFds()
     //           listener fd B -> fd 4
     for(size_t i = 0; i < listeners.size(); i++)
     {
+        // limit the client connection
+        // don't add listener after default max
+        if (clients.size() >= MAX_CLIENT_CONNECTIONS)
+            break;
         // create new struct and fill it for this listener
         struct pollfd pfd;
 
@@ -277,7 +289,13 @@ void Server::buildPollFds()
 
         // get the fd
         pfd.fd = it->first;
-        pfd.events = POLLIN;
+        pfd.events = 0;
+        
+        // in case of readClosed = false
+        // first connection / client can send data
+        if (!it->second->isReadClosed())
+            pfd.events |= POLLIN;
+
          // if there is data waiting to be sent
         if (it->second->hasDataToSend())
             pfd.events |= POLLOUT;
@@ -297,6 +315,10 @@ void Server::acceptNewConnections(Listener *listener)
 {
      while (true)
     {
+        // client number limitation checked before creating
+        // protects in case already waiting listener
+        if (clients.size() >= MAX_CLIENT_CONNECTIONS)
+            break;
         // prepare to use accept()
         sockaddr_in * clientAddress = new sockaddr_in;
         socklen_t addressLength = sizeof(*clientAddress);

@@ -6,7 +6,7 @@
 /*   By: damohame <damohame@student.42berlin.d>     +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/10/02 15:51:49 by damohame          #+#    #+#             */
-/*   Updated: 2026/10/21 15:00:46 by damohame         ###   ########.fr       */
+/*   Updated: 2026/10/27 02:25:35 by damohame         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -22,8 +22,8 @@
 void setConfig(std::vector<ServerConfig>& configs)
 {
     configs.push_back(ServerConfig("127.0.0.1", 8080));
-    configs.push_back(ServerConfig("127.0.0.1", 8080));
-    configs.push_back(ServerConfig("127.0.0.2",9090));
+    //configs.push_back(ServerConfig("127.0.0.1", 8080));
+    //configs.push_back(ServerConfig("127.0.0.2",9090));
 }
 
 int main()

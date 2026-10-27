@@ -6,7 +6,7 @@
 /*   By: damohame <damohame@student.42berlin.d>     +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/10/02 16:24:47 by damohame          #+#    #+#             */
-/*   Updated: 2026/10/21 15:34:14 by damohame         ###   ########.fr       */
+/*   Updated: 2026/10/27 02:21:55 by damohame         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -37,6 +37,9 @@ class Server {
         Listener* findListenerByFd(int fd);
         static const int POLL_TIMEOUT_MS = 1000;
         static const int CLIENT_TIMEOUT_SECONDS = 30;
+        
+        // Max client connection as nginx default number
+        static const size_t MAX_CLIENT_CONNECTIONS = 512;
 
         void handleListenersEvents(Listener *listener, short revents);
         void handleClientEvents(int fd, short revents);

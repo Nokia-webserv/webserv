@@ -2,7 +2,7 @@
 
 ClientConnection::ClientConnection(int fd,
 	sockaddr_in *addr) : clientSocket_fd(fd), addressInfo(addr),
-    writeOffset(0), clientLastActive(std::time(NULL))
+    writeOffset(0), clientLastActive(std::time(NULL)), readClosed(false)
 {
 }
 
@@ -41,22 +41,35 @@ bool ClientConnection::hasDataToSend()
 	return (writeOffset < sendBuffer.size());
 }
 
+// return readClosed 
+bool ClientConnection::isReadClosed()
+{
+	return (readClosed);
+}
+
+// set readClosed ->  client's read side is closed
+// The connection may stay open while the server still has data to send.
+void ClientConnection::setReadClosed()
+{
+	readClosed = true;
+}
+
 // a client send data, readdata receive it and append it recvBuffer
 // only when POLLIN events from client socket
 // recv return values :
 // > 0  → we received bytes
-// = 0  → client closed the connection
-// < 0  → read failed
+// = 0  → mark readClosed
+// < 0  → return false -> server disconnect client
 bool ClientConnection::readData()
 {
 	char	buffer[4096];
-	ssize_t	bytesToRead;
+	ssize_t	bytesReceived;
 
-	bytesToRead = recv(clientSocket_fd, buffer, sizeof(buffer), 0);
-	if (bytesToRead > 0)
+	bytesReceived = recv(clientSocket_fd, buffer, sizeof(buffer), 0);
+	if (bytesReceived > 0)
 	{
 		recvBuffer.append(buffer,
-			static_cast<std::string::size_type>(bytesToRead));
+			static_cast<std::string::size_type>(bytesReceived));
         // update the time of the client last active
         updateLastActive();
 		// testing
@@ -66,17 +79,21 @@ bool ClientConnection::readData()
 		<< " | First character: " << recvBuffer[0] << std::endl;*/
 		// testing 
 		// TEMPORARY: Echo received data back to the client
-		/*addDataToSend(std::string(buffer,
-            	static_cast<std::string::size_type>(bytesToRead)));*/
+		//addDataToSend(std::string(buffer,
+        //    	static_cast<std::string::size_type>(bytesReceived)));
 		// TEMPORARY: Queue 10 MB only for the first received data
-		/*if (recvBuffer.size() == static_cast<std::string::size_type>(bytesToRead))
+		/*if (recvBuffer.size() == static_cast<std::string::size_type>(bytesReceived))
 		{
    			addDataToSend(std::string(10 * 1024 * 1024, 'X'));
 		}*/
 		return (true);
 	}
-    if (bytesToRead == 0)
-	    return (false);
+	// EOF detection -> wait for server 
+    if (bytesReceived == 0)
+	{
+		readClosed = true;
+		return true;
+	}
     return (false);
 }
 
@@ -84,7 +101,7 @@ bool ClientConnection::readData()
 // when poll reports POLLOUT on the client socket
 // send() return values:
 // > 0 -> number of bytes sent
-// <= 0 -> write failed
+// <= 0 -> return false , disconnect files
 // example : 
 /*
 sendBuffer = "ABCDEFGHIJ"
@@ -92,7 +109,7 @@ writeOffset start at = 0
 hasDataTosend -> true
 send(clientSocket_fd,
         sendBuffer.c_str() + 0, sendBuffer.size() - 0, 0);
-if bytesToWrite = 4
+if bytesSent = 4
 writeOfsset = 4
 [ SENT ] [   NOT SENT   ]
  A B C D E F G H I J
@@ -101,26 +118,26 @@ writeOfsset = 4
 */
 bool ClientConnection::writeData()
 {
-	ssize_t	bytesToWrite;
+	ssize_t	bytesSent;
 
     // no data to send
     if (!hasDataToSend())
 		return (true);
-	bytesToWrite = send(clientSocket_fd,
+	bytesSent = send(clientSocket_fd,
         sendBuffer.c_str() + writeOffset,
         sendBuffer.size() - writeOffset, 0);
-	if (bytesToWrite > 0)
+	if (bytesSent > 0)
 	{
 		// TEMPORARY: Test partial writes
        /*std::cout << "FD: " << clientSocket_fd
                   << " | Requested: " << (sendBuffer.size() - writeOffset)
-                  << " | Sent: " << bytesToWrite
+                  << " | Sent: " << bytesSent
                   << " | Remaining: "
-                  << (sendBuffer.size() - writeOffset - bytesToWrite)
+                  << (sendBuffer.size() - writeOffset - bytesSent)
                   << std::endl;*/
 
         writeOffset +=
-            static_cast<std::string::size_type>(bytesToWrite);
+            static_cast<std::string::size_type>(bytesSent);
 		// update the time of the client last active
         updateLastActive();
         // all is sent
@@ -133,7 +150,6 @@ bool ClientConnection::writeData()
 	}
 	return (false);
 }
-
 
 void ClientConnection::addDataToSend(const std::string &data)
 {
