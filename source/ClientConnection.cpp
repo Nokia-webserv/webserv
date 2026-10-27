@@ -79,8 +79,8 @@ bool ClientConnection::readData()
 		<< " | First character: " << recvBuffer[0] << std::endl;*/
 		// testing 
 		// TEMPORARY: Echo received data back to the client
-		//addDataToSend(std::string(buffer,
-        //    	static_cast<std::string::size_type>(bytesReceived)));
+		/*addDataToSend(std::string(buffer,
+            	static_cast<std::string::size_type>(bytesReceived)));*/
 		// TEMPORARY: Queue 10 MB only for the first received data
 		/*if (recvBuffer.size() == static_cast<std::string::size_type>(bytesReceived))
 		{

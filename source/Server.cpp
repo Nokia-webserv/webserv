@@ -6,7 +6,7 @@
 /*   By: damohame <damohame@student.42berlin.d>     +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/10/02 16:24:40 by damohame          #+#    #+#             */
-/*   Updated: 2026/10/27 02:21:58 by damohame         ###   ########.fr       */
+/*   Updated: 2026/10/27 02:46:34 by damohame         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -207,7 +207,7 @@ void Server::disconnectClient(int fd)
     if (client == clients.end())
         return;
     // testing
-    std::cout << "Client disconnected: fd=" << fd << std::endl;
+    //std::cout << "Client disconnected: fd=" << fd << std::endl;
     // else clean
     delete client->second;
     clients.erase(client);
