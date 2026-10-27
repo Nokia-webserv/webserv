@@ -7,13 +7,17 @@ _r1(false), _n1(false), _r2(false), _n2(false)
 
 HttpParsingResult HttpParser::run()
 {   
-        std::cout << "_status = " << _status << "\n(0: incompl. head, 1: incompl. body, 2: complete, 3: error)\n\n"; // Debug
+        // DEBUG START
+        // std::cout << "_status = " << _status << "\n(0: incompl. head, 1: incompl. body, 2: complete, 3: error)\n\n";
+        // DEBUG END
     
     if (_status == INCOMPLETE_HEAD) // recvBuffer hasn't received a complete head yet
     {
         _status = _checkHead(); // scan recvBuffer to check if the head is complete
 
-            std::cout << "head _status = " << _status << "\n(0: incompl. head, 1: incompl. body, 2: complete, 3: error)\n\n"; // Debug
+            // DEBUG START
+            // std::cout << "head _status = " << _status << "\n(0: incompl. head, 1: incompl. body, 2: complete, 3: error)\n\n";
+            // DEBUG END
 
         if (_status == COMPLETE) // head is complete
         {
@@ -24,7 +28,9 @@ HttpParsingResult HttpParser::run()
         }
     }
     
-        std::cout << "current _status = " << _status << "\n(0: incompl. head, 1: incompl. body, 2: complete, 3: error)\n\n"; // Debug
+        // DEBUG START
+        // std::cout << "current _status = " << _status << "\n(0: incompl. head, 1: incompl. body, 2: complete, 3: error)\n\n";
+        // DEBUG END
 
     if (_status == INCOMPLETE_BODY)
     {
@@ -60,12 +66,15 @@ HttpRequest & HttpParser::getRequest()
 // checks if head is complete and validates CRLF endings
 HttpRequestStatus HttpParser::_checkHead()
 {
-std::cout << "checking the head\n\n"; // Debug
-std::cout << "start _scan position = " << _scanPosition << "\n";
+        // DEBUG START
+        // std::cout << "checking the head\n\n";
+        // std::cout << "start _scan position = " << _scanPosition << "\n";
+        // DEBUG END
     
     size_t pos = 0;
     for (pos = _scanPosition; pos < _recvBuffer.size(); pos++) // takes last scan position for incremental scanning
     {
+        unsigned long tempClientMaxHeaderSize = 200;
         char c = _recvBuffer[pos];
         switch (c)
         {
@@ -115,58 +124,75 @@ std::cout << "start _scan position = " << _scanPosition << "\n";
                 break;
             }
         }
+        if (pos >= tempClientMaxHeaderSize)
+        {
+            _status = ERROR;
+            _error = BAD_REQUEST;
+        }
         if (_status == COMPLETE || _status == ERROR)
             break;
     }
     _scanPosition = pos;
-
-std::cout << "end _scan position = " << _scanPosition << "\n"; // Debug
+        
+        // DEBUG START
+        // std::cout << "end _scan position = " << _scanPosition << "\n";
+        // DEBUG END
     
     return _status;
 }
 
 void HttpParser::_extractHead()
 {
-        std::cout << "extracting the head\n\n"; // Debug
-        std::cout << "recvBuffer state before:\n";
-        std::cout << "---\n";
-        std::cout << _recvBuffer;
-        std::cout << "\n---\n";
-        std::cout << "http buffer state before:\n";
-        std::cout << "---\n";
-        std::cout << _strExtractedRequest;
-        std::cout << "\n---\n";
+        // DEBUG START
+        // std::cout << "extracting the head\n\n"; // Debug
+        // std::cout << "recvBuffer state before:\n";
+        // std::cout << "---\n";
+        // std::cout << _recvBuffer;
+        // std::cout << "\n---\n";
+        // std::cout << "http buffer state before:\n";
+        // std::cout << "---\n";
+        // std::cout << _strExtractedRequest;
+        // std::cout << "\n---\n";
+        // DEBUG END
 
     std::string head = _recvBuffer.substr(0, _scanPosition + 1);
     _strExtractedRequest.append(head);
     _recvBuffer.erase(0, _scanPosition + 1);
     _scanPosition = 0;
 
-        std::cout << "recvBuffer state after:\n"; // Debug
-        std::cout << "---\n";
-        std::cout << _recvBuffer;
-        std::cout << "\n---\n";
-        std::cout << "http buffer state after:\n";
-        std::cout << "---\n";
-        std::cout << _strExtractedRequest;
-        std::cout << "\n---\n\n";    
+        // DEBUG START
+        // std::cout << "recvBuffer state after:\n"; // Debug
+        // std::cout << "---\n";
+        // std::cout << _recvBuffer;
+        // std::cout << "\n---\n";
+        // std::cout << "http buffer state after:\n";
+        // std::cout << "---\n";
+        // std::cout << _strExtractedRequest;
+        // std::cout << "\n---\n\n";   
+        // DEBUG END 
     }
 
 HttpRequestStatus HttpParser::_parseHead()
 {
-        std::cout << "parsing the head\n\n"; // Debug
+        // DEBUG START
+        // std::cout << "parsing the head\n\n";
+        // DEBUG END
     
     if (!_parseRequestLine() || !_parseHeaders())
     {
-            std::cout << "Head validation failed\n"; // Debug
-            std::cout << "_status = " << _status << "\n(0: incompl. head, 1: incompl. body, 2: complete, 3: error)\n\n"; // Debug
+            // DEBUG START
+            // std::cout << "Head validation failed\n";
+            // std::cout << "_status = " << _status << "\n(0: incompl. head, 1: incompl. body, 2: complete, 3: error)\n\n";
+            // DEBUG END
 
         _error = BAD_REQUEST;
         return ERROR;
     }
     
-        std::cout << "Head validation successful\n"; // Debug
-        std::cout << "_status = " << _status << "\n(0: incompl. head, 1: incompl. body, 2: complete, 3: error)\n\n"; // Debug
+        // DEBUG START
+        // std::cout << "Head validation successful\n"; // Debug
+        // std::cout << "_status = " << _status << "\n(0: incompl. head, 1: incompl. body, 2: complete, 3: error)\n\n";
+        // DEBUG END
     
     return COMPLETE;
 }
@@ -186,7 +212,7 @@ bool extractToken(std::string & source, std::string delimiter, std::string & des
     
     size_t dPos = source.find(delimiter);
     
-    // if delimiter is not found -> leave unchainged
+    // if delimiter is not found -> leave unchanged
     if (dPos == std::string::npos)
         return false;
 
@@ -197,7 +223,9 @@ bool extractToken(std::string & source, std::string delimiter, std::string & des
 
 bool HttpParser::_parseRequestLine()
 {
-        std::cout << "parsing request line\n\n"; // Debug
+        // DEBUG START
+        // std::cout << "parsing request line\n\n";
+        // DEBUG END
     
     std::string requestLine;
 
@@ -205,7 +233,9 @@ bool HttpParser::_parseRequestLine()
     if (!extractToken(_strExtractedRequest, "\r\n", requestLine))
         return false;
 
-            std::cout << "Extracted request line: " << requestLine << "\n\n"; // Debug
+            // DEBUG START
+            // std::cout << "Extracted request line: " << requestLine << "\n\n";
+            // DEBUG END
     
     std::string temp;
     
@@ -233,11 +263,13 @@ bool HttpParser::_parseRequestLine()
     _parsedRequest.setVersion(requestLine); // assigns rest to version; unexpected values are validated later
     requestLine.clear();
 
-        std::cout << "Result:\n"; // Debug
-        std::cout << "Method: " << _parsedRequest.getMethod() << "\n";
-        std::cout << "Path: " << _parsedRequest.getPath() << "\n";
-        std::cout << "Query: " << _parsedRequest.getQuery() << "\n";
-        std::cout << "Version: " << _parsedRequest.getVersion() << "\n\n";
+        // DEBUG START
+        // std::cout << "Result:\n";
+        // std::cout << "Method: " << _parsedRequest.getMethod() << "\n";
+        // std::cout << "Path: " << _parsedRequest.getPath() << "\n";
+        // std::cout << "Query: " << _parsedRequest.getQuery() << "\n";
+        // std::cout << "Version: " << _parsedRequest.getVersion() << "\n\n";
+        // DEBUG END
 
     return _validateRequestLine();
 }
@@ -258,17 +290,21 @@ bool HttpParser::_validateRequestLine() const
 
 bool HttpParser::_parseHeaders()
 {
-        std::cout << "parsing headers\n\n"; // Debug
+        // DEBUG START
+        // std::cout << "parsing headers\n\n";
+        // DEBUG END
     
     std::string name;
     std::string value;
 
     while (_strExtractedRequest != "\r\n") // checkHead guarrantees CRLF structural validity -> CRLF will always remain in the end
     {
-            std::cout << "http buffer state:\n"; // Debug
-            std::cout << "---\n";
-            std::cout << _strExtractedRequest;
-            std::cout << "\n---\n";
+            // DEBUG START
+            // std::cout << "http buffer state:\n";
+            // std::cout << "---\n";
+            // std::cout << _strExtractedRequest;
+            // std::cout << "\n---\n";
+            // DEBUG END
         
         // no ':' -> malformed request
         if (!extractToken(_strExtractedRequest, ":", name)) 
@@ -277,13 +313,17 @@ bool HttpParser::_parseHeaders()
         if (!extractToken(_strExtractedRequest, "\r\n", value)) 
             return false;
 
-                std::cout << "extracting tokens\n\n"; // Debug
-                std::cout << "Name: \"" << name << "\"\n";
-                std::cout << "Value: \"" << value << "\"\n";
+                // DEBUG START
+                // std::cout << "extracting tokens\n\n";
+                // std::cout << "Name: \"" << name << "\"\n";
+                // std::cout << "Value: \"" << value << "\"\n";
+                // DEBUG END
 
         trimStr(value); // trimm leading and trailing spaces
 
-            std::cout << "Trimmed value: \"" << value << "\"\n\n";
+            // DEBUG START
+            // std::cout << "Trimmed value: \"" << value << "\"\n\n";
+            // DEBUG END
 
         if (!_validateHeaders(name, value))
             return false;
@@ -326,7 +366,9 @@ bool HttpParser::_validateHeaders(std::string name, std::string value) const
 
 bool HttpParser::_headersPostValidation() const
 {
-        std::cout << "headers post validation\n\n";
+        // DEBUG START
+        // std::cout << "headers post validation\n\n";
+        // DEBUG END
     
     const std::map<std::string, std::string> & headers = _parsedRequest.getHeaders();
     
