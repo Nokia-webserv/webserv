@@ -74,7 +74,6 @@ HttpRequestStatus HttpParser::_checkHead()
     size_t pos = 0;
     for (pos = _scanPosition; pos < _recvBuffer.size(); pos++) // takes last scan position for incremental scanning
     {
-        unsigned long tempClientMaxHeaderSize = 200;
         char c = _recvBuffer[pos];
         switch (c)
         {
