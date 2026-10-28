@@ -58,3 +58,8 @@ HttpParsingResult ClientConnection::callParser()
 {
     return httpParser.run();
 }
+
+void ClientConnection::clearBuffer()
+{
+    recvBuffer.clear();
+}

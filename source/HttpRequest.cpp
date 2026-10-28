@@ -42,15 +42,16 @@ std::string HttpRequest::getVersion() const {
 const std::map<std::string, std::string>& HttpRequest::getHeaders() const {
     return _headers;
 }
-std::string HttpRequest::getHeader(const std::string& key) const {
-    std::map<std::string, std::string>::const_iterator it = _headers.find(key);
 
-    if (it != _headers.end()) {
-        return it->second;
-    }
+// std::string HttpRequest::getHeader(const std::string& key) const {
+//     std::map<std::string, std::string>::const_iterator it = _headers.find(strTolower(key));
 
-    return "";
-}
+//     if (it != _headers.end()) {
+//         return it->second;
+//     }
+
+//     return "";
+// } implementaion has a bug: value can be empty, so returning "" does not distinguish whether the key was found or not
 std::string HttpRequest::getBody() const {
     return _body;
 }
@@ -69,7 +70,7 @@ void HttpRequest::setVersion(const std::string& version) {
     _version = version;
 }
 void HttpRequest::setHeader(const std::string& key, const std::string& value) {
-    _headers[key] = value;
+    _headers[strTolower(key)] = value;
 }
 void HttpRequest::setBody(const std::string& body) {
     _body = body;
