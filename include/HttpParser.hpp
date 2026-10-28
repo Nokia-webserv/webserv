@@ -41,6 +41,8 @@ class HttpParser {
         HttpRequest & getRequest(); // getter of the http request that allows to modify it - used by ClientConnection
         // to initialize a reference to HttpRequest
         void setStatus(HttpRequestStatus status); // setter (for testing)
+
+        static const unsigned long tempClientMaxHeaderSize = 200;
     
     private:
         HttpRequestStatus _checkHead(); // checks if head part is complete
