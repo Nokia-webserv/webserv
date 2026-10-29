@@ -478,7 +478,65 @@ void Configs::tokenizeContent()
     //printTokens(tokens);
 }
 
-//----------- 5.  Server Block Parsing  ----------- 
+
+// ----------- 5. removing quotes and escaped quotes ----------- 
+
+void Configs::cleanTokens()
+{
+    // loop on each token 
+    for(size_t i = 0; i < tokens.size(); i++)
+    {
+        if(tokens[i].type != Token::WORD)
+            continue;
+        
+        // to store the value without quotes
+        std::string temp;
+        const std::string &value = tokens[i].value;
+        
+        bool inDoubleQuote = false;
+        bool inSingleQuote = false;
+
+        // loop to each character
+        for (size_t j = 0; j < value.size(); j++)
+        {
+            char current = value[j];
+            if (current == '"' || current == '\'' )
+            {
+                size_t backslashes = 0;
+                size_t k = j;
+                //counting the backslashes to decide if escaped ot not
+                while (k > 0 && value[k - 1] == '\\')
+                {
+                    backslashes++;
+                    k--;
+                }
+                if (backslashes % 2 != 0)
+                {
+                    // ex : it\'s -? it's
+                    // Remove only one escaping backslash
+                    temp.erase(temp.size() - 1, 1);
+                    temp += current;
+                    continue;
+                }  
+            }
+            // remove double quote delimiters
+            if (current == '"' && !inSingleQuote)
+            {
+                inDoubleQuote = !inDoubleQuote;
+                continue;
+            }
+             // remove single quote delimiters
+            if (current == '\'' && !inDoubleQuote)
+            {
+                inSingleQuote = !inSingleQuote;
+                continue;
+            }
+            temp += current;
+        }
+        tokens[i].value = temp;
+    }
+}
+//----------- 6.  Server Block Parsing  ----------- 
 // the code looks smth like this: 
 // tokens: 
 // [server] [{]   [listen] [8080]   [;]     [}].     [END]
@@ -866,7 +924,7 @@ void Configs::parseServerDirective(ServerConfig &server)
 }
 
 
-//----------- 7. Location Block Parsing ----------- 
+//----------- 8. Location Block Parsing ----------- 
 
 // root www/demo;
 void Configs::parseRoot(LocationConfig &location)
@@ -1147,7 +1205,7 @@ LocationConfig Configs::parseLocation()
     return location;
 }
 
-// ----------- 8. Parsing error function with line ----------- 
+// ----------- 9. Parsing error function with line ----------- 
 void Configs::throwParseError(const std::string &message) const
 {
     std::ostringstream ss;
@@ -1155,6 +1213,9 @@ void Configs::throwParseError(const std::string &message) const
     ss << message << ":" << tokens[tokenIndex].line;
     throw std::runtime_error(ss.str());
 }
+
+// ----------- 10. validation ----------- 
+
 
 void Configs::parseConfigFile()
 {
@@ -1164,6 +1225,10 @@ void Configs::parseConfigFile()
     sanitizeConfigFile();
 
     tokenizeContent();
+    //printTokens(tokens);
+    cleanTokens();
+    // TEMPORARY: Testing cleanTokens()
+    //printTokens(tokens);
     tokenIndex = 0;
     serverConfigsParsed.clear();
     parseServers();
