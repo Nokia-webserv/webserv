@@ -1,4 +1,4 @@
-
+/*
 #include <iostream>
 #include <fstream>
 #include <sstream>
@@ -52,11 +52,11 @@ std::cout << "================================\n";
     return 0;
 }
 
+*/
 
 
 
-
-/*#include "ClientConnection.hpp"
+#include "ClientConnection.hpp"
 #include <iostream>
 #include <fstream>
 #include <sstream>
@@ -195,4 +195,3 @@ int main(int argc, char** argv) {
     if (!selected) std::cerr << "No matching fixture or group: " << filter << "\n";
     return (failed || !selected) ? 1 : 0;
 }
-*/
