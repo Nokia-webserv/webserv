@@ -4,6 +4,7 @@
 #include "utils.hpp"
 #include <iostream>
 #include <algorithm>
+#include <sstream>
 
 enum HttpRequestStatus
 {
@@ -39,8 +40,6 @@ struct HttpParsingResult
 class HttpParser {
     public:
 
-        const size_t tempClientMaxBodySize = 2000;
-        const size_t tempMaxChunkSizeLine = 1024;
         HttpParser(std::string & recvBuffer);
 
         HttpParsingResult run(); // main function
@@ -49,7 +48,10 @@ class HttpParser {
         // to initialize a reference to HttpRequest
         void setStatus(HttpRequestStatus status); // setter (for testing)
 
-        static const unsigned long tempClientMaxHeaderSize = 200;
+        static const long tempClientMaxBodySize = 2000;
+        static const unsigned long tempMaxChunkSizeLine = 1024;
+        static const unsigned long tempClientMaxHeaderSize = 1024;
+        static const unsigned long tempMaxTrailerSize = 1024;
     
     private:
         HttpRequestStatus _checkHead(); // checks if head part is complete
