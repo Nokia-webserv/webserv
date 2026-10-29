@@ -25,6 +25,9 @@ class ClientConnection {
         void clearBuffer();
         HttpParsingResult callParser();
 
+        const HttpRequest& getHttpRequest() const;
+        const std::string& getRecvBuffer() const;
+
     private:
         int clientSocket_fd;
         sockaddr_in * addressInfo;
