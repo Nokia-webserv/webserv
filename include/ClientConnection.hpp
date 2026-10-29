@@ -38,6 +38,8 @@ class ClientConnection {
         void updateLastActive();
         // testing
         //void printReceivedData() const;
+        const HttpRequest& getHttpRequest() const;
+        const std::string& getRecvBuffer() const;
 
     private:
         int clientSocket_fd;

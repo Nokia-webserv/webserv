@@ -211,3 +211,13 @@ void ClientConnection::clearBuffer()
 {
     recvBuffer.clear();
 }
+
+const HttpRequest& ClientConnection::getHttpRequest() const
+{
+    return httpRequest;
+}
+
+const std::string& ClientConnection::getRecvBuffer() const
+{
+    return recvBuffer;
+}
