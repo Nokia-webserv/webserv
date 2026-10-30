@@ -329,25 +329,27 @@ bool HttpParser::_parseRequestLine()
 bool decodeStr(const std::string & encoded, std::string & decoded)
 {
     
-    if (encoded.empty())
-        return true;
+    if (encoded.empty()) 
+        return true; // what shouldn't be empty will be rejected on later stages
     for (size_t i = 0; i < encoded.size(); i++)
     {
         if (encoded[i] != '%')
         {
-            decoded += encoded[i];
+            decoded += encoded[i]; // copies the char as nothing to decode
             continue;
         }
 
-        if (encoded.size() <= i + 2)
+        if (encoded.size() <= i + 2) // must be 2 more chars at least, otherwise incorrect encoding
             return false;
 
+        // cheks for hexadecimal chars only
         std::string temp;
         temp += encoded[i+1];
         temp += encoded[i+2];
         if (temp.find_first_not_of("0123456789abcdefABCDEF") != std::string::npos)
             return false;
 
+        // converts hex to decimal
         std::stringstream stream;
         int decimal = 0;
         char c = 0;
@@ -358,7 +360,7 @@ bool decodeStr(const std::string & encoded, std::string & decoded)
 
         c = static_cast<char>(decimal);
         decoded += c;
-        i += 2;
+        i += 2; // jumps over 2 trailing chars that were part of encoding
     }
     return true;
 }
@@ -367,7 +369,7 @@ bool HttpParser::_decodeRequestLine()
 {
     std::string decoded;
 
-    if (!decodeStr(_parsedRequest.getPath(), decoded))
+    if (!decodeStr(_parsedRequest.getPath(), decoded)) // writes decoded path into "decoded"
     {
         _error = BAD_REQUEST;
         return false;
@@ -380,7 +382,7 @@ bool HttpParser::_decodeRequestLine()
         _error = BAD_REQUEST;
         return false;
     }
-    if (!_parsedRequest.getQuery().empty())    
+    if (!_parsedRequest.getQuery().empty()) // do only if query not empty    
         _parsedRequest.setQuery(decoded);
 
     return true;
