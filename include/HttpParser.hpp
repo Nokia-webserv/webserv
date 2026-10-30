@@ -63,6 +63,7 @@ class HttpParser {
         bool _hasBody(); // checks if http request has body
         bool _parseRequestLine(); // parses request line
         bool _validateRequestLine(); // validates request line
+        bool _decodeRequestLine();
         bool _parseHeaders(); // parses headers
         bool _validateHeaders(std::string name, std::string value) const; // validates headers
         bool _headersPostValidation(); // provides additional validation on headers
