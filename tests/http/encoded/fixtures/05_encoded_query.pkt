@@ -1,0 +1,3 @@
+GET /search?q=hello%20world&category=C%2B%2B HTTP/1.1
+Host: example.com
+
