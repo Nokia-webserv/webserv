@@ -29,7 +29,8 @@ class ClientConnection {
         bool writeData();
         void addDataToSend(const std::string &data);
 
-        void addRecvBuffer(std::string rawStr);
+        // testing
+        //void addRecvBuffer(std::string rawStr);
         void clearBuffer();
         HttpParsingResult callParser();
 
