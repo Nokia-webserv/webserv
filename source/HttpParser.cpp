@@ -573,15 +573,6 @@ HttpRequestStatus HttpParser::_chunkBodySize()
 HttpRequestStatus HttpParser::_chunkBodyData()
 {
     _bodyBytesToExtract = std::min(_recvBuffer.size(), _chunkBytesRemaining);
-
-    // Reject exceeding the maximum body size.
-    if (_strExtractedBody.size() > tempClientMaxBodySize ||
-        _bodyBytesToExtract > tempClientMaxBodySize - _strExtractedBody.size())
-    {
-        _error = CONTENT_TOO_LARGE;
-        return ERROR;
-    }
-
     return INCOMPLETE_BODY;
 }
 
@@ -620,13 +611,6 @@ X-Upload-ID: 42\r\n
 \r\n*/
 HttpRequestStatus HttpParser::_chunkBodyTrailers()
 {
-    // check exceeding max trailer size
-    if (_trailerBytesReceived > tempMaxTrailerSize)
-    {
-        _error = BAD_REQUEST;
-        return ERROR;
-    }
-
     // to mark the end of the trailers
     size_t pos = _recvBuffer.find("\r\n");
 
@@ -677,14 +661,6 @@ HttpRequestStatus HttpParser::_checkBody()
         // return the min value in recvBuffer or the remaing
         // buffer can contain a start of a request header
         _bodyBytesToExtract = std::min(_recvBuffer.size(), _bodyBytesRemaining);
-        
-        // accumulated + extracted < MAX
-        // to reject exceeding maximum allowed size.
-        if ( _strExtractedBody.size() + _bodyBytesToExtract > tempClientMaxBodySize)
-        {
-            _error = CONTENT_TOO_LARGE;
-            return ERROR;
-        }
     
         // we wait for the next received bytes
         if (_bodyBytesToExtract < _bodyBytesRemaining)
@@ -732,10 +708,7 @@ HttpRequestStatus HttpParser::_checkBody()
                 return COMPLETE;
 
             return INCOMPLETE_BODY;
-
         }
-        if (_chunkState == COMPLETED)
-        return COMPLETE;
     }
 
     _error = BAD_REQUEST;
