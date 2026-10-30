@@ -3,6 +3,8 @@
 #include "HttpRequest.hpp"
 #include "utils.hpp"
 #include <iostream>
+#include <algorithm>
+#include <sstream>
 
 enum HttpRequestStatus
 {
@@ -16,8 +18,11 @@ enum HttpRequestStatus
 enum HttpRequestError
 {
     NO_ERROR,
-    BAD_REQUEST
-    //to be added on later stages
+    BAD_REQUEST,                 //400
+    CONTENT_TOO_LARGE,           // 413
+    HEADER_FIELDS_TOO_LARGE,     // 431
+    NOT_IMPLEMENTED,             // 501
+    HTTP_VERSION_NOT_SUPPORTED   // 505
 };
 
 // value returned to TCP connection layer after a parser call
@@ -34,6 +39,7 @@ struct HttpParsingResult
 
 class HttpParser {
     public:
+
         HttpParser(std::string & recvBuffer);
 
         HttpParsingResult run(); // main function
@@ -42,7 +48,10 @@ class HttpParser {
         // to initialize a reference to HttpRequest
         void setStatus(HttpRequestStatus status); // setter (for testing)
 
-        static const unsigned long tempClientMaxHeaderSize = 200;
+        static const long tempClientMaxBodySize = 2000;
+        static const unsigned long tempMaxChunkSizeLine = 1024;
+        static const unsigned long tempClientMaxHeaderSize = 1024;
+        static const unsigned long tempMaxTrailerSize = 1024;
     
     private:
         HttpRequestStatus _checkHead(); // checks if head part is complete
@@ -53,10 +62,10 @@ class HttpParser {
         HttpRequestStatus _parseBody(); // parses and validates the body
         bool _hasBody(); // checks if http request has body
         bool _parseRequestLine(); // parses request line
-        bool _validateRequestLine() const; // validates request line
+        bool _validateRequestLine(); // validates request line
         bool _parseHeaders(); // parses headers
         bool _validateHeaders(std::string name, std::string value) const; // validates headers
-        bool _headersPostValidation() const; // provides additional validation on headers
+        bool _headersPostValidation(); // provides additional validation on headers
 
         HttpRequestStatus _status;
         HttpRequestError _error;
@@ -66,12 +75,52 @@ class HttpParser {
         HttpRequest _parsedRequest;
         HttpParsingResult _result; // value returned to TCP connection layer
 
+
+        HttpRequestStatus _chunkBodySize(); 
+        HttpRequestStatus _chunkBodyData();
+        HttpRequestStatus _chunkBodyDataCRLF();
+        HttpRequestStatus _chunkBodyTrailers();
+
         // booleans for CRLF validation
         bool _r1;
         bool _n1;
         bool _r2;
         bool _n2;
+
+        // body
+
+        // to distinguish between the body types
+        enum BodyFraming
+        {
+            NONE,            //no body
+            CONTENT_LENGTH,  //in case there is content-length
+            CHUNKED          // it is chunked
+        };
+
+        BodyFraming _bodyFraming;
+        size_t _bodyBytesRemaining;
+        bool _setBodyFraming();
+        std::string _strExtractedBody; // buffer for the body extracted from recvBuffer
+        size_t _bodyBytesToExtract;    // number of Bytes available to extraction
+
+        // to define the current state of the Chunk
+        /* example of a chunk
+            "5\r\n" 
+            "HELLO\r\n"
+            "3\r\n"
+            "CAT\r\n"
+            "0\r\n"
+            "\r\n"*/
+        enum ChunkState
+        {
+            SIZE,           // in hexadecimal
+            DATA,
+            DATA_CRLF,
+            TRAILERS,
+            COMPLETED
+        };
+        ChunkState _chunkState;
+        size_t _chunkBytesRemaining;
+        size_t _trailerBytesReceived;
+
 };
-
-
-

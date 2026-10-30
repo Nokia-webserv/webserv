@@ -2,7 +2,9 @@
 
 HttpParser::HttpParser(std::string & recvBuffer)
 : _status(INCOMPLETE_HEAD), _error(NO_ERROR), _scanPosition(0), _recvBuffer(recvBuffer), _result(_status, _error),
-_r1(false), _n1(false), _r2(false), _n2(false)
+_r1(false), _n1(false), _r2(false), _n2(false), _bodyFraming(NONE), _bodyBytesRemaining(0), _bodyBytesToExtract(0),
+_chunkState (SIZE), _chunkBytesRemaining(0), _trailerBytesReceived(0)
+
 {}
 
 HttpParsingResult HttpParser::run()
@@ -23,8 +25,19 @@ HttpParsingResult HttpParser::run()
         {
             _extractHead(); // move head section from recvBuffer to http parser's buffer
             _status = _parseHead(); // parsing of the head section
-            if (_status == COMPLETE && _hasBody()) // determines if http request has body
-                _status = INCOMPLETE_BODY;
+
+            if (_status == COMPLETE) // determines if http request has body
+            {
+                // set body framing
+                // reject invalid or unsupported framing
+                if(!_setBodyFraming())
+                    _status = ERROR;
+
+                // in case of has body -> set to incomplete body
+                // enter the body parsing
+                else if (_hasBody())
+                    _status = INCOMPLETE_BODY;
+            }
         }
     }
     
@@ -34,14 +47,34 @@ HttpParsingResult HttpParser::run()
 
     if (_status == INCOMPLETE_BODY)
     {
-        _status = _checkBody();
-        if (_status == COMPLETE)
+        // until the full body is received in case of chunked
+        while (_status == INCOMPLETE_BODY)
         {
+            size_t previousBufferSize = _recvBuffer.size();
+            ChunkState previousChunkState = _chunkState;
+            _status = _checkBody();
+
+            if (_status == ERROR)
+                break;
+            
             _extractBody();
-            _status = _parseBody();
+
+            if (_status == COMPLETE)
+            {
+                _status = _parseBody();
+                    break;
+            }
+            
+            // No bytes consumed or changed
+            // Chunkstates not changed
+            // wait for more data from recv().
+            if (_recvBuffer.size() == previousBufferSize &&
+                _chunkState == previousChunkState)
+            {
+                break;
+            }
         }
     }
-    
     return _result;
 }
 
@@ -56,6 +89,13 @@ void HttpParser::reset()
     _n1 = false;
     _r2 = false;
     _n2 = false;
+    _bodyFraming = NONE;
+    _bodyBytesRemaining = 0;
+    _strExtractedBody.clear();
+    _bodyBytesToExtract = 0;
+    _chunkState = SIZE;
+    _chunkBytesRemaining = 0;
+    _trailerBytesReceived = 0;
 }
 
 HttpRequest & HttpParser::getRequest()
@@ -126,7 +166,7 @@ HttpRequestStatus HttpParser::_checkHead()
         if (pos >= tempClientMaxHeaderSize)
         {
             _status = ERROR;
-            _error = BAD_REQUEST;
+            _error = HEADER_FIELDS_TOO_LARGE;
         }
         if (_status == COMPLETE || _status == ERROR)
             break;
@@ -184,7 +224,9 @@ HttpRequestStatus HttpParser::_parseHead()
             // std::cout << "_status = " << _status << "\n(0: incompl. head, 1: incompl. body, 2: complete, 3: error)\n\n";
             // DEBUG END
 
-        _error = BAD_REQUEST;
+         if (_error == NO_ERROR)
+                _error = BAD_REQUEST;
+        
         return ERROR;
     }
     
@@ -273,16 +315,25 @@ bool HttpParser::_parseRequestLine()
     return _validateRequestLine();
 }
 
-bool HttpParser::_validateRequestLine() const
+bool HttpParser::_validateRequestLine()
 {
     if (_parsedRequest.getMethod() != "POST" && _parsedRequest.getMethod() != "GET" && _parsedRequest.getMethod() != "DELETE")
+    {
+        _error = NOT_IMPLEMENTED;
         return false; // strict correspondance only allowed
+    }
 
     if (_parsedRequest.getPath().empty() || _parsedRequest.getPath()[0] != '/')
+    {
+        _error = BAD_REQUEST;
         return false; // empty path or relative path -> malformed request
+    }
 
     if (_parsedRequest.getVersion() != "HTTP/1.0" && _parsedRequest.getVersion() != "HTTP/1.1")
+    {
+        _error = HTTP_VERSION_NOT_SUPPORTED;
         return false;
+    }
 
     return true;
 }
@@ -353,7 +404,7 @@ bool HttpParser::_validateHeaders(std::string name, std::string value) const
             return false;
     
     // *using strTolower as header names should be case-insensitive
-    if (strTolower(name) == "host" || strTolower(name) == "content-length")
+    if (strTolower(name) == "host" || strTolower(name) == "content-length" || strTolower(name) == "transfer-encoding")
     {
         const std::map<std::string, std::string> & headers = _parsedRequest.getHeaders();
         if (headers.find(strTolower(name)) != headers.end())
@@ -363,7 +414,7 @@ bool HttpParser::_validateHeaders(std::string name, std::string value) const
     return true;
 }
 
-bool HttpParser::_headersPostValidation() const
+bool HttpParser::_headersPostValidation()
 {
         // DEBUG START
         // std::cout << "headers post validation\n\n";
@@ -373,17 +424,27 @@ bool HttpParser::_headersPostValidation() const
     
     if (headers.find("content-length") != headers.end())
     {   
-        long tempClientMaxBodySize = 2000;
-
         // convert content-length value to long and check for overflow
         IntLongOverflow length = strToIntLongOverflow("long", headers.find("content-length")->second);
-        if (length.overflow != 1 || length.number > tempClientMaxBodySize) // if number overflows or is higher than client_max_body_size
+        if (length.overflow != 1 || length.number < 0)
+        {
+            _error = BAD_REQUEST;
             return false;
+        }
+
+        if (length.number > tempClientMaxBodySize)
+        {
+            _error = CONTENT_TOO_LARGE;
+            return false;
+        }
     }
 
     // both headers within the same request -> malformed
     if (headers.find("content-length") != headers.end() && headers.find("transfer-encoding") != headers.end())
+    {
+        _error = BAD_REQUEST;
         return false;
+    }
 
     if (_parsedRequest.getVersion() == "HTTP/1.1")
     {
@@ -397,40 +458,296 @@ bool HttpParser::_headersPostValidation() const
     return true;
 }
 
-bool HttpParser::_hasBody()
-{
-    const std::map<std::string, std::string> & headers = _parsedRequest.getHeaders();
+// --------Body 
 
-    if (headers.find("content-length") == headers.end() || strToIntLongOverflow("long", headers.find("content-length")->second).number == 0)
-        return false;
-    return true;
+
+bool HttpParser::_setBodyFraming()
+{
+    const std::map<std::string, std::string>& headers = _parsedRequest.getHeaders();
+    
+    // first we check if the body uses transfer chunked 
+    //it -> {"transfer-encoding", "chunked"}
+    std::map<std::string, std::string>::const_iterator it = headers.find("transfer-encoding");
+    if (it != headers.end())
+    {
+        if (strTolower(it->second) != "chunked")
+        {
+            _error = NOT_IMPLEMENTED;
+            return false;
+        }
+        _bodyFraming = CHUNKED;
+        _bodyBytesRemaining = 0;
+        return true;
+    }
+
+    // it -> it  {"content-length" , string)
+    it = headers.find("content-length");
+    if (it != headers.end())
+    {
+        IntLongOverflow length = strToIntLongOverflow("long", it->second);
+        if (length.overflow != 1 || length.number < 0)
+        {
+            _error = BAD_REQUEST;
+            return false;
+        }
+        _bodyFraming = CONTENT_LENGTH;
+        _bodyBytesRemaining = static_cast<size_t>(length.number);
+
+        return true;
+    }
+    // no body just a header
+    _bodyFraming = NONE;
+    _bodyBytesRemaining = 0;
+
+return true;
 }
 
+bool HttpParser::_hasBody()
+{
+    return (_bodyFraming == CHUNKED || (_bodyFraming == CONTENT_LENGTH && _bodyBytesRemaining > 0));
+}
+
+// 5\r\n 
+//5;name=value\r\n
+HttpRequestStatus HttpParser::_chunkBodySize()
+{
+    // find the end of the chunk-size
+    size_t pos = _recvBuffer.find("\r\n");
+    
+    // to reject exceeding maximum allowed size.
+    if ((pos == std::string::npos && _recvBuffer.size() > tempMaxChunkSizeLine + 1) ||
+            (pos != std::string::npos && pos > tempMaxChunkSizeLine))
+    {
+        _error = BAD_REQUEST;
+        return ERROR;
+    }
+
+    if (pos == std::string::npos)
+        return INCOMPLETE_BODY;
+
+    // Extract the hexadecimal chunk size.
+    std::string chunkSizeStr = _recvBuffer.substr(0, pos);
+    
+    // in case of -> 5;name=value\r\n
+    size_t semi = chunkSizeStr.find(';');
+
+    if (semi != std::string::npos)
+        chunkSizeStr = chunkSizeStr.substr(0, semi);
+
+    if (chunkSizeStr.empty() ||
+            chunkSizeStr.find_first_not_of("0123456789abcdefABCDEF") != std::string::npos)
+    {
+        _error = BAD_REQUEST;
+        return ERROR;
+    }
+    std::istringstream stream(chunkSizeStr);
+    size_t chunkSize = 0;
+
+    stream >> std::hex >> chunkSize;
+    if (stream.fail() || !stream.eof())
+    {
+        _error = BAD_REQUEST;
+        return ERROR;
+    }
+
+    // to reject exceeding maximum allowed size.
+    if (_strExtractedBody.size() > tempClientMaxBodySize ||
+        chunkSize > tempClientMaxBodySize - _strExtractedBody.size())
+    {
+        _error = CONTENT_TOO_LARGE;
+        return ERROR;
+    }
+    // save the chunkSize and erase for the next DATA
+    _chunkBytesRemaining = chunkSize;
+    _recvBuffer.erase(0, pos + 2);
+
+    // update the value
+    if (chunkSize == 0)
+        _chunkState = TRAILERS;
+    else
+        _chunkState = DATA;
+    return INCOMPLETE_BODY;
+}
+
+
+HttpRequestStatus HttpParser::_chunkBodyData()
+{
+    _bodyBytesToExtract = std::min(_recvBuffer.size(), _chunkBytesRemaining);
+    return INCOMPLETE_BODY;
+}
+
+HttpRequestStatus HttpParser::_chunkBodyDataCRLF()
+{
+    if (_recvBuffer.empty())
+        return INCOMPLETE_BODY;
+
+    if (_recvBuffer[0] != '\r')
+    {
+        _error = BAD_REQUEST;
+        return ERROR;
+    }
+
+    if (_recvBuffer.size() < 2)
+        return INCOMPLETE_BODY;
+
+
+    if ( _recvBuffer[1] != '\n')
+    {
+        _error = BAD_REQUEST;
+        return ERROR;
+    }
+
+     _recvBuffer.erase(0, 2);
+    _chunkState = SIZE;
+
+    return INCOMPLETE_BODY;
+}
+
+
+// example
+/*
+X-Checksum: abc123\r\n
+X-Upload-ID: 42\r\n
+\r\n*/
+HttpRequestStatus HttpParser::_chunkBodyTrailers()
+{
+    // to mark the end of the trailers
+    size_t pos = _recvBuffer.find("\r\n");
+
+    // didn't find the  \r\n
+    if (pos == std::string::npos)
+    {
+        // if exceeding the maximum tempMaxTrailerSize
+        if (_recvBuffer.size() >
+            tempMaxTrailerSize - _trailerBytesReceived)
+        {
+            _error = BAD_REQUEST;
+            return ERROR;
+        }
+        // get the next recvBuffer data
+        return INCOMPLETE_BODY;
+    }
+
+    // end of trailer\r\n check if exceeding the maximum tempMaxTrailerSize
+    if (pos + 2 > tempMaxTrailerSize - _trailerBytesReceived)
+    {
+        _error = BAD_REQUEST;
+        return ERROR;
+    }
+
+    // empty line marks the end of the trailer section and the chunked body.
+    //     // example :      /r/n
+    //               |
+    //              pos == 0
+    if (pos == 0)
+    {
+        _recvBuffer.erase(0, 2);
+        _trailerBytesReceived += 2;
+        _chunkState = COMPLETED;
+        return COMPLETE;
+    }
+    // remove trailer and continue to get the next
+    _recvBuffer.erase(0, pos + 2);
+    _trailerBytesReceived += pos + 2;
+    return INCOMPLETE_BODY;
+}
+
+// read buffer
 HttpRequestStatus HttpParser::_checkBody()
 {
-    // read buffer
-    // validate the read part (incremental framing validation)
-    // save where it stopped in _scanPosition
-    // return the status (COMPLETE, INCOMPLETE_BODY, ERROR) accordingly
-    return (HttpRequestStatus)2;
+    // 1- in case of Content-length
+    if (_bodyFraming == CONTENT_LENGTH)
+    {
+        // return the min value in recvBuffer or the remaing
+        // buffer can contain a start of a request header
+        _bodyBytesToExtract = std::min(_recvBuffer.size(), _bodyBytesRemaining);
+    
+        // we wait for the next received bytes
+        if (_bodyBytesToExtract < _bodyBytesRemaining)
+            return INCOMPLETE_BODY;
+        
+        return COMPLETE;
+    }
+
+    // 2- in case of Transfer Chunked
+    if (_bodyFraming == CHUNKED)
+    {
+         HttpRequestStatus result;
+
+        if (_chunkState == SIZE)
+        {
+            result = _chunkBodySize();
+            if (result == ERROR)
+                return ERROR;
+            // same state, search again for the \r\n to find the size
+            if (_chunkState == SIZE)
+                return INCOMPLETE_BODY;
+        }
+        if (_chunkState == DATA)
+        {
+            result = _chunkBodyData();
+            if (result == ERROR)
+                return ERROR;
+            // to extract and the extractBody() decide the state
+            return INCOMPLETE_BODY;
+        }
+        if (_chunkState == DATA_CRLF)
+        {
+            result = _chunkBodyDataCRLF();
+            if (result == ERROR)
+                return ERROR;
+            return INCOMPLETE_BODY;
+
+        }
+        if (_chunkState == TRAILERS)
+        {
+            result = _chunkBodyTrailers();
+            if (result == ERROR)
+                return ERROR;
+            if (_chunkState == COMPLETED)
+                return COMPLETE;
+
+            return INCOMPLETE_BODY;
+        }
+    }
+
+    _error = BAD_REQUEST;
+    return ERROR;
 }
 
 void HttpParser::_extractBody()
 {
-    // cut the read buffer where the complete body ends and paste it to _strExtractedRequest
-    // reset _scanPosition
+    if (_bodyFraming == CONTENT_LENGTH)
+    {
+        _strExtractedBody.append(_recvBuffer, 0, _bodyBytesToExtract);
+        _recvBuffer.erase(0, _bodyBytesToExtract);
+
+        _bodyBytesRemaining -= _bodyBytesToExtract;
+        _bodyBytesToExtract = 0;
+    }
+
+    else if (_bodyFraming == CHUNKED && _chunkState == DATA)
+    {
+        _strExtractedBody.append(_recvBuffer, 0, _bodyBytesToExtract);
+        _recvBuffer.erase(0, _bodyBytesToExtract);
+
+        _chunkBytesRemaining -= _bodyBytesToExtract;
+        _bodyBytesToExtract = 0;
+
+        if (_chunkBytesRemaining == 0)
+            _chunkState = DATA_CRLF;
+    }
 }
 
 HttpRequestStatus HttpParser::_parseBody()
 {
-    // parse and validate the body (structural and semantic validation)
-    // return COMPLETE on success and ERROR otherwise
-    return (HttpRequestStatus)2;
+    // add it to parseRequest
+    // content-length or chunked
+    _parsedRequest.setBody(_strExtractedBody);
+        return COMPLETE;
 }
 
 void HttpParser::setStatus(HttpRequestStatus status)
 {
     _status = status;
 }
-
-
