@@ -23,7 +23,7 @@ class ClientConnection {
         HttpParser & getParser();
         HttpRequest & getRequest();
 
-        void addRecvBuffer(std::string rawStr);
+        //void addRecvBuffer(std::string rawStr);
         void clearBuffer();
         HttpParsingResult callParser();
 

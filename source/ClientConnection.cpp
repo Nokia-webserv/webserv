@@ -197,10 +197,12 @@ HttpRequest & ClientConnection::getRequest()
     return httpRequest;
 }
 
+/*
 void ClientConnection::addRecvBuffer(std::string rawStr)
 {
     recvBuffer.append(rawStr);
 }
+*/
 
 HttpParsingResult ClientConnection::callParser()
 {
