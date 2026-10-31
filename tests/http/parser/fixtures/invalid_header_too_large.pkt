@@ -1,0 +1,14 @@
+GET /root HTTP/1.0
+Host: example.com
+Header1: value
+Header2: value
+Header3: value
+Header4: value
+Header5: value
+Header6: value
+Header7: value
+Header8: value
+Header9: value
+Header10: value
+Header11: value
+

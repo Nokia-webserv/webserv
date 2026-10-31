@@ -7,6 +7,7 @@
 #include <sstream>
 #include <ctime>
 #include <iostream>
+#include "HttpParser.hpp"
 
 // class for managing a TCP-connection
 
@@ -18,6 +19,13 @@ class ClientConnection {
         int getFd() const;
         std::string getIp() const;
         int getPort() const;
+        std::string getBuffer() const;
+        HttpParser & getParser();
+        HttpRequest & getRequest();
+
+        //void addRecvBuffer(std::string rawStr);
+        void clearBuffer();
+        HttpParsingResult callParser();
 
         bool hasDataToSend();
         bool readData();
@@ -30,6 +38,8 @@ class ClientConnection {
         void updateLastActive();
         // testing
         //void printReceivedData() const;
+        const HttpRequest& getHttpRequest() const;
+        const std::string& getRecvBuffer() const;
 
     private:
         int clientSocket_fd;
@@ -41,5 +51,6 @@ class ClientConnection {
         time_t clientLastActive;
         bool readClosed;
 
-        //class httpParser to be added to each client
+        HttpParser httpParser;
+        HttpRequest & httpRequest; // refers to the parsed http request owned by parser for easier access
 };
