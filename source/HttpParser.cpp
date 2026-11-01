@@ -335,6 +335,9 @@ bool decodeStr(const std::string & encoded, std::string & decoded)
     {
         if (encoded[i] != '%')
         {
+            if (encoded[i] < 0x20 || encoded[i] == 0x7F) // rejects raw NUL, \r, \n and all other ASCII CO controls and DEL
+                return false;
+
             decoded += encoded[i]; // copies the char as nothing to decode
             continue;
         }
@@ -357,7 +360,10 @@ bool decodeStr(const std::string & encoded, std::string & decoded)
         stream >> std::hex >> decimal;
         if (stream.fail() || !stream.eof())
             return false;
-
+        
+        if (decimal < 0x20 || decimal == 0x7F) // rejects encoded NUL, \r, \n and all other ASCII CO controls and DEL
+            return false;
+        
         c = static_cast<char>(decimal);
         decoded += c;
         i += 2; // jumps over 2 trailing chars that were part of encoding
