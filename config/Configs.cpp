@@ -1225,7 +1225,7 @@ void Configs::parseLocationDirective(LocationConfig &location)
     else if (tokens[tokenIndex].value == "client_max_body_size")
         parseDirectiveSizeValue("client_max_body_size", location.client_max_body_size);
     else if (tokens[tokenIndex].value == "client_max_header_size")
-        parseDirectiveSizeValue("client_max_body_size", location.client_max_header_size);
+        parseDirectiveSizeValue("client_max_header_size", location.client_max_header_size);
     else if (tokens[tokenIndex].value == "upload_store")
         parseUploadStore(location);
     else if (tokens[tokenIndex].value == "return")
