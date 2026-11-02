@@ -9,7 +9,11 @@ SRCS = source/main.cpp \
        source/Server.cpp \
        source/tempServerConfig.cpp \
        source/Listener.cpp \
-	   source/ClientConnection.cpp
+	   source/ClientConnection.cpp\
+	   source/HttpParser.cpp\
+	   source/HttpRequest.cpp\
+	   source/HttpResponse.cpp\
+	   source/utils.cpp
 
 OBJS = $(SRCS:.cpp=.o)
 
