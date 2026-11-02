@@ -38,10 +38,10 @@ int main(int argc, char * argv[])
         const std::vector<ServerConfig> configsParsed = configs.getParsedConfigs();
             
             // testing (uncomment below)
-            for (size_t i = 0; i < configsParsed.size(); ++i)
-            {
-                Configs::printConfig(configsParsed[i]);
-            }
+            // for (size_t i = 0; i < configsParsed.size(); ++i)
+            // {
+            //     Configs::printConfig(configsParsed[i]);
+            // }
         
         // run server
         Server server(configsParsed);

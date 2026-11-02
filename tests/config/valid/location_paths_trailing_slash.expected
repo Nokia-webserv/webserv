@@ -1,0 +1,4 @@
+servers=1
+server[0].locations=2
+server[0].location[0].path=/images
+server[0].location[1].path=/images/

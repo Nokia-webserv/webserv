@@ -1,0 +1,4 @@
+servers=1
+server[0].listen[0].port=8080
+server[0].server_name[0]=localhost
+server[0].location[0].root=/var/www/html

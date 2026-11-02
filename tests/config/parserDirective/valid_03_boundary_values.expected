@@ -1,0 +1,8 @@
+servers=1
+server[0].listens=2
+server[0].listen[0].port=1
+server[0].listen[1].port=65535
+server[0].server_name[0]=boundary.test
+server[0].client_max_body_size=0
+server[0].error_page[300]=/errors/boundary.html
+server[0].error_page[599]=/errors/boundary.html

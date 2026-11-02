@@ -1,0 +1,6 @@
+servers=2
+server[0].listen[0].port=8080
+server[0].connections_max_number=0
+server[1].listen[0].port=9090
+server[1].client_max_body_size=1073741824
+server[1].error_page[404]=/404.html

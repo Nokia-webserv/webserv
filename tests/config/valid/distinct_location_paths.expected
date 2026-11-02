@@ -1,0 +1,5 @@
+servers=1
+server[0].locations=3
+server[0].location[0].path=/
+server[0].location[1].path=/images
+server[0].location[2].path=/uploads

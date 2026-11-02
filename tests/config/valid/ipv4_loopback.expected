@@ -1,0 +1,4 @@
+servers=1
+server[0].listens=1
+server[0].listen[0].host=127.0.0.1
+server[0].listen[0].port=8080

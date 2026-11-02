@@ -1,0 +1,10 @@
+servers=3
+server[0].server_name[0]=hello world
+server[0].server_name[1]=test server
+server[0].location[0].root=/var/www/{website}
+server[0].location[0].index=index;test.html
+server[1].listen[0].port=9090
+server[1].location[1].root=/var/www/test;folder
+server[1].location[2].index=it's-working.html
+server[2].listen[0].port=8081
+server[2].location[1].redirect_url=https://example.com/path?x=1;y=2#section

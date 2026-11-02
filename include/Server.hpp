@@ -22,6 +22,10 @@
 #include <map>
 #include <poll.h>
 
+#ifndef WEBSERV_CLIENT_TIMEOUT_SECONDS
+#define WEBSERV_CLIENT_TIMEOUT_SECONDS 30
+#endif
+
 class Server {
 
     private:
@@ -44,7 +48,7 @@ class Server {
         // global configs
         static const size_t GLOBAL_MAX_CONNECTIONS = 512;
         static const int GLOBAL_POLL_TIMEOUT_MS = 1000;
-        static const int GLOBAL_CLIENT_TIMEOUT_SECONDS = 30;
+        static const int GLOBAL_CLIENT_TIMEOUT_SECONDS = WEBSERV_CLIENT_TIMEOUT_SECONDS; // to be able to reduce it for tests
 
     public:
         Server(const std::vector<ServerConfig>& configs);

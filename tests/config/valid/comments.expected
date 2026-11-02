@@ -1,0 +1,7 @@
+servers=1
+server[0].listens=1
+server[0].listen[0].host=0.0.0.0
+server[0].listen[0].port=8080
+server[0].locations=1
+server[0].location[0].path=/
+server[0].location[0].root=/var/www

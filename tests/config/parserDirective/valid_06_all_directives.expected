@@ -1,0 +1,13 @@
+servers=1
+server[0].listens=3
+server[0].listen[0].port=8080
+server[0].listen[1].host=127.0.0.1
+server[0].listen[1].port=8081
+server[0].listen[2].host=192.168.1.10
+server[0].listen[2].port=9090
+server[0].server_name[4]=admin.example.com
+server[0].client_max_body_size=2097152
+server[0].client_max_header_size=2097152
+server[0].client_max_response_size=3072
+server[0].connections_max_number=512
+server[0].error_page[401]=/errors/auth.html

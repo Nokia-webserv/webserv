@@ -1,0 +1,5 @@
+servers=2
+server[0].listen[0].port=8080
+server[0].location[0].root=./website
+server[1].listen[0].port=8081
+server[1].location[0].root=./admin

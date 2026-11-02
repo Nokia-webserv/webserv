@@ -1,285 +1,138 @@
 #!/bin/bash
 
-WEBSERV="./webserv"
-
+CONFIG_TEST="tests/config/config_test"
+LOG="tests/config/config_test.log"
 PASSED=0
 FAILED=0
 
-echo "======================================"
-echo " Config Tests"
-echo "======================================"
+: > "$LOG"
+
+log_case()
+{
+    local file="$1"
+    local expected="$2"
+    local output
+    local exit_code
+
+    {
+        echo
+        echo "============================================================"
+        echo "CASE: $file"
+        echo "EXPECTED: $expected"
+    } >> "$LOG"
+
+    output=$("$CONFIG_TEST" "$file" 2>&1)
+    exit_code=$?
+    printf '%s\n' "$output" >> "$LOG"
+
+    if [ "$expected" = "valid" ]; then
+        local expected_file="${file%.conf}.expected"
+
+        if [ "$exit_code" -ne 0 ]; then
+            echo "[FAIL] $file"
+            echo "       parser exited with code $exit_code"
+            echo "       details: $LOG"
+            FAILED=$((FAILED + 1))
+            return
+        fi
+
+        if [ ! -f "$expected_file" ]; then
+            echo "[FAIL] $file"
+            echo "       missing expected file: $expected_file"
+            echo "       details: $LOG"
+            FAILED=$((FAILED + 1))
+            return
+        fi
+
+        while IFS= read -r line; do
+            [ -n "$line" ] || continue
+            if ! printf '%s\n' "$output" | grep -F -x -- "$line" >/dev/null; then
+                echo "[FAIL] $file"
+                echo "       expected value not found: $line"
+                echo "       details: $LOG"
+                FAILED=$((FAILED + 1))
+                return
+            fi
+        done < "$expected_file"
+
+        echo "[PASS] $file"
+        PASSED=$((PASSED + 1))
+        return
+    fi
+
+    if [ "$exit_code" -ne 0 ]; then
+        echo "[PASS] $file"
+        PASSED=$((PASSED + 1))
+    else
+        echo "[FAIL] $file"
+        echo "       invalid config was accepted"
+        echo "       details: $LOG"
+        FAILED=$((FAILED + 1))
+    fi
+}
+
+run_valid_glob()
+{
+    local pattern="$1"
+    local file
+
+    for file in $pattern; do
+        [ -f "$file" ] || continue
+        log_case "$file" valid
+    done
+}
+
+run_invalid_glob()
+{
+    local pattern="$1"
+    local file
+
+    for file in $pattern; do
+        [ -f "$file" ] || continue
+        log_case "$file" invalid
+    done
+}
+
+echo "============================================================"
+echo "              CONFIG PARSER UNIT TESTS"
+echo "============================================================"
+echo "[INFO] Detailed output: $LOG"
 echo
 
-
-# -----------------------
-# Valid configs
-# -----------------------
-
-echo "VALID CONFIGS"
-echo "--------------------------------------"
-
-for file in tests/config/valid/*.conf
-do
-    OUTPUT=$($WEBSERV "$file" 2>&1)
-    EXIT_CODE=$?
-
-    if [ $EXIT_CODE -eq 0 ]; then
-        echo "[PASS] $file"
-        echo "       Exit: 0"
-        PASSED=$((PASSED + 1))
-    else
-        echo "[FAIL] $file"
-        echo "       Exit: $EXIT_CODE"
-        echo "       Error: $OUTPUT"
-        FAILED=$((FAILED + 1))
-    fi
-
-    echo
-done
-
-
-# -----------------------
-# Invalid configs
-# -----------------------
-
-echo "INVALID CONFIGS"
-echo "--------------------------------------"
-
-for file in tests/config/invalid/*.conf
-do
-    OUTPUT=$($WEBSERV "$file" 2>&1)
-    EXIT_CODE=$?
-
-    if [ $EXIT_CODE -ne 0 ]; then
-        echo "[PASS] $file"
-        echo "       Exit: $EXIT_CODE"
-        echo "       Error: $OUTPUT"
-        PASSED=$((PASSED + 1))
-    else
-        echo "[FAIL] $file"
-        echo "       Exit: 0"
-        echo "       Error: No error - invalid config was accepted"
-        FAILED=$((FAILED + 1))
-    fi
-
-    echo
-done
-
-# -----------------------
-# Sanitization - valid
-# -----------------------
-
-echo "SANITIZATION - VALID CONFIGS"
-echo "--------------------------------------"
-
-for file in tests/config/sanitize/valid_*.conf
-do
-    OUTPUT=$($WEBSERV "$file" 2>&1)
-    EXIT_CODE=$?
-
-    if [ $EXIT_CODE -eq 0 ]; then
-        echo "[PASS] $file"
-        echo "       Exit: 0"
-        PASSED=$((PASSED + 1))
-    else
-        echo "[FAIL] $file"
-        echo "       Exit: $EXIT_CODE"
-        echo "       Error: $OUTPUT"
-        FAILED=$((FAILED + 1))
-    fi
-
-    echo
-done
-
-
-# -----------------------
-# Sanitization - invalid
-# -----------------------
-
-echo "SANITIZATION - INVALID CONFIGS"
-echo "--------------------------------------"
-
-for file in tests/config/sanitize/not_valid_*.conf
-do
-    OUTPUT=$($WEBSERV "$file" 2>&1)
-    EXIT_CODE=$?
-
-    if [ $EXIT_CODE -ne 0 ]; then
-        echo "[PASS] $file"
-        echo "       Exit: $EXIT_CODE"
-        echo "       Error: $OUTPUT"
-        PASSED=$((PASSED + 1))
-    else
-        echo "[FAIL] $file"
-        echo "       Exit: 0"
-        echo "       Error: No error - invalid config was accepted"
-        FAILED=$((FAILED + 1))
-    fi
-
-    echo
-done
-
-# -----------------------
-# Tokenization - valid
-# -----------------------
-
-echo "TOKENIZATION - VALID CONFIGS"
-echo "--------------------------------------"
-
-for file in tests/config/tokenize/*.conf
-do
-    [ -f "$file" ] || continue
-
-    OUTPUT=$($WEBSERV "$file" 2>&1)
-    EXIT_CODE=$?
-
-    if [ $EXIT_CODE -eq 0 ]; then
-        echo "[PASS] $file"
-        echo "       Exit: 0"
-        PASSED=$((PASSED + 1))
-    else
-        echo "[FAIL] $file"
-        echo "       Exit: $EXIT_CODE"
-        echo "       Error: $OUTPUT"
-        FAILED=$((FAILED + 1))
-    fi
-
-    echo
-done
-
-# -----------------------
-# Parser Directives - valid
-# -----------------------
-
-echo "PARSER DIRECTIVES - VALID CONFIGS"
-echo "--------------------------------------"
-
-for file in tests/config/parserDirective/valid_*.conf
-do
-    [ -f "$file" ] || continue
-
-    OUTPUT=$($WEBSERV "$file" 2>&1)
-    EXIT_CODE=$?
-
-    if [ $EXIT_CODE -eq 0 ]; then
-        echo "[PASS] $file"
-        echo "       Exit: 0"
-        PASSED=$((PASSED + 1))
-    else
-        echo "[FAIL] $file"
-        echo "       Exit: $EXIT_CODE"
-        echo "       Error: $OUTPUT"
-        FAILED=$((FAILED + 1))
-    fi
-
-    echo
-done
-# -----------------------
-# Parser Directives - invalid
-# -----------------------
-
-echo "PARSER DIRECTIVES - INVALID CONFIGS"
-echo "--------------------------------------"
-
-for file in tests/config/parserDirective/not_valid_*.conf
-do
-    [ -f "$file" ] || continue
-
-    OUTPUT=$($WEBSERV "$file" 2>&1)
-    EXIT_CODE=$?
-
-    if [ $EXIT_CODE -ne 0 ]; then
-        echo "[PASS] $file"
-        echo "       Exit: $EXIT_CODE"
-        echo "       Error: $OUTPUT"
-        PASSED=$((PASSED + 1))
-    else
-        echo "[FAIL] $file"
-        echo "       Exit: 0"
-        echo "       Error: No error - invalid config was accepted"
-        FAILED=$((FAILED + 1))
-    fi
-
-    echo
-done
-
-echo "LOCATION PARSER"
-echo "--------------------------------------"
-
-# -----------------------
-# Location Parser - valid
-# -----------------------
-
-file="tests/config/parserLocation/test_location.conf"
-
-if [ -f "$file" ]; then
-    OUTPUT=$($WEBSERV "$file" 2>&1)
-    EXIT_CODE=$?
-
-    if [ $EXIT_CODE -eq 0 ]; then
-        echo "[PASS] $file"
-        echo "       Exit: 0"
-        PASSED=$((PASSED + 1))
-
-        # Print parsed configuration
-        echo "$OUTPUT"
-    else
-        echo "[FAIL] $file"
-        echo "       Exit: $EXIT_CODE"
-        echo "       Error: $OUTPUT"
-        FAILED=$((FAILED + 1))
-    fi
-else
-    echo "[FAIL] $file"
-    echo "       Error: Test file not found"
-    FAILED=$((FAILED + 1))
-fi
-
-echo
-
-# -----------------------
-# Location Parser - invalid
-# -----------------------
-
-file="tests/config/parserLocation/invalid_test_location.conf"
-
-if [ -f "$file" ]; then
-    OUTPUT=$($WEBSERV "$file" 2>&1)
-    EXIT_CODE=$?
-
-    if [ $EXIT_CODE -ne 0 ]; then
-        echo "[PASS] $file"
-        echo "       Exit: $EXIT_CODE"
-        echo "       Error: $OUTPUT"
-        PASSED=$((PASSED + 1))
-    else
-        echo "[FAIL] $file"
-        echo "       Exit: 0"
-        echo "       Error: Invalid location config was accepted"
-        FAILED=$((FAILED + 1))
-    fi
-else
-    echo "[FAIL] $file"
-    echo "       Error: Test file not found"
-    FAILED=$((FAILED + 1))
-fi
-
-echo
-
-# -----------------------
-# Results
-# -----------------------
-
-echo "======================================"
-echo " Results"
-echo "======================================"
-echo "Passed: $PASSED"
-echo "Failed: $FAILED"
-
-if [ $FAILED -eq 0 ]; then
-    echo "All tests passed."
-    exit 0
-else
-    echo "Some tests failed."
+echo "[INFO] Building parser test"
+if ! c++ -std=c++98 -Wall -Wextra -Werror -Iinclude \
+    tests/config/config_test.cpp source/Configs.cpp \
+    source/ServerConfig.cpp source/LocationConfig.cpp source/utils.cpp \
+    -o "$CONFIG_TEST" >> "$LOG" 2>&1; then
+    echo "[FAIL] Could not build parser test"
+    echo "       details: $LOG"
     exit 1
 fi
+
+trap 'rm -f "$CONFIG_TEST"' EXIT
+
+run_valid_glob "tests/config/valid/*.conf"
+run_invalid_glob "tests/config/invalid/*.conf"
+run_valid_glob "tests/config/sanitize/valid_*.conf"
+run_invalid_glob "tests/config/sanitize/not_valid_*.conf"
+run_valid_glob "tests/config/tokenize/*.conf"
+run_valid_glob "tests/config/parserDirective/valid_*.conf"
+run_invalid_glob "tests/config/parserDirective/not_valid_*.conf"
+log_case "tests/config/parserLocation/test_location.conf" valid
+log_case "tests/config/parserLocation/invalid_test_location.conf" invalid
+
+echo
+echo "============================================================"
+echo "                  CONFIG TEST SUMMARY"
+echo "============================================================"
+echo "PASSED: $PASSED"
+echo "FAILED: $FAILED"
+echo "LOG: $LOG"
+
+if [ "$FAILED" -eq 0 ]; then
+    echo "[RESULT] ALL CONFIG TESTS PASSED"
+    exit 0
+fi
+
+echo "[RESULT] CONFIG TESTS FAILED"
+exit 1

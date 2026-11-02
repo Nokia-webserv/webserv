@@ -2,6 +2,7 @@ NAME = webserv
 
 CXX = c++
 CXXFLAGS = -Wall -Wextra -Werror -std=c++98
+SPECIAL_FLAGS ?=
 
 INCLUDES = -Iinclude
 
@@ -26,10 +27,11 @@ $(NAME): $(OBJS)
 
 objects/%.o: source/%.cpp
 	mkdir -p objects
-	$(CXX) $(CXXFLAGS) $(INCLUDES) -c $< -o $@
+	$(CXX) $(CXXFLAGS) $(SPECIAL_FLAGS) $(INCLUDES) -c $< -o $@
 
 clean:
 	rm -f $(OBJS)
+	rm -rf objects
 
 fclean: clean
 	rm -f $(NAME)

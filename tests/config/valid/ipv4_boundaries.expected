@@ -1,0 +1,6 @@
+servers=1
+server[0].listens=2
+server[0].listen[0].host=10.255.100.1
+server[0].listen[0].port=1
+server[0].listen[1].host=192.168.0.255
+server[0].listen[1].port=65535
