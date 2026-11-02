@@ -1,9 +1,18 @@
 #include "HttpParser.hpp"
 
 HttpParser::HttpParser(std::string & recvBuffer)
-: _status(INCOMPLETE_HEAD), _error(NO_ERROR), _scanPosition(0), _recvBuffer(recvBuffer), _result(_status, _error),
-_r1(false), _n1(false), _r2(false), _n2(false), _bodyFraming(NONE), _bodyBytesRemaining(0), _bodyBytesToExtract(0),
-_chunkState (SIZE), _chunkBytesRemaining(0), _trailerBytesReceived(0)
+:   _status(INCOMPLETE_HEAD),
+    _error(NO_ERROR), 
+    _scanPosition(0), 
+    _recvBuffer(recvBuffer), 
+    _result(_status, _error),
+    _r1(false), _n1(false), _r2(false), _n2(false), 
+    _bodyFraming(NONE), 
+    _bodyBytesRemaining(0), 
+    _bodyBytesToExtract(0),
+    _chunkState (SIZE), 
+    _chunkBytesRemaining(0), 
+    _trailerBytesReceived(0)
 
 {}
 

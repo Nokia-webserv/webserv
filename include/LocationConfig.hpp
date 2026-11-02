@@ -16,8 +16,7 @@ class LocationConfig
         long client_max_body_size; // 10m
         long client_max_header_size;
         
-        std::string upload_store; // www/uploads
-        
+        std::string upload_store; // www/uploads 
 
         bool has_redirect; // true
         int redirect_code; // 301

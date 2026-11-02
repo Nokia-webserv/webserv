@@ -2,7 +2,15 @@
 #include <sstream>
 
 HttpResponse::HttpResponse() : _statusCode(0) {}
-HttpResponse::HttpResponse(const HttpResponse& other) : _version(other._version), _statusCode(other._statusCode), _reasonPhrase(other._reasonPhrase), _headers(other._headers), _body(other._body) {}
+
+HttpResponse::HttpResponse(const HttpResponse& other) 
+:   _version(other._version), 
+    _statusCode(other._statusCode), 
+    _reasonPhrase(other._reasonPhrase), 
+    _headers(other._headers), 
+    _body(other._body) 
+    {}
+
 HttpResponse& HttpResponse::operator=(const HttpResponse& other) {
     if (this != &other) {
         _version = other._version;

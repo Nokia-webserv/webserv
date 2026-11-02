@@ -18,6 +18,8 @@ struct ListenConfig
 class ServerConfig {
 
     public:
+        std::string host;
+        int port;
         std::vector<ListenConfig> listens;
         std::vector<std::string> server_names;
         long client_max_body_size;
@@ -28,5 +30,6 @@ class ServerConfig {
         std::vector<LocationConfig> locations;
 
         ServerConfig();
+        ServerConfig(std::string host, int port);
         ~ServerConfig();
 };

@@ -97,7 +97,7 @@ void Server::run()
         if (poll_fds.empty())
             throw std::runtime_error("No file descriptors available for poll()");
 
-        int ready = poll(&poll_fds[0], poll_fds.size(), POLL_TIMEOUT_MS);
+        int ready = poll(&poll_fds[0], poll_fds.size(), GLOBAL_POLL_TIMEOUT_MS);
 
         if (ready < 0)
         {
@@ -229,7 +229,7 @@ void Server::checkClientTimeout()
         time_t inactiveSeconds = now - it->second->getClientLastActive();
 
         // inactive time calculation, add in the vector
-        if (inactiveSeconds >= CLIENT_TIMEOUT_SECONDS)
+        if (inactiveSeconds >= GLOBAL_CLIENT_TIMEOUT_SECONDS)
         {
             //testing
             /*std::cout << "Client FD: " << it->first << " timed out after " 
@@ -265,7 +265,7 @@ void Server::buildPollFds()
     {
         // limit the client connection
         // don't add listener after default max
-        if (clients.size() >= MAX_CLIENT_CONNECTIONS)
+        if (clients.size() >= GLOBAL_MAX_CONNECTIONS)
             break;
         // create new struct and fill it for this listener
         struct pollfd pfd;
@@ -313,53 +313,53 @@ void Server::buildPollFds()
 // Because the listening socket is non-blocking, accept() is called
 void Server::acceptNewConnections(Listener *listener)
 {
-     while (true)
+    while (true)
     {
         // client number limitation checked before creating
         // protects in case already waiting listener
-        if (clients.size() >= MAX_CLIENT_CONNECTIONS)
+        if (clients.size() >= GLOBAL_MAX_CONNECTIONS)
             break;
         // prepare to use accept()
         sockaddr_in * clientAddress = new sockaddr_in;
         socklen_t addressLength = sizeof(*clientAddress);
 
         // accept a new conncetion and retreive client’s network address information (IP, port, IP version...)
-            int clientSocket = accept(listener->getFd(), reinterpret_cast<sockaddr*>(clientAddress), &addressLength);
-            // in terms of use and info extraction sockaddr_in is better, but accept() takes sockaddr*
-            // reinterpret cast is a special cast type used to read the bytes and reinterpret them as another data type
-            // unlike static cast which applies c++ rules of casting
+        int clientSocket = accept(listener->getFd(), reinterpret_cast<sockaddr*>(clientAddress), &addressLength);
+        // in terms of use and info extraction sockaddr_in is better, but accept() takes sockaddr*
+        // reinterpret cast is a special cast type used to read the bytes and reinterpret them as another data type
+        // unlike static cast which applies c++ rules of casting
 
-            // handle unsuccess
-            if (clientSocket < 0)
-            {
-                int savedErrno = errno; // to avoid theoretical chance that it can change
-                delete clientAddress;
-                // no new connections available
-                if (savedErrno == EAGAIN || savedErrno == EWOULDBLOCK)
-                    break;
-                // interrupted by another signal - needs to retry
-                else if (savedErrno == EINTR)
-                    continue;
-                else
-                {
-                    std::cerr << "System failure while trying to accept a new client connection";
-                    break;
-                }
-            }
-            // set socket to non-blocking mode
-            std::ostringstream fd_ss;
-            fd_ss << clientSocket;
-            std::string error_msg = "Non-blocking mode for fd #" + fd_ss.str() + " failed";
-            if (fcntl(clientSocket, F_SETFL, O_NONBLOCK) == -1) // set new set of flags + check success
-            {
-                close(clientSocket);
-                delete clientAddress;
-                std::cerr << error_msg << std::endl;
+        // handle unsuccess
+        if (clientSocket < 0)
+        {
+            int savedErrno = errno; // to avoid theoretical chance that it can change
+            delete clientAddress;
+            // no new connections available
+            if (savedErrno == EAGAIN || savedErrno == EWOULDBLOCK)
+                break;
+            // interrupted by another signal - needs to retry
+            else if (savedErrno == EINTR)
                 continue;
+            else
+            {
+                std::cerr << "System failure while trying to accept a new client connection";
+                break;
             }
-
-            // store the new connection
-            ClientConnection * newClient = new ClientConnection(clientSocket, clientAddress);
-            clients[clientSocket] = newClient;
         }
+        // set socket to non-blocking mode
+        std::ostringstream fd_ss;
+        fd_ss << clientSocket;
+        std::string error_msg = "Non-blocking mode for fd #" + fd_ss.str() + " failed";
+        if (fcntl(clientSocket, F_SETFL, O_NONBLOCK) == -1) // set new set of flags + check success
+        {
+            close(clientSocket);
+            delete clientAddress;
+            std::cerr << error_msg << std::endl;
+            continue;
+        }
+
+        // store the new connection
+        ClientConnection * newClient = new ClientConnection(clientSocket, clientAddress);
+        clients[clientSocket] = newClient;
+    }
 }

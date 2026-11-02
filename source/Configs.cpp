@@ -10,8 +10,9 @@
 #include <climits>
 
 // creates an object which reads and parses the file
-Configs::Configs(const std::string & configFileName) : configFileName(configFileName), 
-            tokenIndex(0)
+Configs::Configs(const std::string & configFileName) 
+:   configFileName(configFileName), 
+    tokenIndex(0)
 {
     readConfigFile();
     parseConfigFile();

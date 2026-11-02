@@ -36,6 +36,7 @@ class ClientConnection {
         void setReadClosed();
         time_t getClientLastActive() const;
         void updateLastActive();
+        
         // testing
         //void printReceivedData() const;
         const HttpRequest& getHttpRequest() const;

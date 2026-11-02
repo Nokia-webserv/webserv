@@ -55,14 +55,12 @@ class Configs {
 
         std::vector<ServerConfig> getParsedConfigs() const;
 
+
     private:
         std::string configFileName;
         std::string fileContent;
-        
         std::vector<Token> tokens;
-
         size_t tokenIndex;
-
         std::vector<ServerConfig> serverConfigsParsed;
 
         bool isLocationUnique(const ServerConfig& server, const std::string& path) const;

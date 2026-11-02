@@ -13,7 +13,7 @@
 #ifndef SERVER_HPP
 #define SERVER_HPP
 
-#include "tempServerConfig.hpp"
+#include "ServerConfig.hpp"
 #include "Listener.hpp"
 #include "ClientConnection.hpp"
 #include <vector>
@@ -35,16 +35,16 @@ class Server {
         // starts as empty, will be filled in the buildPollFds()
         std::vector<struct pollfd> poll_fds;
         Listener* findListenerByFd(int fd);
-        static const int POLL_TIMEOUT_MS = 1000;
-        static const int CLIENT_TIMEOUT_SECONDS = 30;
-        
-        // Max client connection as nginx default number
-        static const size_t MAX_CLIENT_CONNECTIONS = 512;
 
         void handleListenersEvents(Listener *listener, short revents);
         void handleClientEvents(int fd, short revents);
         void disconnectClient(int fd);
         void checkClientTimeout();
+
+        // global configs
+        static const size_t GLOBAL_MAX_CONNECTIONS = 512;
+        static const int GLOBAL_POLL_TIMEOUT_MS = 1000;
+        static const int GLOBAL_CLIENT_TIMEOUT_SECONDS = 30;
 
     public:
         Server(const std::vector<ServerConfig>& configs);
