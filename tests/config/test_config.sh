@@ -203,12 +203,12 @@ do
     echo
 done
 
+echo "LOCATION PARSER"
+echo "--------------------------------------"
+
 # -----------------------
 # Location Parser - valid
 # -----------------------
-
-echo "LOCATION PARSER - VALID CONFIGS"
-echo "--------------------------------------"
 
 file="tests/config/parserLocation/test_location.conf"
 
@@ -237,6 +237,34 @@ fi
 
 echo
 
+# -----------------------
+# Location Parser - invalid
+# -----------------------
+
+file="tests/config/parserLocation/invalid_test_location.conf"
+
+if [ -f "$file" ]; then
+    OUTPUT=$($WEBSERV "$file" 2>&1)
+    EXIT_CODE=$?
+
+    if [ $EXIT_CODE -ne 0 ]; then
+        echo "[PASS] $file"
+        echo "       Exit: $EXIT_CODE"
+        echo "       Error: $OUTPUT"
+        PASSED=$((PASSED + 1))
+    else
+        echo "[FAIL] $file"
+        echo "       Exit: 0"
+        echo "       Error: Invalid location config was accepted"
+        FAILED=$((FAILED + 1))
+    fi
+else
+    echo "[FAIL] $file"
+    echo "       Error: Test file not found"
+    FAILED=$((FAILED + 1))
+fi
+
+echo
 
 # -----------------------
 # Results
