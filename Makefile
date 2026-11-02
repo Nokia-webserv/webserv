@@ -3,10 +3,19 @@ NAME = webserv
 CXX = c++
 CXXFLAGS = -Wall -Wextra -Werror -std=c++98
 
-SRCS = main.cpp \
-       config/Configs.cpp \
-       config/ServerConfig.cpp \
-       config/LocationConfig.cpp
+INCLUDES = -Iinclude
+
+SRCS = source/main.cpp \
+       source/Server.cpp \
+       source/Listener.cpp \
+	   source/ClientConnection.cpp\
+	   source/HttpParser.cpp\
+	   source/HttpRequest.cpp\
+	   source/HttpResponse.cpp\
+	   source/Configs.cpp \
+       source/ServerConfig.cpp \
+       source/LocationConfig.cpp \
+	   source/utils.cpp
 
 OBJS = $(SRCS:.cpp=.o)
 
@@ -16,7 +25,7 @@ $(NAME): $(OBJS)
 	$(CXX) $(CXXFLAGS) $(OBJS) -o $(NAME)
 
 %.o: %.cpp
-	$(CXX) $(CXXFLAGS) -c $< -o $@
+	$(CXX) $(CXXFLAGS) $(INCLUDES) -c $< -o $@
 
 clean:
 	rm -f $(OBJS)

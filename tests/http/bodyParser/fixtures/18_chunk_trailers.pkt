@@ -1,0 +1,10 @@
+POST /upload HTTP/1.1
+Host: localhost
+Transfer-Encoding: chunked
+
+3
+CAT
+0
+X-Checksum: abc123
+X-Upload-ID: 42
+
