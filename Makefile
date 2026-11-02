@@ -17,14 +17,15 @@ SRCS = source/main.cpp \
        source/LocationConfig.cpp \
 	   source/utils.cpp
 
-OBJS = $(SRCS:.cpp=.o)
+OBJS = $(patsubst source/%.cpp,objects/%.o,$(SRCS))
 
 all: $(NAME)
 
 $(NAME): $(OBJS)
 	$(CXX) $(CXXFLAGS) $(OBJS) -o $(NAME)
 
-%.o: %.cpp
+objects/%.o: source/%.cpp
+	mkdir -p objects
 	$(CXX) $(CXXFLAGS) $(INCLUDES) -c $< -o $@
 
 clean:
