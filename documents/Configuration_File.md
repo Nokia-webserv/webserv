@@ -73,6 +73,30 @@ Below is the initial set of directives that is highly recommended to support by 
 * `return` — Configures HTTP redirections with a status code and target URL.
 * `cgi_pass` — Binds file extensions to external CGI interpreters (e.g., `.php` to `/usr/bin/php-cgi`).
 
+### Supported `listen` format
+
+```nginx
+listen 8080;           # Uses 0.0.0.0:8080
+listen 127.0.0.1:8080; # Explicit IPv4 address and port
+```
+
+Each server block must contain at least one `listen` directive. Multiple
+`listen` directives are allowed. Ports must contain decimal digits and have a
+value from 1 through 65535; leading zeros in ports are accepted.
+
+Explicit addresses use IPv4 only: exactly four dot-separated decimal octets,
+each containing 1-3 ASCII digits with a value from 0 through 255. A multi-digit
+octet must not start with zero. Hostnames, `*`, IPv6, abbreviated addresses,
+hexadecimal forms, and subnet suffixes are not supported.
+
+Address validation checks syntax. Whether the address is configured locally or
+the port is available is checked when the networking code binds the socket.
+Special-purpose ranges are not rejected by the IPv4 syntax validator:
+`0.0.0.0` is the wildcard bind address, and loopback/private addresses are valid
+configuration choices. Broadcast or multicast suitability belongs to the TCP
+listener/networking layer. Do not reject every address ending in `.0` or `.255`;
+their role depends on the subnet prefix, which is not part of this format.
+
 ---
 
 ## Config File Parsing
