@@ -65,6 +65,7 @@ class Configs {
 
         std::vector<ServerConfig> serverConfigsParsed;
 
+        bool isLocationUnique(const ServerConfig& server, const std::string& path) const;
         // Parses all server blocks.
         void parseServers();
         // Parse a single server at a time
@@ -72,7 +73,8 @@ class Configs {
 
         // parse the server direcctives
         void parseServerDirective(ServerConfig &server);
-
+        
+        bool isValidIPv4(const std::string& address) const;
         void parseListen(ServerConfig &server);
         void parseServerNames(ServerConfig &server);
         void parseClientMaxBodySize(ServerConfig &server);

@@ -543,7 +543,18 @@ void Configs::cleanTokens()
 //   0       1       2       3       4       5         6
 // WORD  OPENBRACE  WORD    WORD    SEMI. CLOSEBRACE  END
 
-
+//check if location path is unique
+bool Configs::isLocationUnique(const ServerConfig& server, const std::string& path) const
+{
+    for (std::vector<LocationConfig>::const_iterator it = server.locations.begin();
+        it != server.locations.end();
+        ++it)
+    {
+        if (it->path == path)
+            return (false);
+    }
+    return (true);
+}
 
 // parseServer will parse one server block
 ServerConfig Configs::parseServer()
@@ -567,8 +578,16 @@ ServerConfig Configs::parseServer()
         // if location
         if (tokens[tokenIndex].value == "location")
         {
+            //for correct line log if duplicate locations
+            const size_t locationLineStart = tokenIndex;
             LocationConfig location = parseLocation();
-            server.locations.push_back(location);
+            if (isLocationUnique(server, location.path))
+                server.locations.push_back(location);
+            else
+            {
+                tokenIndex = locationLineStart;
+                throwParseError("duplication of location paths: " + location.path);
+            }
         }
         else 
         {
@@ -579,7 +598,17 @@ ServerConfig Configs::parseServer()
     // end of the server block expect a }
     if (tokens[tokenIndex].type != Token::CLOSEBRACE)
         throwParseError("Expected '}'");
-
+    
+    //handle empty listen
+    if (server.listens.empty())
+    {
+        ListenConfig listen;
+        listen.host = "0.0.0.0";
+        listen.port = 80;
+        server.listens.push_back(listen);
+        std::cout << "No listen directive specified; using default 0.0.0.0:80" << std::endl;
+    }
+        
     // skip the }
     tokenIndex++;
     // return the server to be added as serverConfig
@@ -708,6 +737,50 @@ void Configs::printConfig(const ServerConfig& server)
 // listen  8080    ;
 // WORD    WORD   SEMI
 
+bool Configs::isValidIPv4(const std::string& address) const
+{
+    size_t start = 0;
+    
+    //loop thru each part of ip address (x.x.x.x)
+    for (int i = 0; i < 4; i++)
+    {
+        size_t separator = address.find('.', start);
+        std::string part;
+
+        //first 3 parts should have a '.' after them
+        if (i < 3) {
+            if (separator == std::string::npos)
+                return (false);
+            part = address.substr(start, separator - start);
+        }
+        else {
+            //after 4th part should be no leading dots or more parts
+            if (separator != std::string::npos)
+                return (false);
+
+            part = address.substr(start);
+        }
+
+        //validate each part of address
+        //not empty and 1-3 chars
+        if (part.size() < 1 || part.size() > 3)
+            return (false);
+        //made of digits
+        if (part.find_first_not_of("0123456789") != std::string::npos)
+            return (false);
+        //no leading zeroes (192.168.1.1 is correct, 192.168.01.1 is wrong according to RFC 3986)
+        if (part.size() > 1 && part[0] == '0')
+            return (false);
+        //has number ranged 0-255
+        int number = std::atoi(part.c_str());
+        if (number < 0 || number > 255)
+            return (false);
+        if (i < 3)
+            start = separator + 1;
+    }
+    return (true);
+}
+
 void Configs::parseListen(ServerConfig &server)
 {
     //skip listen
@@ -732,6 +805,8 @@ void Configs::parseListen(ServerConfig &server)
         portStr = value.substr(separator + 1);
         if (listen.host.empty())
             throwParseError("Empty host");
+        if (!isValidIPv4(listen.host))
+            throwParseError("Invalid host IP: " + listen.host);
     } 
     else
     {
@@ -758,6 +833,7 @@ void Configs::parseListen(ServerConfig &server)
     if (tokens[tokenIndex].type != Token::SEMI)
         throwParseError("Expected ';' after listen");
     tokenIndex++;
+    
     server.listens.push_back(listen);
 }
 
