@@ -26,6 +26,14 @@ HttpParsingResult HttpParser::run()
             _extractHead(); // move head section from recvBuffer to http parser's buffer
             _status = _parseHead(); // parsing of the head section
 
+                // DEBUG START
+                std::cout << "Result after decoding:\n";
+                std::cout << "Method: " << _parsedRequest.getMethod() << "\n";
+                std::cout << "Path: " << _parsedRequest.getPath() << "\n";
+                std::cout << "Query: " << _parsedRequest.getQuery() << "\n";
+                std::cout << "Version: " << _parsedRequest.getVersion() << "\n\n";
+                // DEBUG END
+
             if (_status == COMPLETE) // determines if http request has body
             {
                 // set body framing
@@ -224,8 +232,8 @@ HttpRequestStatus HttpParser::_parseHead()
             // std::cout << "_status = " << _status << "\n(0: incompl. head, 1: incompl. body, 2: complete, 3: error)\n\n";
             // DEBUG END
 
-         if (_error == NO_ERROR)
-                _error = BAD_REQUEST;
+        if (_error == NO_ERROR)
+            _error = BAD_REQUEST;
         
         return ERROR;
     }
@@ -305,25 +313,14 @@ bool HttpParser::_parseRequestLine()
     requestLine.clear();
 
         // DEBUG START
-        std::cout << "Result:\n";
-        std::cout << "Method: " << _parsedRequest.getMethod() << "\n";
-        std::cout << "Path: " << _parsedRequest.getPath() << "\n";
-        std::cout << "Query: " << _parsedRequest.getQuery() << "\n";
-        std::cout << "Version: " << _parsedRequest.getVersion() << "\n\n";
+        // std::cout << "Result:\n";
+        // std::cout << "Method: " << _parsedRequest.getMethod() << "\n";
+        // std::cout << "Path: " << _parsedRequest.getPath() << "\n";
+        // std::cout << "Query: " << _parsedRequest.getQuery() << "\n";
+        // std::cout << "Version: " << _parsedRequest.getVersion() << "\n\n";
         // DEBUG END
 
-    if (!_decodeRequestLine())
-        return false;
-
-            // DEBUG START
-            std::cout << "Result after decoding:\n";
-            std::cout << "Method: " << _parsedRequest.getMethod() << "\n";
-            std::cout << "Path: " << _parsedRequest.getPath() << "\n";
-            std::cout << "Query: " << _parsedRequest.getQuery() << "\n";
-            std::cout << "Version: " << _parsedRequest.getVersion() << "\n\n";
-            // DEBUG END
-
-    return _validateRequestLine();
+    return _validateRequestLine() && _decodeRequestLine();
 }
 
 bool decodeStr(const std::string & encoded, std::string & decoded)
