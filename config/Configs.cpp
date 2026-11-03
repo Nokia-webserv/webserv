@@ -578,11 +578,16 @@ ServerConfig Configs::parseServer()
         // if location
         if (tokens[tokenIndex].value == "location")
         {
+            //for correct line log if duplicate locations
+            const size_t locationLineStart = tokenIndex;
             LocationConfig location = parseLocation();
             if (isLocationUnique(server, location.path))
                 server.locations.push_back(location);
             else
+            {
+                tokenIndex = locationLineStart;
                 throwParseError("duplication of location paths: " + location.path);
+            }
         }
         else 
         {
