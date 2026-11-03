@@ -83,9 +83,13 @@ listen 8080;           # Uses 0.0.0.0:8080
 listen 127.0.0.1:8080; # Explicit IPv4 address and port
 ```
 
-Each server block must contain at least one `listen` directive. Multiple
-`listen` directives are allowed. Ports must contain decimal digits and have a
-value from 1 through 65535; leading zeros in ports are accepted.
+Multiple `listen` directives are allowed in each server block. If none is
+specified, the parser adds a default listener at `0.0.0.0:80` and prints an
+informational message. Explicit `listen` directives are preserved; no extra
+default listener is added when at least one is present.
+
+Ports must contain decimal digits and have a value from 1 through 65535;
+leading zeros in ports are accepted.
 
 Explicit addresses use IPv4 only: exactly four dot-separated decimal octets,
 each containing 1-3 ASCII digits with a value from 0 through 255. A multi-digit

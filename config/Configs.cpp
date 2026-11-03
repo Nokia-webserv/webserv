@@ -578,11 +578,16 @@ ServerConfig Configs::parseServer()
         // if location
         if (tokens[tokenIndex].value == "location")
         {
+            //for correct line log if duplicate locations
+            const size_t locationLineStart = tokenIndex;
             LocationConfig location = parseLocation();
             if (isLocationUnique(server, location.path))
                 server.locations.push_back(location);
             else
+            {
+                tokenIndex = locationLineStart;
                 throwParseError("Duplication of location paths: " + location.path);
+            }
         }
         else 
         {
@@ -594,10 +599,16 @@ ServerConfig Configs::parseServer()
     if (tokens[tokenIndex].type != Token::CLOSEBRACE)
         throwParseError("Expected '}'");
     
-    //validate that listen is not empty
+    //handle empty listen
     if (server.listens.empty())
-        throwParseError("Missing listen directive in server block");
-
+    {
+        ListenConfig listen;
+        listen.host = "0.0.0.0";
+        listen.port = 80;
+        server.listens.push_back(listen);
+        std::cout << "No listen directive specified; using default 0.0.0.0:80" << std::endl;
+    }
+        
     // skip the }
     tokenIndex++;
     // return the server to be added as serverConfig
