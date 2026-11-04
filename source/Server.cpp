@@ -6,7 +6,7 @@
 /*   By: damohame <damohame@student.42berlin.d>     +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/10/02 16:24:40 by damohame          #+#    #+#             */
-/*   Updated: 2026/11/04 22:35:40 by damohame         ###   ########.fr       */
+/*   Updated: 2026/11/04 22:50:57 by damohame         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -499,9 +499,6 @@ void Server::processHttpInput(ClientConnection &client)
             client.setCloseAfterResponse();
             return;
         }
-        // nothing to do close the connection
-        client.setCloseAfterResponse();
-        return;
     }
     // if buffer not empty means there is still requests
     // no new POLLIN events
