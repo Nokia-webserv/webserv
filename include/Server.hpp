@@ -6,7 +6,7 @@
 /*   By: damohame <damohame@student.42berlin.d>     +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/10/02 16:24:47 by damohame          #+#    #+#             */
-/*   Updated: 2026/10/27 02:21:55 by damohame         ###   ########.fr       */
+/*   Updated: 2026/11/03 23:02:06 by damohame         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -41,10 +41,16 @@ class Server {
         // Max client connection as nginx default number
         static const size_t MAX_CLIENT_CONNECTIONS = 512;
 
+        // http requests limit at a time
+        static const size_t MAX_REQUESTS_PER_PASS = 16;
+        
         void handleListenersEvents(Listener *listener, short revents);
         void handleClientEvents(int fd, short revents);
         void disconnectClient(int fd);
         void checkClientTimeout();
+        void processHttpInput(ClientConnection &client);
+        void processPendingHttpInput();
+        int getPollEventTimeout();
 
     public:
         Server(const std::vector<ServerConfig>& configs);

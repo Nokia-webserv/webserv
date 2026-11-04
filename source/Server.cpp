@@ -6,7 +6,7 @@
 /*   By: damohame <damohame@student.42berlin.d>     +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/10/02 16:24:40 by damohame          #+#    #+#             */
-/*   Updated: 2026/10/27 02:46:34 by damohame         ###   ########.fr       */
+/*   Updated: 2026/11/04 00:32:18 by damohame         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -90,6 +90,8 @@ void Server::run()
 {
 	while (true)
 	{
+        // to process the old requests with no POLLIN
+        processPendingHttpInput();
 		// rebuild the poll struct on every loop
         // (contains listening sockets and connected client sockets)
 		buildPollFds();
@@ -97,7 +99,11 @@ void Server::run()
         if (poll_fds.empty())
             throw std::runtime_error("No file descriptors available for poll()");
 
-        int ready = poll(&poll_fds[0], poll_fds.size(), POLL_TIMEOUT_MS);
+        // changing the poll time to zero in case of pending requests
+        // don't wait for an event
+        int timeout = getPollEventTimeout();
+
+        int ready = poll(&poll_fds[0], poll_fds.size(), timeout);
 
         if (ready < 0)
         {
@@ -153,6 +159,15 @@ void Server::handleClientEvents(int fd, short revents)
     std::map<int, ClientConnection*>::iterator client = clients.find(fd);
     if (client != clients.end())
     {
+        // DEBUG START HTTP_POLL_LOOP
+        // std::cout << "[POLL] fd=" << fd
+                  // << " POLLIN=" << (bool)(revents & POLLIN)
+                  // << " POLLOUT=" << (bool)(revents & POLLOUT)
+                  // << " POLLHUP=" << (bool)(revents & POLLHUP)
+                  // << " POLLERR=" << (bool)(revents & POLLERR)
+                  // << std::endl;
+        // DEBUG END
+        
         // socket + invalid fd errors
         if (revents & (POLLERR | POLLNVAL))
         {
@@ -170,6 +185,14 @@ void Server::handleClientEvents(int fd, short revents)
                 disconnectClient(fd);
                 return;
             }
+            
+            // adding http to poll event
+            // if the server didn't close the connection
+            if (!client->second->shouldCloseAfterResponse())
+            {
+                processHttpInput(*client->second);
+            }
+            
             // Testing
             //client->second->printReceivedData();
         }
@@ -188,9 +211,11 @@ void Server::handleClientEvents(int fd, short revents)
             }
         }
         // the client has no data to send
+        // the server closed from his side
         // the server has no data to send
-        if (client->second->isReadClosed()
-            && !client->second->hasDataToSend())
+        // no pending requests in the buffer
+        if ((client->second->isReadClosed() || client->second->shouldCloseAfterResponse()) &&
+                !client->second->hasDataToSend() && !client->second->hasPendingHttpInput())
         {
             disconnectClient(fd);
             return;
@@ -209,6 +234,12 @@ void Server::disconnectClient(int fd)
     // testing
     //std::cout << "Client disconnected: fd=" << fd << std::endl;
     // else clean
+    
+    // DEBUG START HTTP_POLL_LOOP
+    // std::cout << "[CLIENT] Disconnecting fd=" << fd
+              // << std::endl;
+    // DEBUG END
+    
     delete client->second;
     clients.erase(client);
 }
@@ -293,7 +324,8 @@ void Server::buildPollFds()
         
         // in case of readClosed = false
         // first connection / client can send data
-        if (!it->second->isReadClosed())
+        // if also the server closed the connection from his side
+        if (!it->second->isReadClosed() && !it->second->shouldCloseAfterResponse())
             pfd.events |= POLLIN;
 
          // if there is data waiting to be sent
@@ -362,4 +394,144 @@ void Server::acceptNewConnections(Listener *listener)
             ClientConnection * newClient = new ClientConnection(clientSocket, clientAddress);
             clients[clientSocket] = newClient;
         }
+}
+
+
+// to process the pending requests with no POLLIN
+// pendingHttpInout is true
+void Server::processPendingHttpInput()
+{
+    for (std::map<int, ClientConnection*>::iterator it = clients.begin(); it != clients.end();)
+    {
+        int fd = it->first;
+        ClientConnection *client = it->second;
+        it++;
+
+        // if the client has a request in the buffer,
+        if (client->hasPendingHttpInput() && !client->shouldCloseAfterResponse())
+        {
+            // DEBUG START HTTP_POLL_LOOP
+            // std::cout << "[HTTP] Resuming pending requests, fd="
+                      // << fd << std::endl;
+            // DEBUG END    
+            processHttpInput(*client);
+        }
+        // close connection in case of done with the pending buffer
+        if ((client->isReadClosed() || client->shouldCloseAfterResponse()) &&
+            !client->hasDataToSend() && !client->hasPendingHttpInput())
+        {
+            disconnectClient(fd);
+        }
+    }
+}
+
+void Server::processHttpInput(ClientConnection &client)
+{
+    // DEBUG START HTTP_POLL_LOOP
+    // std::cout << "[HTTP] Processing request, fd="
+              // << client.getFd() << std::endl;
+    // DEBUG END
+    
+    //clear the processing flag
+    //consider all the bytes will be processes in this POLLIN
+    // to limit the number of requests at a time by a client
+    client.setPendingHttpInput(false);
+    size_t processedRequests = 0;
+
+    // if the buffer contains multiple requests from that client and connection is open
+    while (processedRequests < MAX_REQUESTS_PER_PASS 
+        && !client.shouldCloseAfterResponse())
+    {
+        // run the parser and put the output in result
+        HttpParsingResult result = client.callParser();
+        
+        // DEBUG START HTTP_POLL_LOOP
+        // std::cout << "[HTTP] fd=" << client.getFd()
+                  // << " parser status=" << result.status
+                  // << " recvBuffer bytes=" << client.getRecvBuffer().size()
+                  // << std::endl;
+        // DEBUG END
+
+        // not all data are send
+        if (result.status == INCOMPLETE_HEAD || result.status == INCOMPLETE_BODY)
+        {
+            // Request is incomplete. Wait for more data.
+            // wait for more data without resetting- do nothing
+            // wait for next loop (another POLLIN);
+            return;
+        }
+        
+        // successul
+        // request is complete
+        if (result.status == COMPLETE)
+        {
+            // Accesss the request class
+            const HttpRequest& request = client.getHttpRequest();
+           
+            // DEBUG START HTTP_POLL_LOOP
+            // std::cout << "HTTP Request completed!\n";
+            // std::cout << "Method: " << request.getMethod() << "\n";
+            // std::cout << "Path: " << request.getPath() << "\n";
+            // std::cout << "Query: " << request.getQuery() << "\n";
+            // std::cout << "Version: " << request.getVersion() << "\n";
+            // const std::map<std::string, std::string>& headers = request.getHeaders();
+            // for (std::map<std::string, std::string>::const_iterator it = headers.begin(); it != headers.end(); ++it)
+            // {
+                // std::cout << it->first << ": " << it->second << "\n";
+            // }
+                // std::cout << "Body: " << request.getBody() << "\n";
+            // DEBUG END
+
+            // reset after finishing with the request
+            client.getParser().reset();
+            ++processedRequests;
+            if(client.getRecvBuffer().empty())
+                return;
+            continue;
+        }
+        // error
+        // close connection from server side 
+        if (result.status == ERROR)
+        {
+            // DEBUG START HTTP_POLL_LOOP
+            // std::cout << "[HTTP] Parsing error, fd="
+                      // << client.getFd() << std::endl;
+            // DEBUG END
+            client.setCloseAfterResponse();
+            return;
+        }
+        // nothing to do close the connection
+        client.setCloseAfterResponse();
+        return;
+    }
+    // if buffer not empty means there is still requests
+    // no new POLLIN events
+    // we need this flag to indicate it
+    if (!client.shouldCloseAfterResponse() && !client.getRecvBuffer().empty())
+    {
+        // DEBUG START HTTP_POLL_LOOP
+        // std::cout << "[HTTP] Reached request limit, fd="
+                  // << client.getFd()
+                      // << " remaining bytes="
+                      // << client.getRecvBuffer().size()
+                      // << std::endl;
+        // DEBUG END
+        
+        client.setPendingHttpInput(true);
+    }
+}
+
+int Server::getPollEventTimeout()
+{
+    // default timeout
+    int timeout = POLL_TIMEOUT_MS;
+    
+    // loop to check for pending
+    for (std::map<int, ClientConnection*>::iterator it = clients.begin();
+            it != clients.end(); ++it)
+        {
+            if (it->second->hasPendingHttpInput())
+                return (0);
+        }
+        return (timeout);
 }
