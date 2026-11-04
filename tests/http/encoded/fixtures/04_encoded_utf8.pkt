@@ -1,0 +1,3 @@
+GET /caf%C3%A9 HTTP/1.1
+Host: example.com
+
