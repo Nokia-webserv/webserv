@@ -6,7 +6,7 @@
 /*   By: damohame <damohame@student.42berlin.d>     +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/10/02 16:24:40 by damohame          #+#    #+#             */
-/*   Updated: 2026/11/04 00:32:18 by damohame         ###   ########.fr       */
+/*   Updated: 2026/11/04 22:35:40 by damohame         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -466,9 +466,8 @@ void Server::processHttpInput(ClientConnection &client)
         if (result.status == COMPLETE)
         {
             // Accesss the request class
-            const HttpRequest& request = client.getHttpRequest();
-           
             // DEBUG START HTTP_POLL_LOOP
+            // const HttpRequest& request = client.getHttpRequest();
             // std::cout << "HTTP Request completed!\n";
             // std::cout << "Method: " << request.getMethod() << "\n";
             // std::cout << "Path: " << request.getPath() << "\n";
