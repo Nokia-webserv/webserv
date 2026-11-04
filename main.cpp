@@ -22,10 +22,10 @@ int main(int argc, char * argv[])
         configs = configParser(argv[1]); // running the config part
 
         // testing (uncomment below)
-        /*for (size_t i = 0; i < configs.size(); ++i)
+        for (size_t i = 0; i < configs.size(); ++i)
         {
             Configs::printConfig(configs[i]);
-        }*/
+        }
         
     }
     catch(const std::exception & e)

@@ -21,6 +21,9 @@ class ServerConfig {
         std::vector<ListenConfig> listens;
         std::vector<std::string> server_names;
         long client_max_body_size;
+        long client_max_header_size;
+        long client_max_response_size;
+        long connections_max_number;
         std::map<int, std::string> error_pages;
         std::vector<LocationConfig> locations;
 

@@ -51,7 +51,7 @@ class Configs {
         // for testing tokens
         //static void printTokens(const std::vector<Token> &tokens);
          // for testing the parsed directive
-        //static void printConfig(const ServerConfig& server);
+        static void printConfig(const ServerConfig& server);
 
         std::vector<ServerConfig> getParsedConfigs() const;
 
@@ -77,7 +77,8 @@ class Configs {
         bool isValidIPv4(const std::string& address) const;
         void parseListen(ServerConfig &server);
         void parseServerNames(ServerConfig &server);
-        void parseClientMaxBodySize(ServerConfig &server);
+        void parseDirectiveSizeValue(const std::string & directive_name, long & destination);
+        void parseConnectionsMaxNumber(ServerConfig & server);
         void parseErrorPages(ServerConfig &server);
 
         void throwParseError(const std::string &message) const;
@@ -90,7 +91,6 @@ class Configs {
         void parseIndex(LocationConfig &location);
         void parseAutoindex(LocationConfig &location);
         void parseMethods(LocationConfig &location);
-        void parseClientMaxBodySize (LocationConfig &location);
         void parseUploadStore(LocationConfig &location);
         void parseReturn(LocationConfig &location);
         void parseCgiExtension(LocationConfig &location);

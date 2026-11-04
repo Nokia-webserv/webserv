@@ -64,12 +64,15 @@ Below is the initial set of directives that is highly recommended to support by 
 * `listen` — Sets the `interface:port` pairs on which the server listens.
 * `server_name` — Specifies hostnames for virtual hosting.
 * `client_max_body_size` — Restricts the maximum body size of client requests (protects against large payloads).
+* `client_max_header_size` — Restricts the maximum head size of client requests (request line + headers).
+* `client_max_response_size` — Restricts the maximum body size of client responses.
+* `connections_max_number` — Restricts the maximum number of client connections (for a virtual server).
 * `error_page` — Configures custom fallback pages for specific HTTP error codes.
 * `location` — Scopes configuration rules to a specific URL path prefix.
 * `root` — Defines the root directory on disk where requested files are located.
 * `index` — Sets the default file to serve when a directory is requested (e.g., `index.html`).
 * `autoindex` — Enables (`on`) or disables (`off`) directory listing when no index file is found.
-* `limit_except` — Restricts allowed HTTP methods (e.g., allowing `GET` and `POST` while blocking others).
+* `methods` — Restricts allowed HTTP methods (e.g., allowing `GET` and `POST` while blocking others).
 * `return` — Configures HTTP redirections with a status code and target URL.
 * `cgi_pass` — Binds file extensions to external CGI interpreters (e.g., `.php` to `/usr/bin/php-cgi`).
 

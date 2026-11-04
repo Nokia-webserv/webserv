@@ -14,6 +14,7 @@ class LocationConfig
 
         bool autoindex; // on
         long client_max_body_size; // 10m
+        long client_max_header_size;
         
         std::string upload_store; // www/uploads
         

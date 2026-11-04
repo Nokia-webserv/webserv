@@ -586,7 +586,7 @@ ServerConfig Configs::parseServer()
             else
             {
                 tokenIndex = locationLineStart;
-                throwParseError("duplication of location paths: " + location.path);
+                throwParseError("Duplication of location paths: " + location.path);
             }
         }
         else 
@@ -620,6 +620,9 @@ ServerConfig Configs::parseServer()
 // and add one server config then the next one.
 void Configs::parseServers()
 {
+    tokenIndex = 0;
+    serverConfigsParsed.clear();
+
     while(tokens[tokenIndex].type != Token::END)
     {
         // it starts with the server
@@ -644,7 +647,7 @@ void Configs::parseServers()
 //----------- 6. Server Directive Parsing ----------- 
 
 //testing (uncomment below)
-/*
+
 void Configs::printConfig(const ServerConfig& server)
 {
     std::cout << "========== SERVER CONFIG ==========" << std::endl;
@@ -664,6 +667,15 @@ void Configs::printConfig(const ServerConfig& server)
 
     std::cout << "Client Max Body Size: "
               << server.client_max_body_size << " bytes" << std::endl;
+
+    std::cout << "Client Max Header Size: "
+              << server.client_max_header_size << " bytes" << std::endl;
+
+    std::cout << "Client Max Response Size: "
+              << server.client_max_response_size << " bytes" << std::endl;
+
+    std::cout << "Connections Max Number: "
+              << server.connections_max_number << " clients" << std::endl;
 
     for (std::map<int, std::string>::const_iterator it =
              server.error_pages.begin();
@@ -703,6 +715,10 @@ void Configs::printConfig(const ServerConfig& server)
         std::cout << "Client Max Body Size: "
                   << location.client_max_body_size << " bytes" << std::endl;
 
+        // Client max header size
+        std::cout << "Client Max Header Size: "
+                  << location.client_max_header_size << " bytes" << std::endl;
+
         // Upload store
         std::cout << "Upload Store: "
                   << location.upload_store << std::endl;
@@ -730,7 +746,7 @@ void Configs::printConfig(const ServerConfig& server)
     }
     std::cout << "===================================" << std::endl;
 }
-*/
+
 
 // example : for nginx must be without quotes
 // listen  127.0.0.1:8080;
@@ -859,15 +875,16 @@ void Configs::parseServerNames(ServerConfig &server)
     tokenIndex++;
 }
 
+// copied previous parseClientMaxBodySize() logic
 // client_max_body_size 1024;  # 1024 bytes
 // client_max_body_size 512k;  # 512 KB
 // client_max_body_size 2m;    # 2 MB
-void Configs::parseClientMaxBodySize(ServerConfig &server)
+void Configs::parseDirectiveSizeValue(const std::string & directive_name, long & destination)
 {
     tokenIndex++;
 
     if(tokens[tokenIndex].type != Token::WORD)
-        throwParseError("Expected a size after client_max_body_size");
+        throwParseError("Expected a size after " + directive_name);
 
     std::string value = tokens[tokenIndex].value;
     long converter = 1;
@@ -897,7 +914,7 @@ void Configs::parseClientMaxBodySize(ServerConfig &server)
     // check if all is number and valid
     if (value.empty() || 
         value.find_first_not_of("0123456789") != std::string::npos)
-            throwParseError("Invalid client_max_body_size");
+            throwParseError("Invalid " + directive_name);
     
     // str to number
     char *end;
@@ -906,18 +923,49 @@ void Configs::parseClientMaxBodySize(ServerConfig &server)
     long size = std::strtol(value.c_str(), &end, 10);
     if (errno == ERANGE || *end != '\0' ||
         size > LONG_MAX / converter)
-            throwParseError("Invalid client_max_body_size");
+            throwParseError("Invalid " + directive_name);
     
-    server.client_max_body_size = size * converter;
+    destination = size * converter;
     
     tokenIndex++;
 
     if (tokens[tokenIndex].type != Token::SEMI)
-        throwParseError("Missing ';' after client_max_body_size");
+        throwParseError("Missing ';' after " + directive_name);
 
     tokenIndex++;
 }
 
+void Configs::parseConnectionsMaxNumber(ServerConfig & server)
+{
+    tokenIndex++;
+
+    if(tokens[tokenIndex].type != Token::WORD)
+        throwParseError("Expected a number after connections_max_number");
+
+    std::string value = tokens[tokenIndex].value;
+
+    // check if all is number and valid
+    if (value.empty() || 
+        value.find_first_not_of("0123456789") != std::string::npos)
+            throwParseError("Invalid connections_max_number");
+    
+    // str to number
+    char *end;
+    errno = 0;
+
+    long number = std::strtol(value.c_str(), &end, 10);
+    if (errno == ERANGE || *end != '\0')
+        throwParseError("Invalid connections_max_number");
+    
+    server.connections_max_number = number;
+    
+    tokenIndex++;
+
+    if (tokens[tokenIndex].type != Token::SEMI)
+        throwParseError("Missing ';' after connections_max_number");
+
+    tokenIndex++;
+}
 
 // error_page 404 /errors/404.html;
 // error_page 500 502 503 /errors/50x.html;
@@ -988,7 +1036,19 @@ void Configs::parseServerDirective(ServerConfig &server)
     }
     else if(tokens[tokenIndex].value == "client_max_body_size")
     {
-        parseClientMaxBodySize(server);
+        parseDirectiveSizeValue("client_max_body_size", server.client_max_body_size);
+    }
+    else if(tokens[tokenIndex].value == "client_max_header_size")
+    {
+        parseDirectiveSizeValue("client_max_header_size", server.client_max_header_size);
+    }
+    else if(tokens[tokenIndex].value == "client_max_response_size")
+    {
+        parseDirectiveSizeValue("client_max_response_size", server.client_max_response_size);
+    }
+    else if(tokens[tokenIndex].value == "connections_max_number")
+    {
+        parseConnectionsMaxNumber(server);
     }
     else if(tokens[tokenIndex].value == "error_page")
     {
@@ -1076,65 +1136,6 @@ void Configs::parseMethods(LocationConfig &location)
     if (tokens[tokenIndex].type != Token::SEMI)
         throwParseError("Expected ';' after methods");
     tokenIndex++;  
-}
-
-// client_max_body_size 1024;  # 1024 bytes
-// client_max_body_size 512k;  # 512 KB
-// client_max_body_size 2m;    # 2 MB
-void Configs::parseClientMaxBodySize (LocationConfig &location)
-{
-    tokenIndex++;
-
-    if(tokens[tokenIndex].type != Token::WORD)
-        throwParseError("Expected a size after client_max_body_size");
-
-    std::string value = tokens[tokenIndex].value;
-    long converter = 1;
-
-    // define the converter for later use
-    if (!value.empty())
-    {
-        char unit = value[value.size() - 1];
-
-        if (unit == 'k' || unit == 'K')
-        {
-            converter = 1024;
-            value.erase(value.size()-1);
-        }
-        else if (unit == 'm' || unit == 'M')
-        {
-            converter = 1024 * 1024;
-            value.erase(value.size()-1);
-        }
-        else if (unit == 'g' || unit == 'G')
-        {
-            converter = 1024L * 1024 *1024;
-            value.erase(value.size()-1);
-        }
-    }
-
-    // check if all is number and valid
-    if (value.empty() || 
-        value.find_first_not_of("0123456789") != std::string::npos)
-            throwParseError("Invalid client_max_body_size");
-    
-    // str to number
-    char *end;
-    errno = 0;
-
-    long size = std::strtol(value.c_str(), &end, 10);
-    if (errno == ERANGE || *end != '\0' ||
-        size > LONG_MAX / converter)
-            throwParseError("Invalid client_max_body_size");
-    
-    location.client_max_body_size = size * converter;
-    
-    tokenIndex++;
-
-    if (tokens[tokenIndex].type != Token::SEMI)
-        throwParseError("Missing ';' after client_max_body_size");
-
-    tokenIndex++;
 }
 
 //upload_store www/uploads;
@@ -1233,7 +1234,9 @@ void Configs::parseLocationDirective(LocationConfig &location)
     else if (tokens[tokenIndex].value == "methods")
         parseMethods(location);
     else if (tokens[tokenIndex].value == "client_max_body_size")
-        parseClientMaxBodySize(location);
+        parseDirectiveSizeValue("client_max_body_size", location.client_max_body_size);
+    else if (tokens[tokenIndex].value == "client_max_header_size")
+        parseDirectiveSizeValue("client_max_header_size", location.client_max_header_size);
     else if (tokens[tokenIndex].value == "upload_store")
         parseUploadStore(location);
     else if (tokens[tokenIndex].value == "return")
@@ -1299,13 +1302,10 @@ void Configs::parseConfigFile()
     validateNotEmpty();
     validateFileFormat();
     sanitizeConfigFile();
-
     tokenizeContent();
     //printTokens(tokens);
     cleanTokens();
     // TEMPORARY: Testing cleanTokens()
     //printTokens(tokens);
-    tokenIndex = 0;
-    serverConfigsParsed.clear();
     parseServers();
 }
