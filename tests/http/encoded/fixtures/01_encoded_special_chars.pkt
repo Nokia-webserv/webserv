@@ -1,3 +1,0 @@
-GET /search%3Fresults%23top HTTP/1.1
-Host: example.com
-

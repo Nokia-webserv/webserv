@@ -1,3 +1,0 @@
-GET %2fhello%20world HTTP/1.1
-Host: example.com
-

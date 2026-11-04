@@ -1,3 +1,0 @@
-GET /hello%20%21%7E HTTP/1.1
-Host: example.com
-
