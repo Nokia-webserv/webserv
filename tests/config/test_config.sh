@@ -7,12 +7,24 @@ FAILED=0
 
 : > "$LOG"
 
+normalize_file()
+{
+    if [ "$#" -eq 0 ]; then
+        sed -e 's/\r$//' -e '/^[[:space:]]*$/d'
+    else
+        sed -e 's/\r$//' -e '/^[[:space:]]*$/d' "$1"
+    fi
+}
+
 log_case()
 {
     local file="$1"
     local expected="$2"
     local output
     local exit_code
+    local expected_file
+    local actual_normalized
+    local expected_normalized
 
     {
         echo
@@ -26,7 +38,7 @@ log_case()
     printf '%s\n' "$output" >> "$LOG"
 
     if [ "$expected" = "valid" ]; then
-        local expected_file="${file%.conf}.expected"
+        expected_file="${file%.conf}.expected"
 
         if [ "$exit_code" -ne 0 ]; then
             echo "[FAIL] $file"
@@ -44,39 +56,77 @@ log_case()
             return
         fi
 
-        while IFS= read -r line; do
-            [ -n "$line" ] || continue
-            if ! printf '%s\n' "$output" | grep -F -x -- "$line" >/dev/null; then
-                echo "[FAIL] $file"
-                echo "       expected value not found: $line"
-                echo "       details: $LOG"
-                FAILED=$((FAILED + 1))
-                return
-            fi
-        done < "$expected_file"
+        actual_normalized=$(mktemp)
+        expected_normalized=$(mktemp)
+        printf '%s\n' "$output" | normalize_file > "$actual_normalized"
+        normalize_file "$expected_file" > "$expected_normalized"
+
+        if ! diff -u "$expected_normalized" "$actual_normalized" >> "$LOG"; then
+            echo "[FAIL] $file"
+            echo "       complete parsed output differs from expected"
+            echo "       details: $LOG"
+            rm -f "$actual_normalized" "$expected_normalized"
+            FAILED=$((FAILED + 1))
+            return
+        fi
+
+        rm -f "$actual_normalized" "$expected_normalized"
 
         echo "[PASS] $file"
         PASSED=$((PASSED + 1))
         return
     fi
 
-    if [ "$exit_code" -ne 0 ]; then
-        echo "[PASS] $file"
-        PASSED=$((PASSED + 1))
-    else
+    expected_file="${file%.conf}.error"
+
+    if [ ! -f "$expected_file" ]; then
         echo "[FAIL] $file"
-        echo "       invalid config was accepted"
+        echo "       missing expected error file: $expected_file"
         echo "       details: $LOG"
         FAILED=$((FAILED + 1))
+        return
     fi
+
+    if [ "$exit_code" -ne 1 ]; then
+        echo "[FAIL] $file"
+        echo "       expected parser exit code 1, got $exit_code"
+        echo "       details: $LOG"
+        FAILED=$((FAILED + 1))
+        return
+    fi
+
+    actual_normalized=$(mktemp)
+    expected_normalized=$(mktemp)
+    printf '%s\n' "$output" | normalize_file > "$actual_normalized"
+    normalize_file "$expected_file" > "$expected_normalized"
+
+    if ! diff -u "$expected_normalized" "$actual_normalized" >> "$LOG"; then
+        echo "[FAIL] $file"
+        echo "       parser error differs from expected"
+        echo "       details: $LOG"
+        rm -f "$actual_normalized" "$expected_normalized"
+        FAILED=$((FAILED + 1))
+        return
+    fi
+
+    rm -f "$actual_normalized" "$expected_normalized"
+    echo "[PASS] $file"
+    PASSED=$((PASSED + 1))
 }
 
 run_valid_glob()
 {
     local pattern="$1"
     local file
+    local files=( $pattern )
 
-    for file in $pattern; do
+    if [ "${#files[@]}" -eq 0 ] || [ ! -f "${files[0]}" ]; then
+        echo "[FAIL] no files matched: $pattern"
+        FAILED=$((FAILED + 1))
+        return
+    fi
+
+    for file in "${files[@]}"; do
         [ -f "$file" ] || continue
         log_case "$file" valid
     done
@@ -86,8 +136,15 @@ run_invalid_glob()
 {
     local pattern="$1"
     local file
+    local files=( $pattern )
 
-    for file in $pattern; do
+    if [ "${#files[@]}" -eq 0 ] || [ ! -f "${files[0]}" ]; then
+        echo "[FAIL] no files matched: $pattern"
+        FAILED=$((FAILED + 1))
+        return
+    fi
+
+    for file in "${files[@]}"; do
         [ -f "$file" ] || continue
         log_case "$file" invalid
     done
