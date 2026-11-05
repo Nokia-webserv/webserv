@@ -1,4 +1,4 @@
-group	file	expected_status	method	path	query	body
+group	file	expected_status	method	path	query	body	expected_path_hex	expected_query_hex
 single	01_get_http11.pkt	COMPLETE	GET	/index.html		
 single	02_get_query_and_headers.pkt	COMPLETE	GET	/search	q=webserv&lang=en	
 single	03_post_empty_body.pkt	COMPLETE	POST	/submit		
@@ -53,3 +53,24 @@ header_split	08_header_split_3_parts_3.pkt	COMPLETE
 request_line_split	12_request_line_split_3_parts_1.pkt	INCOMPLETE_HEAD					
 request_line_split	12_request_line_split_3_parts_2.pkt	INCOMPLETE_HEAD					
 request_line_split	12_request_line_split_3_parts_3.pkt	COMPLETE					
+single	encoded_01_encoded_special_chars.pkt	COMPLETE	GET				2F7365617263683F726573756C747323746F70	
+single	encoded_02_encoded_slash.pkt	COMPLETE	GET	/users/admin				
+single	encoded_03_encoded_%.pkt	COMPLETE	GET	/discount%20				
+single	encoded_04_encoded_utf8.pkt	COMPLETE	GET				2F636166C3A9	
+single	encoded_05_encoded_query.pkt	COMPLETE	GET	/search				713D68656C6C6F20776F726C642663617465676F72793D432B2B
+single	encoded_06_encoded_path_and_query.pkt	COMPLETE	GET	/users/John Doe				
+single	encoded_07_encoded_path_empty_query.pkt	COMPLETE	GET				2F636166C3A9	
+single	encoded_08_invalid_%_only.pkt	ERROR						
+single	encoded_09_invalid_%+1.pkt	ERROR						
+single	encoded_10_invalid_non_hex.pkt	ERROR						
+single	encoded_11_invalid_non_hex.pkt	ERROR						
+single	encoded_12_invalid_no_space.pkt	ERROR						
+single	encoded_13_invalid_no_space.pkt	ERROR						
+single	encoded_14_invalid_encoded_nul.pkt	ERROR						
+single	encoded_15_invalid_encoded_cr.pkt	ERROR						
+single	encoded_16_invalid_encoded_lf.pkt	ERROR						
+single	encoded_17_invalid_encoded_last_control.pkt	ERROR						
+single	encoded_18_valid_space.pkt	COMPLETE	GET	/hello world				
+single	encoded_19_valid_printable_boundary.pkt	COMPLETE	GET	/hello !~				
+single	encoded_20_invalid_first_slash_encoded.pkt	ERROR						
+single	encoded_21_invalid_method_encoded.pkt	ERROR						

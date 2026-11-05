@@ -35,13 +35,12 @@ HttpParsingResult HttpParser::run()
             _extractHead(); // move head section from recvBuffer to http parser's buffer
             _status = _parseHead(); // parsing of the head section
 
-                // DEBUG START
-                std::cout << "Result after decoding:\n";
-                std::cout << "Method: " << _parsedRequest.getMethod() << "\n";
-                std::cout << "Path: " << _parsedRequest.getPath() << "\n";
-                std::cout << "Query: " << _parsedRequest.getQuery() << "\n";
-                std::cout << "Version: " << _parsedRequest.getVersion() << "\n\n";
-                // DEBUG END
+                // TEST_TRACE_BEGIN(parsed_request)
+                // TEST_TRACE std::cerr << "[parser] method=" << _parsedRequest.getMethod()
+                // TEST_TRACE           << " path=" << _parsedRequest.getPath()
+                // TEST_TRACE           << " query=" << _parsedRequest.getQuery()
+                // TEST_TRACE           << " version=" << _parsedRequest.getVersion() << "\n";
+                // TEST_TRACE_END(parsed_request)
 
             if (_status == COMPLETE) // determines if http request has body
             {
@@ -58,9 +57,10 @@ HttpParsingResult HttpParser::run()
         }
     }
     
-        // DEBUG START
-        // std::cout << "current _status = " << _status << "\n(0: incompl. head, 1: incompl. body, 2: complete, 3: error)\n\n";
-        // DEBUG END
+        // TEST_TRACE_BEGIN(parser_result)
+        // TEST_TRACE std::cerr << "[parser] status=" << _status
+        // TEST_TRACE           << " error=" << _error << "\n";
+        // TEST_TRACE_END(parser_result)
 
     if (_status == INCOMPLETE_BODY)
     {

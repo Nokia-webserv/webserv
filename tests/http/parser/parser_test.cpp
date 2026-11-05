@@ -298,6 +298,11 @@ static bool checkRequestFields(
     std::string path = getField(row, columns, "path", "expected_path");
     std::string query = getField(row, columns, "query", "expected_query");
 
+    std::string expectedPathHex = getField(
+        row, columns, "expected_path_hex");
+    std::string expectedQueryHex = getField(
+        row, columns, "expected_query_hex");
+
     if (method != "" && method != "-" && request.getMethod() != method)
     {
         std::cerr << "  method mismatch: expected "
@@ -318,6 +323,14 @@ static bool checkRequestFields(
                   << query << ", actual " << request.getQuery() << "\n";
         success = false;
     }
+
+    if (!expectedPathHex.empty()
+        && !checkHexField("path", expectedPathHex, request.getPath()))
+        success = false;
+
+    if (!expectedQueryHex.empty()
+        && !checkHexField("query", expectedQueryHex, request.getQuery()))
+        success = false;
 
     if (checkBodyHex)
     {
