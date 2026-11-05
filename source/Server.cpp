@@ -14,43 +14,41 @@
 #include <ctime>
 #include <sstream>
 #include <cstdlib>
-#ifdef WEBSERV_INTEGRATION_TEST
-#include <fstream>
-
-static void integrationLog(const std::string &message)
-{
-    const char *path = std::getenv("WEBSERV_TEST_LOG");
-    if (path == NULL)
-        return;
-    std::ofstream log(path, std::ios::out | std::ios::app);
-    if (log)
-        log << message << std::endl;
-}
-
-static void integrationLogRequest(const std::string &status, int fd)
-{
-    std::ostringstream message;
-    message << "request status=" << status << " fd=" << fd;
-    integrationLog(message.str());
-}
-
-static const char *integrationErrorName(HttpRequestError error)
-{
-    if (error == BAD_REQUEST) return "BAD_REQUEST";
-    if (error == CONTENT_TOO_LARGE) return "CONTENT_TOO_LARGE";
-    if (error == HEADER_FIELDS_TOO_LARGE) return "HEADER_FIELDS_TOO_LARGE";
-    if (error == NOT_IMPLEMENTED) return "NOT_IMPLEMENTED";
-    if (error == HTTP_VERSION_NOT_SUPPORTED) return "HTTP_VERSION_NOT_SUPPORTED";
-    return "UNKNOWN";
-}
-
-static void integrationLogEvent(const std::string &event, int fd)
-{
-    std::ostringstream message;
-    message << event << " fd=" << fd;
-    integrationLog(message.str());
-}
-#endif
+// TEST_INTEGRATION #include <fstream>
+// TEST_INTEGRATION
+// TEST_INTEGRATION static void integrationLog(const std::string &message)
+// TEST_INTEGRATION {
+// TEST_INTEGRATION     const char *path = std::getenv("WEBSERV_TEST_LOG");
+// TEST_INTEGRATION     if (path == NULL)
+// TEST_INTEGRATION         return;
+// TEST_INTEGRATION     std::ofstream log(path, std::ios::out | std::ios::app);
+// TEST_INTEGRATION     if (log)
+// TEST_INTEGRATION         log << message << std::endl;
+// TEST_INTEGRATION }
+// TEST_INTEGRATION
+// TEST_INTEGRATION static void integrationLogRequest(const std::string &status, int fd)
+// TEST_INTEGRATION {
+// TEST_INTEGRATION     std::ostringstream message;
+// TEST_INTEGRATION     message << "request status=" << status << " fd=" << fd;
+// TEST_INTEGRATION     integrationLog(message.str());
+// TEST_INTEGRATION }
+// TEST_INTEGRATION
+// TEST_INTEGRATION static const char *integrationErrorName(HttpRequestError error)
+// TEST_INTEGRATION {
+// TEST_INTEGRATION     if (error == BAD_REQUEST) return "BAD_REQUEST";
+// TEST_INTEGRATION     if (error == CONTENT_TOO_LARGE) return "CONTENT_TOO_LARGE";
+// TEST_INTEGRATION     if (error == HEADER_FIELDS_TOO_LARGE) return "HEADER_FIELDS_TOO_LARGE";
+// TEST_INTEGRATION     if (error == NOT_IMPLEMENTED) return "NOT_IMPLEMENTED";
+// TEST_INTEGRATION     if (error == HTTP_VERSION_NOT_SUPPORTED) return "HTTP_VERSION_NOT_SUPPORTED";
+// TEST_INTEGRATION     return "UNKNOWN";
+// TEST_INTEGRATION }
+// TEST_INTEGRATION
+// TEST_INTEGRATION static void integrationLogEvent(const std::string &event, int fd)
+// TEST_INTEGRATION {
+// TEST_INTEGRATION     std::ostringstream message;
+// TEST_INTEGRATION     message << event << " fd=" << fd;
+// TEST_INTEGRATION     integrationLog(message.str());
+// TEST_INTEGRATION }
 
 Server::Server(const std::vector<ServerConfig> &configs)
     : configs(configs)
@@ -270,9 +268,7 @@ void Server::disconnectClient(int fd)
     // if not found, return
     if (client == clients.end())
         return;
-#ifdef WEBSERV_INTEGRATION_TEST
-    integrationLogEvent("disconnect", fd);
-#endif
+// TEST_INTEGRATION     integrationLogEvent("disconnect", fd);
     // testing
     //std::cout << "Client disconnected: fd=" << fd << std::endl;
     // else clean
@@ -304,9 +300,7 @@ void Server::checkClientTimeout()
         // inactive time calculation, add in the vector
         if (inactiveSeconds >= GLOBAL_CLIENT_TIMEOUT_SECONDS)
         {
-    #ifdef WEBSERV_INTEGRATION_TEST
-            integrationLogEvent("timeout", it->first);
-    #endif
+            // TEST_INTEGRATION integrationLogEvent("timeout", it->first);
             //testing
             /*std::cout << "Client FD: " << it->first << " timed out after " 
             << inactiveSeconds << " seconds" << std::endl;*/
@@ -438,9 +432,7 @@ void Server::acceptNewConnections(Listener *listener)
         // store the new connection
         ClientConnection * newClient = new ClientConnection(clientSocket, clientAddress);
         clients[clientSocket] = newClient;
-    #ifdef WEBSERV_INTEGRATION_TEST
-        integrationLogEvent("accept", clientSocket);
-    #endif
+        // TEST_INTEGRATION integrationLogEvent("accept", clientSocket);
     }
 }
 
@@ -503,9 +495,7 @@ void Server::processHttpInput(ClientConnection &client)
         // not all data are send
         if (result.status == INCOMPLETE_HEAD || result.status == INCOMPLETE_BODY)
         {
-    #ifdef WEBSERV_INTEGRATION_TEST
-            integrationLogRequest(result.status == INCOMPLETE_HEAD ? "INCOMPLETE_HEAD" : "INCOMPLETE_BODY", client.getFd());
-    #endif
+            // TEST_INTEGRATION integrationLogRequest(result.status == INCOMPLETE_HEAD ? "INCOMPLETE_HEAD" : "INCOMPLETE_BODY", client.getFd());
             // Request is incomplete. Wait for more data.
             // wait for more data without resetting- do nothing
             // wait for next loop (another POLLIN);
@@ -516,9 +506,7 @@ void Server::processHttpInput(ClientConnection &client)
         // request is complete
         if (result.status == COMPLETE)
         {
-    #ifdef WEBSERV_INTEGRATION_TEST
-            integrationLogRequest("COMPLETE", client.getFd());
-    #endif
+            // TEST_INTEGRATION integrationLogRequest("COMPLETE", client.getFd());
             // Accesss the request class
             // DEBUG START HTTP_POLL_LOOP
             // const HttpRequest& request = client.getHttpRequest();
@@ -545,9 +533,7 @@ void Server::processHttpInput(ClientConnection &client)
         // close connection from server side 
         if (result.status == ERROR)
         {
-    #ifdef WEBSERV_INTEGRATION_TEST
-            integrationLogRequest(std::string("ERROR ") + integrationErrorName(result.error), client.getFd());
-    #endif
+            // TEST_INTEGRATION integrationLogRequest(std::string("ERROR ") + integrationErrorName(result.error), client.getFd());
             // DEBUG START HTTP_POLL_LOOP
             // std::cout << "[HTTP] Parsing error, fd="
                       // << client.getFd() << std::endl;

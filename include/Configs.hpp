@@ -50,8 +50,8 @@ class Configs {
 
         // for testing tokens
         //static void printTokens(const std::vector<Token> &tokens);
-         // for testing the parsed directive
-        static void printConfig(const ServerConfig& server);
+        // for testing the parsed directive
+        // static void printConfig(const ServerConfig& server);
 
         std::vector<ServerConfig> getParsedConfigs() const;
 

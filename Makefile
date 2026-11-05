@@ -6,8 +6,10 @@ SPECIAL_FLAGS ?=
 
 INCLUDES = -Iinclude
 
+SERVER_SOURCE ?= source/Server.cpp
+
 SRCS = source/main.cpp \
-       source/Server.cpp \
+	$(SERVER_SOURCE) \
        source/Listener.cpp \
 	   source/ClientConnection.cpp\
 	   source/HttpParser.cpp\
@@ -23,7 +25,7 @@ OBJS = $(patsubst source/%.cpp,objects/%.o,$(SRCS))
 all: $(NAME)
 
 integration-test-build:
-	$(MAKE) SPECIAL_FLAGS="$(SPECIAL_FLAGS) -DWEBSERV_INTEGRATION_TEST" re
+	bash tests/build/build_test.sh "$(SPECIAL_FLAGS)"
 
 $(NAME): $(OBJS)
 	$(CXX) $(CXXFLAGS) $(OBJS) -o $(NAME)

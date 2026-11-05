@@ -647,11 +647,9 @@ void Configs::parseServers()
 
 //----------- 6. Server Directive Parsing ----------- 
 
-//testing (uncomment below)
-
-void Configs::printConfig(const ServerConfig& server)
-{
-    std::cout << "========== SERVER CONFIG ==========" << std::endl;
+/* TEST_CONFIG void Configs::printConfig(const ServerConfig& server)
+// TEST_CONFIG {
+// TEST_CONFIG     std::cout << "========== SERVER CONFIG ==========" << std::endl;
 
     for (size_t i = 0; i < server.listens.size(); ++i)
     {
@@ -746,7 +744,7 @@ void Configs::printConfig(const ServerConfig& server)
         std::cout << "-------------------------------------" << std::endl;
     }
     std::cout << "===================================" << std::endl;
-}
+// TEST_CONFIG } */
 
 
 // example : for nginx must be without quotes
