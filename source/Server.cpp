@@ -99,10 +99,11 @@ void Server::run()
         if (poll_fds.empty())
             throw std::runtime_error("No file descriptors available for poll()");
 
-        int ready = poll(&poll_fds[0], poll_fds.size(), GLOBAL_POLL_TIMEOUT_MS);
         // changing the poll time to zero in case of pending requests
         // don't wait for an event
         int timeout = getPollEventTimeout();
+
+        int ready = poll(&poll_fds[0], poll_fds.size(), timeout);
 
         if (ready < 0)
         {
@@ -519,7 +520,7 @@ void Server::processHttpInput(ClientConnection &client)
 int Server::getPollEventTimeout()
 {
     // default timeout
-    int timeout = POLL_TIMEOUT_MS;
+    int timeout = GLOBAL_POLL_TIMEOUT_MS;
     
     // loop to check for pending
     for (std::map<int, ClientConnection*>::iterator it = clients.begin();
