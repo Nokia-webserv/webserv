@@ -42,6 +42,13 @@ class ClientConnection {
         const HttpRequest& getHttpRequest() const;
         const std::string& getRecvBuffer() const;
 
+        bool shouldCloseAfterResponse();
+        void setCloseAfterResponse();
+
+        bool hasPendingHttpInput();
+        void setPendingHttpInput(bool value);
+
+
     private:
         int clientSocket_fd;
         sockaddr_in * addressInfo;
@@ -50,8 +57,21 @@ class ClientConnection {
         std::string::size_type writeOffset;
         std::string recvBuffer;
         time_t clientLastActive;
+
+        // true when the client has closed its sending side.
+        // server stop reading from client.
+        // client might be waiting for response
         bool readClosed;
 
         HttpParser httpParser;
         HttpRequest & httpRequest; // refers to the parsed http request owned by parser for easier access
+
+        // true when the server decide to close connection.
+        // or after sending all queued response data
+        bool closedAfterResponse;
+
+        //true when http input has a pending data in buffer
+        //the server must continye parsing in later event-loop.
+        // without waiting for another POLLIN event
+        bool pendingHttpInput;
 };

@@ -3,7 +3,8 @@
 ClientConnection::ClientConnection(int fd,
 	sockaddr_in *addr) : clientSocket_fd(fd), addressInfo(addr),
     writeOffset(0), clientLastActive(std::time(NULL)), readClosed(false),
- 	httpParser(recvBuffer) ,httpRequest(httpParser.getRequest())
+ 	httpParser(recvBuffer) ,httpRequest(httpParser.getRequest()),
+    closedAfterResponse(false), pendingHttpInput(false)
 {}
 
 ClientConnection::~ClientConnection()
@@ -222,4 +223,38 @@ const HttpRequest& ClientConnection::getHttpRequest() const
 const std::string& ClientConnection::getRecvBuffer() const
 {
     return recvBuffer;
+}
+
+
+// true -> connection should be closed.
+// false -> keep the connection open
+bool ClientConnection::shouldCloseAfterResponse()
+{
+	return (closedAfterResponse);
+}
+
+// mark the connection for closing after sending
+void ClientConnection::setCloseAfterResponse()
+{
+	closedAfterResponse = true;
+	// if the server decided to close
+	// set pending to false 
+	// ignore the rest
+	pendingHttpInput = false;
+
+}
+
+// true when the server needs to continue processing
+// pending data in buffer must resume in later-event loop
+bool ClientConnection::hasPendingHttpInput()
+{
+	return (pendingHttpInput);
+}
+
+// sets or clear the flag to indicate Http buffer status.
+// true -> continue buffered input in a later loop.
+// false -> no procesing for now 
+void ClientConnection::setPendingHttpInput(bool value)
+{
+	pendingHttpInput = value;
 }

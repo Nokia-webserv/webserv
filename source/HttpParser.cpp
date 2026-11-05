@@ -35,6 +35,14 @@ HttpParsingResult HttpParser::run()
             _extractHead(); // move head section from recvBuffer to http parser's buffer
             _status = _parseHead(); // parsing of the head section
 
+                // DEBUG START
+                std::cout << "Result after decoding:\n";
+                std::cout << "Method: " << _parsedRequest.getMethod() << "\n";
+                std::cout << "Path: " << _parsedRequest.getPath() << "\n";
+                std::cout << "Query: " << _parsedRequest.getQuery() << "\n";
+                std::cout << "Version: " << _parsedRequest.getVersion() << "\n\n";
+                // DEBUG END
+
             if (_status == COMPLETE) // determines if http request has body
             {
                 // set body framing
@@ -233,8 +241,8 @@ HttpRequestStatus HttpParser::_parseHead()
             // std::cout << "_status = " << _status << "\n(0: incompl. head, 1: incompl. body, 2: complete, 3: error)\n\n";
             // DEBUG END
 
-         if (_error == NO_ERROR)
-                _error = BAD_REQUEST;
+        if (_error == NO_ERROR)
+            _error = BAD_REQUEST;
         
         return ERROR;
     }
@@ -321,7 +329,75 @@ bool HttpParser::_parseRequestLine()
         // std::cout << "Version: " << _parsedRequest.getVersion() << "\n\n";
         // DEBUG END
 
-    return _validateRequestLine();
+    return _validateRequestLine() && _decodeRequestLine();
+}
+
+bool decodeStr(const std::string & encoded, std::string & decoded)
+{
+    
+    if (encoded.empty()) 
+        return true; // what shouldn't be empty will be rejected on later stages
+    for (size_t i = 0; i < encoded.size(); i++)
+    {
+        if (encoded[i] != '%')
+        {
+            if (encoded[i] < 0x20 || encoded[i] == 0x7F) // rejects raw NUL, \r, \n and all other ASCII CO controls and DEL
+                return false;
+
+            decoded += encoded[i]; // copies the char as nothing to decode
+            continue;
+        }
+
+        if (encoded.size() <= i + 2) // must be 2 more chars at least, otherwise incorrect encoding
+            return false;
+
+        // cheks for hexadecimal chars only
+        std::string temp;
+        temp += encoded[i+1];
+        temp += encoded[i+2];
+        if (temp.find_first_not_of("0123456789abcdefABCDEF") != std::string::npos)
+            return false;
+
+        // converts hex to decimal
+        std::stringstream stream;
+        int decimal = 0;
+        char c = 0;
+        stream << "0x" << temp;
+        stream >> std::hex >> decimal;
+        if (stream.fail() || !stream.eof())
+            return false;
+        
+        if (decimal < 0x20 || decimal == 0x7F) // rejects encoded NUL, \r, \n and all other ASCII CO controls and DEL
+            return false;
+        
+        c = static_cast<char>(decimal);
+        decoded += c;
+        i += 2; // jumps over 2 trailing chars that were part of encoding
+    }
+    return true;
+}
+
+bool HttpParser::_decodeRequestLine()
+{
+    std::string decoded;
+
+    if (!decodeStr(_parsedRequest.getPath(), decoded)) // writes decoded path into "decoded"
+    {
+        _error = BAD_REQUEST;
+        return false;
+    }    
+    _parsedRequest.setPath(decoded);
+
+    decoded.clear();
+    if (!decodeStr(_parsedRequest.getQuery(), decoded))
+    {
+        _error = BAD_REQUEST;
+        return false;
+    }
+    if (!_parsedRequest.getQuery().empty()) // do only if query not empty    
+        _parsedRequest.setQuery(decoded);
+
+    return true;
 }
 
 bool HttpParser::_validateRequestLine()
