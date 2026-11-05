@@ -3,9 +3,16 @@ import socket
 import subprocess
 import sys
 import time
+from common import log_count, wait_for_log_count
 
 HOST = "127.0.0.1"
 PORT = 8080
+
+REQUEST = (
+    b"GET / HTTP/1.1\r\n"
+    b"Host: localhost\r\n"
+    b"\r\n"
+)
 
 STARTUP_TIMEOUT = 10
 CLIENT_COUNT = 50
@@ -46,27 +53,34 @@ def main():
     try:
         wait_for_server()
         print("[PASS] Config parsed and server is listening")
+        completed_before = log_count("request status=COMPLETE")
+        disconnected_before = log_count("disconnect ")
 
         print("[INFO] Performing", CLIENT_COUNT, "connect/disconnect cycles")
 
         for i in range(CLIENT_COUNT):
             client = socket.create_connection((HOST, PORT), timeout=2)
+            client.sendall(REQUEST)
+            wait_for_log_count(
+                "request status=COMPLETE", completed_before + i + 1, OBSERVATION_TIME
+            )
             client.close()
+            wait_for_log_count(
+                "disconnect ", disconnected_before + i + 1, OBSERVATION_TIME
+            )
 
             if server.poll() is not None:
                 raise RuntimeError(
                     "Server exited during cycle " + str(i + 1)
                 )
 
-        print("[PASS] All clients connected and disconnected")
-
-        time.sleep(OBSERVATION_TIME)
+        print("[PASS] All clients connected, parsed requests, and disconnected")
 
         if server.poll() is not None:
             raise RuntimeError("Server exited after disconnects")
 
         print("[PASS] Server remained operational")
-        print("[PASS] E4 - Repeated immediate disconnects test passed")
+        print("[PASS] E5 - Repeated connect/disconnect test passed")
         return 0
 
     except Exception as error:

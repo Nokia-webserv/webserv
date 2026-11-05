@@ -1,4 +1,3 @@
-
 #!/bin/bash
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -15,8 +14,9 @@ if ! [[ "$TIMEOUT" =~ ^[0-9]+$ ]] || [ "$TIMEOUT" -le 0 ]; then
     exit 1
 fi
 
-SPECIAL_FLAGS="-DWEBSERV_CLIENT_TIMEOUT_SECONDS=$TIMEOUT"
+SPECIAL_FLAGS="-DWEBSERV_CLIENT_TIMEOUT_SECONDS=$TIMEOUT -DWEBSERV_INTEGRATION_TEST"
 export TEST_TIMEOUT="$TIMEOUT"
+mkdir -p tests/integration/logs
 
 PASSED=()
 FAILED=()
@@ -70,8 +70,13 @@ run_test "HTTP PARSER" bash tests/http/parser/parser_test.sh
 
 # 6. INTEGRATION
 for test in tests/integration/*.py; do
+    if [ "$(basename "$test")" = "common.py" ]; then
+        continue
+    fi
+    : > "tests/integration/logs/$(basename "$test" .py).server.log"
     run_test "INTEGRATION: $(basename "$test")" \
-        python3 "$test" "$SERVER" "$CONFIG"
+    env WEBSERV_TEST_LOG="tests/integration/logs/$(basename "$test" .py).server.log" \
+    python3 "$test" "$SERVER" "$CONFIG"
 done
 
 # TEST ARTIFACT CLEANUP

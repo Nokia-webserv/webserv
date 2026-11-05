@@ -4,6 +4,7 @@ import socket
 import subprocess
 import sys
 import time
+from common import wait_for_log_file
 
 HOST = "127.0.0.1"
 PORT = 8080
@@ -81,15 +82,14 @@ def test_fragmented_body(server):
 
         print("[INFO] Complete body sent:", len(BODY), "bytes")
 
-        time.sleep(OBSERVATION_TIME)
+        wait_for_log_file("request status=COMPLETE", OBSERVATION_TIME)
 
         if server.poll() is not None:
             raise AssertionError(
                 "Server exited with code " + str(server.returncode)
             )
 
-        print("[PASS] All body fragments sent successfully")
-        print("[PASS] Server remained operational")
+        print("[PASS] Fragmented body reached COMPLETE")
 
     finally:
         if client:

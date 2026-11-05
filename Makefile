@@ -22,6 +22,9 @@ OBJS = $(patsubst source/%.cpp,objects/%.o,$(SRCS))
 
 all: $(NAME)
 
+integration-test-build:
+	$(MAKE) SPECIAL_FLAGS="$(SPECIAL_FLAGS) -DWEBSERV_INTEGRATION_TEST" re
+
 $(NAME): $(OBJS)
 	$(CXX) $(CXXFLAGS) $(OBJS) -o $(NAME)
 

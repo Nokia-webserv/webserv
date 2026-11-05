@@ -5,6 +5,7 @@ import os
 import subprocess
 import sys
 import time
+from common import wait_for_log_file
 
 HOST = "127.0.0.1"
 PORT = 8080
@@ -12,7 +13,7 @@ PORT = 8080
 STARTUP_TIMEOUT = 10
 CLIENT_TIMEOUT = int(os.environ.get("TEST_TIMEOUT", "10"))
 TEST_DURATION = CLIENT_TIMEOUT + 10
-SEND_INTERVAL = 5
+SEND_INTERVAL = max(0.1, CLIENT_TIMEOUT / 2.0)
 
 REQUEST_PARTS = [
     b"GET / HTTP/1.1\r\n",
@@ -61,11 +62,12 @@ def test_continuous_incomplete_request(server):
         print("[INFO] Connecting slow client")
         client = socket.create_connection((HOST, PORT), timeout=3)
         client.settimeout(2)
+        wait_for_log_file("request status=INCOMPLETE_HEAD")
 
         start_time = time.time()
         part_index = 0
 
-        print("[INFO] Sending incomplete request periodically")
+        print("[INFO] Sending incomplete request while staying active")
         print("[INFO] Test duration:", TEST_DURATION, "seconds")
 
         while time.time() - start_time < TEST_DURATION:
@@ -78,10 +80,9 @@ def test_continuous_incomplete_request(server):
 
             try:
                 client.sendall(part)
-            except OSError as error:
+            except OSError:
                 raise AssertionError(
-                    "Connection closed while client was sending: "
-                    + str(error)
+                    "Server closed an active incomplete request"
                 )
 
             part_index += 1
@@ -94,9 +95,9 @@ def test_continuous_incomplete_request(server):
                 "Server exited with code " + str(server.returncode)
             )
 
+        wait_for_log_file("request status=INCOMPLETE_HEAD")
+        print("[PASS] Active incomplete request remained open")
         print("[PASS] Server remained operational")
-        print("[INFO] Client kept sending data without completing the request")
-        print("[INFO] Timeout policy was not independently verified")
 
     finally:
         if client:

@@ -4,6 +4,7 @@ import socket
 import subprocess
 import sys
 import time
+from common import wait_for_log_file
 
 HOST = "127.0.0.1"
 PORT = 8080
@@ -69,6 +70,7 @@ def test_disconnect_during_body(server):
         print("[INFO] Disconnecting before completing the body")
         client.close()
         client = None
+        wait_for_log_file("disconnect")
 
         print("[INFO] Waiting for server to process disconnect")
         time.sleep(OBSERVATION_TIME)

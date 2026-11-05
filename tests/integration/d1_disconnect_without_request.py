@@ -4,6 +4,7 @@ import socket
 import subprocess
 import sys
 import time
+from common import wait_for_log_file
 
 HOST = "127.0.0.1"
 PORT = 8080
@@ -47,6 +48,7 @@ def test_disconnect_without_request(server):
 
     print("[INFO] Closing connection without sending data")
     client.close()
+    wait_for_log_file("disconnect")
 
     print("[INFO] Waiting for server to process disconnect")
     time.sleep(OBSERVATION_TIME)

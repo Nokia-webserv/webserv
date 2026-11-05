@@ -4,6 +4,7 @@ import socket
 import subprocess
 import sys
 import time
+from common import wait_for_log_file
 
 HOST = "127.0.0.1"
 PORT = 8080
@@ -68,8 +69,7 @@ def test_malformed_client(server):
 
         print("[INFO] Sending malformed HTTP request")
         malformed_client.sendall(MALFORMED_REQUEST)
-
-        time.sleep(OBSERVATION_TIME)
+        wait_for_log_file("request status=ERROR HTTP_VERSION_NOT_SUPPORTED", OBSERVATION_TIME)
 
         if server.poll() is not None:
             raise AssertionError(
@@ -87,8 +87,7 @@ def test_malformed_client(server):
 
         print("[INFO] Sending valid HTTP request")
         valid_client.sendall(VALID_REQUEST)
-
-        time.sleep(OBSERVATION_TIME)
+        wait_for_log_file("request status=COMPLETE", OBSERVATION_TIME)
 
         if server.poll() is not None:
             raise AssertionError(

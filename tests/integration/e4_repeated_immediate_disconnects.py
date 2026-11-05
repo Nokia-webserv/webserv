@@ -3,6 +3,7 @@ import socket
 import subprocess
 import sys
 import time
+from common import log_count, wait_for_log_count
 
 HOST = "127.0.0.1"
 PORT = 8080
@@ -46,6 +47,8 @@ def main():
     try:
         wait_for_server()
         print("[PASS] Config parsed and server is listening")
+        accepted_before = log_count("accept ")
+        disconnected_before = log_count("disconnect ")
 
         print("[INFO] Performing", CLIENT_COUNT, "connect/disconnect cycles")
 
@@ -58,9 +61,12 @@ def main():
                     "Server exited during cycle " + str(i + 1)
                 )
 
-        print("[PASS] All clients connected and disconnected")
+        wait_for_log_count("accept ", accepted_before + CLIENT_COUNT, OBSERVATION_TIME)
+        wait_for_log_count(
+            "disconnect ", disconnected_before + CLIENT_COUNT, OBSERVATION_TIME
+        )
 
-        time.sleep(OBSERVATION_TIME)
+        print("[PASS] All clients were accepted and disconnected")
 
         if server.poll() is not None:
             raise RuntimeError("Server exited after disconnects")

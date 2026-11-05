@@ -4,6 +4,7 @@ import socket
 import subprocess
 import sys
 import time
+from common import wait_for_log_file
 
 HOST = "127.0.0.1"
 PORT = 8080
@@ -64,6 +65,8 @@ def test_slow_client(server):
         print("[INFO] Slow client sends incomplete request")
         slow_client.sendall(SLOW_REQUEST_PART)
 
+        wait_for_log_file("request status=INCOMPLETE_HEAD")
+
         print("[INFO] Slow client remains connected")
         time.sleep(SLOW_CLIENT_WAIT)
 
@@ -81,6 +84,8 @@ def test_slow_client(server):
 
         fast_client.settimeout(FAST_CLIENT_TIMEOUT)
         fast_client.sendall(FAST_REQUEST)
+
+        wait_for_log_file("request status=COMPLETE")
 
         elapsed = time.monotonic() - start
 

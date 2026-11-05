@@ -4,6 +4,7 @@ import socket
 import subprocess
 import sys
 import time
+from common import wait_for_log_count
 
 HOST = "127.0.0.1"
 PORT = 8080
@@ -66,15 +67,14 @@ def test_many_clients(server):
             print("[INFO] Client", i + 1, "sent request")
 
         print("[INFO] Waiting for server to process requests")
-        time.sleep(OBSERVATION_TIME)
+        wait_for_log_count("request status=COMPLETE", CLIENT_COUNT, OBSERVATION_TIME)
 
         if server.poll() is not None:
             raise AssertionError(
                 "Server exited unexpectedly with code " + str(server.returncode)
             )
 
-        print("[PASS] All", CLIENT_COUNT, "clients connected and sent requests")
-        print("[PASS] Server remained operational")
+        print("[PASS] Requests reached the parser")
 
     finally:
         for i, client in enumerate(clients):

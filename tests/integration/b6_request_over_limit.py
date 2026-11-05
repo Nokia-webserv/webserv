@@ -4,6 +4,7 @@ import socket
 import subprocess
 import sys
 import time
+from common import wait_for_log_file
 
 HOST = "127.0.0.1"
 PORT = 8080
@@ -69,16 +70,14 @@ def test_request_over_limit(server):
 
         print("[INFO] Request sent successfully")
 
-        time.sleep(OBSERVATION_TIME)
+        wait_for_log_file("request status=ERROR CONTENT_TOO_LARGE", OBSERVATION_TIME)
 
         if server.poll() is not None:
             raise AssertionError(
                 "Server exited with code " + str(server.returncode)
             )
 
-        print("[PASS] Oversized request transmitted successfully")
-        print("[PASS] Server remained operational")
-        print("[INFO] Request rejection (413 or connection close) was not verified")
+        print("[PASS] Oversized request reached the parser error path")
 
     finally:
         if client:

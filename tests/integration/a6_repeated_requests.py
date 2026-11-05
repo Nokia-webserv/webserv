@@ -4,6 +4,7 @@ import socket
 import subprocess
 import sys
 import time
+from common import wait_for_log_count
 
 HOST = "127.0.0.1"
 PORT = 8080
@@ -74,7 +75,11 @@ def test_repeated_requests(server):
                 )
 
         print("[INFO] All requests sent")
-        time.sleep(OBSERVATION_TIME)
+        wait_for_log_count(
+            "request status=COMPLETE",
+            CLIENT_COUNT * REQUESTS_PER_CLIENT,
+            OBSERVATION_TIME,
+        )
 
         if server.poll() is not None:
             raise AssertionError(

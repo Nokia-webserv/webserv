@@ -5,6 +5,7 @@ import os
 import subprocess
 import sys
 import time
+from common import log_count, wait_for_log_count
 
 HOST = "127.0.0.1"
 PORT = 8080
@@ -58,6 +59,7 @@ def test_incomplete_body(server):
         print("[INFO] Connecting client")
         client = socket.create_connection((HOST, PORT), timeout=3)
         client.settimeout(2)
+        timeout_count = log_count("timeout")
 
         print("[INFO] Sending request headers")
         client.sendall(HEADERS)
@@ -69,7 +71,7 @@ def test_incomplete_body(server):
 
         print("[INFO] Stopping transmission")
         print("[INFO] Waiting", WAIT_TIME, "seconds for timeout")
-        time.sleep(WAIT_TIME)
+        wait_for_log_count("timeout", timeout_count + 1, WAIT_TIME)
 
         if server.poll() is not None:
             raise AssertionError(

@@ -4,6 +4,7 @@ import socket
 import subprocess
 import sys
 import time
+from common import wait_for_log_file
 
 HOST = "127.0.0.1"
 PORT = 8080
@@ -40,13 +41,16 @@ def wait_for_server(server):
     raise RuntimeError("Server did not start")
 
 
-def test_disconnect_without_request(server):
+def test_disconnect_during_headers(server):
     print("[INFO] Connecting client")
 
     client = socket.create_connection((HOST, PORT), timeout=3)
 
-    print("[INFO] Closing connection without sending data")
+    print("[INFO] Sending partial headers")
+    client.sendall(b"GET / HTTP/1.1\r\nHost: localhost\r\n")
+    print("[INFO] Closing connection before headers complete")
     client.close()
+    wait_for_log_file("disconnect")
 
     print("[INFO] Waiting for server to process disconnect")
     time.sleep(OBSERVATION_TIME)
@@ -73,9 +77,9 @@ def main():
         server = start_server(sys.argv[1:])
         wait_for_server(server)
 
-        test_disconnect_without_request(server)
+        test_disconnect_during_headers(server)
 
-        print("\n[PASS] D1 - Disconnect without request test passed")
+        print("\n[PASS] D2 - Disconnect during headers test passed")
 
     except Exception as error:
         print("\n[FAIL] D1 -", error)

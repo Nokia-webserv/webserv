@@ -4,6 +4,7 @@ import socket
 import subprocess
 import sys
 import time
+from common import wait_for_log_file
 
 HOST = "127.0.0.1"
 PORT = 8080
@@ -64,8 +65,7 @@ def test_unsupported_method(server):
 
         print("[INFO] Sending unsupported PUT request")
         unsupported_client.sendall(UNSUPPORTED_REQUEST)
-
-        time.sleep(OBSERVATION_TIME)
+        wait_for_log_file("request status=ERROR NOT_IMPLEMENTED", OBSERVATION_TIME)
 
         if server.poll() is not None:
             raise AssertionError(
@@ -82,8 +82,7 @@ def test_unsupported_method(server):
 
         print("[INFO] Sending valid GET request")
         valid_client.sendall(VALID_REQUEST)
-
-        time.sleep(OBSERVATION_TIME)
+        wait_for_log_file("request status=COMPLETE", OBSERVATION_TIME)
 
         if server.poll() is not None:
             raise AssertionError(

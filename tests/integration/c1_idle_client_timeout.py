@@ -5,6 +5,7 @@ import os
 import subprocess
 import sys
 import time
+from common import log_count, wait_for_log_count
 
 HOST = "127.0.0.1"
 PORT = 8080
@@ -49,11 +50,11 @@ def test_idle_client(server):
         print("[INFO] Connecting idle client")
         client = socket.create_connection((HOST, PORT), timeout=3)
         client.settimeout(2)
+        timeout_count = log_count("timeout")
 
         print("[INFO] Sending no data")
         print("[INFO] Waiting", WAIT_TIME, "seconds")
-
-        time.sleep(WAIT_TIME)
+        wait_for_log_count("timeout", timeout_count + 1, WAIT_TIME)
 
         if server.poll() is not None:
             raise AssertionError(
@@ -64,7 +65,7 @@ def test_idle_client(server):
             data = client.recv(1)
 
             if data == b"":
-                print("[PASS] Server closed the idle connection")
+                print("[PASS] Server timed out and closed the idle connection")
             else:
                 raise AssertionError(
                     "Unexpected data received: " + repr(data)

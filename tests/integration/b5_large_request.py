@@ -4,6 +4,7 @@ import socket
 import subprocess
 import sys
 import time
+from common import wait_for_log_file
 
 HOST = "127.0.0.1"
 PORT = 8080
@@ -60,19 +61,21 @@ def test_large_request(server):
         client = socket.create_connection((HOST, PORT), timeout=3)
 
         print("[INFO] Sending request:", len(REQUEST), "bytes")
-        client.sendall(REQUEST)
+        try:
+            client.sendall(REQUEST)
+        except OSError:
+            print("[INFO] Server closed the oversized request")
 
         print("[INFO] Complete request sent")
 
-        time.sleep(OBSERVATION_TIME)
+        wait_for_log_file("request status=ERROR CONTENT_TOO_LARGE", OBSERVATION_TIME)
 
         if server.poll() is not None:
             raise AssertionError(
                 "Server exited with code " + str(server.returncode)
             )
 
-        print("[PASS] Large request sent successfully")
-        print("[PASS] Server remained operational")
+        print("[PASS] Large request was rejected by the parser")
 
     finally:
         if client:
