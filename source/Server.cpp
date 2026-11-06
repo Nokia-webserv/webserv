@@ -63,17 +63,26 @@ Server::~Server()
         delete i->second;
 }
 
-Listener *Server::findListener(const std::string &host, int port)
+std::vector<int> Server::findListeners(const ServerConfig & servConfig) const
 {
-	for (size_t i = 0; i < listeners.size(); i++)
-	{
-		if (listeners[i]->matches(host, port))
-			return listeners[i];
-	}
-	return NULL;
+    std::vector<int> uniqueListenerIndexes;
+
+    for (size_t h = 0; h < servConfig.hostPorts.size(); ++h)
+    {
+        bool match = false;
+        for (size_t i = 0; i < listeners.size(); i++)
+        {
+            match = listeners[i]->matches(servConfig.hostPorts[h].host, servConfig.hostPorts[h].port);
+            if (match)
+                break;
+        }
+        if (!match)
+            uniqueListenerIndexes.push_back(h);
+    }
+	return uniqueListenerIndexes;
 }
 
-Listener *Server::findListenerByFd(int fd)
+Listener *Server::findListenerByFd(int fd) const
 {
 	for (size_t i = 0; i < listeners.size(); i++)
 	{
@@ -85,7 +94,7 @@ Listener *Server::findListenerByFd(int fd)
 
 void Server::start()
 {
-	prepare(); // moved all listening sockets creation logic under this method to improve organization and readability
+	prepare();
 	run();
 }
 
@@ -97,22 +106,27 @@ void Server::prepare()
 {
 	for (size_t i = 0; i < configs.size(); i++)
 	{
-		Listener *unique_listener = findListener(configs[i].host, configs[i].port);
-        
-		if (unique_listener == NULL)
+		std::vector<int> unique_listeners = findListeners(configs[i]);
+		if (!unique_listeners.empty())
 		{
-			// creating new listener
-			// using the listener class + constructor to create listening socket
-			unique_listener = new Listener(configs[i].host, configs[i].port);
-			// store it in server
-			listeners.push_back(unique_listener);
-            
-			// test -> the output should be only unique listeners
-			// std::cout << "\n OUTPUT \n";
-			// std::cout << "Listening on " << configs[i].host << ":" << configs[i].port << " fd=" << unique_listener->getFd() << "\n";
+            for (size_t j = 0; j < unique_listeners.size(); ++j)
+            {
+                // creating new listener
+                std::string host = configs[i].hostPorts[unique_listeners[j]].host;
+                int port = configs[i].hostPorts[unique_listeners[j]].port;
+                // using the listener class + constructor to create listening socket
+                Listener * unique_listener = new Listener(host, port);
+                // store it in server
+                listeners.push_back(unique_listener);
+
+                // adding to configs new or already a match (reuse or create new)
+                //unique_listener->addConfig(&configs[i]);
+                
+                // test -> the output should be only unique listeners
+                // std::cout << "\n OUTPUT \n";
+                // std::cout << "Listening on " << configs[i].host << ":" << configs[i].port << " fd=" << unique_listener->getFd() << "\n";
+            }
 		}
-		// adding to configs new or already a match (reuse or create new)
-		unique_listener->addConfig(&configs[i]);
 	}
 }
 
@@ -327,7 +341,7 @@ void Server::buildPollFds()
 {
     // clear any previous data, it will be called inside a loop
     poll_fds.clear();
-    
+    std::cout << "listeners: " << listeners.size() << "\n";
     // 1 - listening sockets
     // example : listener fd A -> fd 3
     //           listener fd B -> fd 4

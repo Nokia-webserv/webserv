@@ -65,12 +65,12 @@ class Configs {
 
         bool isLocationUnique(const ServerConfig& server, const std::string& path) const;
         // Parses all server blocks.
-        void parseServers();
+        void parseConfigs();
         // Parse a single server at a time
-        ServerConfig parseServer();
+        ServerConfig parseServerBlock();
 
         // parse the server direcctives
-        void parseServerDirective(ServerConfig &server);
+        void parseServerLevelDirectives(ServerConfig &server);
         
         bool isValidIPv4(const std::string& address) const;
         void parseListen(ServerConfig &server);
@@ -82,9 +82,9 @@ class Configs {
         void throwParseError(const std::string &message) const;
         
         // Parse a single server at a time
-        LocationConfig parseLocation();
+        LocationConfig parseLocationBlock();
 
-        void parseLocationDirective(LocationConfig &location);
+        void parseLocationLevelDirectives(LocationConfig &location);
         void parseRoot(LocationConfig &location);
         void parseIndex(LocationConfig &location);
         void parseAutoindex(LocationConfig &location);

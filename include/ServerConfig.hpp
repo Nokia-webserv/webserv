@@ -7,20 +7,17 @@
 
 // so the server can have multiple 
 //host:port
-struct ListenConfig
+struct Listen
 {
     std::string host;
     int port;
 };
 
-
 // this class is designed to hold a separate virtual server configs
 class ServerConfig {
 
     public:
-        std::string host;
-        int port;
-        std::vector<ListenConfig> listens;
+        std::vector<Listen> hostPorts; // host + port
         std::vector<std::string> server_names;
         long client_max_body_size;
         long client_max_header_size;
@@ -30,6 +27,7 @@ class ServerConfig {
         std::vector<LocationConfig> locations;
 
         ServerConfig();
-        ServerConfig(std::string host, int port);
+        //ServerConfig(std::string host, int port);
+        //ServerConfig & operator=(const ServerConfig & orig);
         ~ServerConfig();
 };

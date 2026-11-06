@@ -33,12 +33,12 @@ class Server {
         std::vector<Listener*> listeners;
         std::map<int, ClientConnection*> clients;
         
-        Listener* findListener(const std::string& host, int port);
+        std::vector<int> findListeners(const ServerConfig & servConfig) const;
 
         // a vector for the struct pollfd already in poll.h
         // starts as empty, will be filled in the buildPollFds()
         std::vector<struct pollfd> poll_fds;
-        Listener* findListenerByFd(int fd);
+        Listener* findListenerByFd(int fd) const;
 
         // http requests limit at a time
         static const size_t MAX_REQUESTS_PER_PASS = 16;

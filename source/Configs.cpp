@@ -557,10 +557,10 @@ bool Configs::isLocationUnique(const ServerConfig& server, const std::string& pa
     return (true);
 }
 
-// parseServer will parse one server block
-ServerConfig Configs::parseServer()
+// parseServerBlock will parse one server block
+ServerConfig Configs::parseServerBlock()
 {
-    ServerConfig server;
+    ServerConfig servConfig;
 
     //next token is {
     if (tokens[tokenIndex].type != Token::OPENBRACE)
@@ -581,19 +581,19 @@ ServerConfig Configs::parseServer()
         {
             //for correct line log if duplicate locations
             const size_t locationLineStart = tokenIndex;
-            LocationConfig location = parseLocation();
-            if (isLocationUnique(server, location.path))
-                server.locations.push_back(location);
+            LocationConfig locationConfig = parseLocationBlock();
+            if (isLocationUnique(servConfig, locationConfig.path))
+                servConfig.locations.push_back(locationConfig);
             else
             {
                 tokenIndex = locationLineStart;
-                throwParseError("duplication of location paths: " + location.path);
+                throwParseError("duplication of location paths: " + locationConfig.path);
             }
         }
         else 
         {
             // a directive
-            parseServerDirective(server);
+            parseServerLevelDirectives(servConfig);
         }
     }
     // end of the server block expect a }
@@ -601,25 +601,25 @@ ServerConfig Configs::parseServer()
         throwParseError("Expected '}'");
     
     //handle empty listen
-    if (server.listens.empty())
+    if (servConfig.hostPorts.empty())
     {
-        ListenConfig listen;
+        Listen listen;
         listen.host = "0.0.0.0";
         listen.port = 80;
-        server.listens.push_back(listen);
+        servConfig.hostPorts.push_back(listen);
         std::cout << "No listen directive specified; using default 0.0.0.0:80" << std::endl;
     }
         
     // skip the }
     tokenIndex++;
     // return the server to be added as serverConfig
-    return server;
+    return servConfig;
 }
 
 
-// ParseServers will loop through the server block
+// parseConfigs will loop through the server block
 // and add one server config then the next one.
-void Configs::parseServers()
+void Configs::parseConfigs()
 {
     tokenIndex = 0;
     serverConfigsParsed.clear();
@@ -635,10 +635,11 @@ void Configs::parseServers()
         tokenIndex++;
         
         // parse the server
-        ServerConfig server = parseServer();
+        ServerConfig server = parseServerBlock();
         
         // add it to server config
         serverConfigsParsed.push_back(server);
+        std::cout << "server configs parsed = " << server.hostPorts[0].host << " " << server.hostPorts[0].port << "\n";
     }
     if (serverConfigsParsed.empty())
         throwParseError("No server blocks");
@@ -806,8 +807,9 @@ void Configs::parseListen(ServerConfig &server)
 
     // value : 8080
     std::string value = tokens[tokenIndex].value;
+    std::cout << "value: " << value << "\n";
 
-    ListenConfig listen;
+    Listen listen;
     // default value
     listen.host = "0.0.0.0";
     std::string portStr;
@@ -848,8 +850,10 @@ void Configs::parseListen(ServerConfig &server)
     if (tokens[tokenIndex].type != Token::SEMI)
         throwParseError("Expected ';' after listen");
     tokenIndex++;
+
+    std::cout << "listener parsed: " << listen.host << ":" << listen.port << "\n";
     
-    server.listens.push_back(listen);
+    server.hostPorts.push_back(listen);
 }
 
 // server_name "example1" name2 'name3';
@@ -1023,11 +1027,12 @@ void Configs::parseErrorPages(ServerConfig &server)
 
 }
 
-void Configs::parseServerDirective(ServerConfig &server)
+void Configs::parseServerLevelDirectives(ServerConfig &server)
 {
     if (tokens[tokenIndex].value == "listen")
     {
         parseListen(server);
+        std::cout << "check: " << server.hostPorts[0].host << ":" << server.hostPorts[0].port << "\n";
     }
     else if(tokens[tokenIndex].value == "server_name")
     {
@@ -1222,7 +1227,7 @@ void Configs::parseCgiExtension(LocationConfig &location)
     location.cgi_handlers[extension] = interpreter;
 }
 
-void Configs::parseLocationDirective(LocationConfig &location)
+void Configs::parseLocationLevelDirectives(LocationConfig &location)
 {
     if (tokens[tokenIndex].value == "root")
         parseRoot(location);
@@ -1248,7 +1253,7 @@ void Configs::parseLocationDirective(LocationConfig &location)
 }
 
 // same logic as server block
-LocationConfig Configs::parseLocation()
+LocationConfig Configs::parseLocationBlock()
 {
     LocationConfig location;
     tokenIndex++;
@@ -1271,7 +1276,7 @@ LocationConfig Configs::parseLocation()
         if(tokens[tokenIndex].type != Token::WORD)
            throwParseError("Expected a location directive name");
         
-        parseLocationDirective(location);
+        parseLocationLevelDirectives(location);
        
     }
     // end of the location block expect a }
@@ -1306,5 +1311,5 @@ void Configs::parseConfigFile()
     cleanTokens();
     // TEMPORARY: Testing cleanTokens()
     //printTokens(tokens);
-    parseServers();
+    parseConfigs();
 }

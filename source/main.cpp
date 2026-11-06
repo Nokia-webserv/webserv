@@ -42,6 +42,7 @@ int main(int argc, char * argv[])
             // {
             //     Configs::printConfig(configsParsed[i]);
             // }
+            std::cout << configsParsed[0].hostPorts[0].host << ":" << configsParsed[0].hostPorts[0].port << " " << configsParsed.size() << "\n";
         
         // run server
         Server server(configsParsed);
