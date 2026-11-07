@@ -10,24 +10,21 @@
 /*                                                                            */
 /* ************************************************************************** */
 
-#include "tempServerConfig.hpp"
 #include "Server.hpp"
+#include "Configs.hpp"
 #include <vector>
 #include <iostream>
 #include <csignal>
 
-// function to setup the values for host and port
-// create & Test 3 differents server configuration
-// the duplicates for testing
-void setConfig(std::vector<ServerConfig>& configs)
-{
-    configs.push_back(ServerConfig("127.0.0.1", 8080));
-    //configs.push_back(ServerConfig("127.0.0.1", 8080));
-    //configs.push_back(ServerConfig("127.0.0.2",9090));
-}
 
-int main()
+int main(int argc, char * argv[])
 {
+    if (argc != 2)
+    {
+        std::cerr << "Error\nUsage: ./webserv <config-file>\n";
+        return 1;
+    }
+    
     // Configures how the process responds to a signal
     // when writing is broken 
     // ignore that signal
@@ -36,10 +33,19 @@ int main()
 
     try
     {
-        std::vector<ServerConfig> configs;
-        setConfig(configs);
-
-        Server server(configs);
+        // parse configs
+        Configs configs(argv[1]);
+        const std::vector<ServerConfig> configsParsed = configs.getParsedConfigs();
+            
+            // testing (uncomment below)
+            // for (size_t i = 0; i < configsParsed.size(); ++i)
+            // {
+            //     Configs::printConfig(configsParsed[i]);
+            // }
+            // std::cout << configsParsed[0].hostPorts[0].host << ":" << configsParsed[0].hostPorts[0].port << " " << configsParsed.size() << "\n";
+        
+        // run server
+        Server server(configsParsed);
         server.start();
     }
     catch(const std::exception& e)

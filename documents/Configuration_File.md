@@ -64,14 +64,45 @@ Below is the initial set of directives that is highly recommended to support by 
 * `listen` — Sets the `interface:port` pairs on which the server listens.
 * `server_name` — Specifies hostnames for virtual hosting.
 * `client_max_body_size` — Restricts the maximum body size of client requests (protects against large payloads).
+* `client_max_header_size` — Restricts the maximum header size of client requests (protects against large payloads).
+* `client_max_response_size` — Restricts the maximum size of client responses (protects against large payloads).
+* `connections_max_number` — Restricts the maximum simultanious accepted TCP connections per virtual server.
 * `error_page` — Configures custom fallback pages for specific HTTP error codes.
 * `location` — Scopes configuration rules to a specific URL path prefix.
 * `root` — Defines the root directory on disk where requested files are located.
 * `index` — Sets the default file to serve when a directory is requested (e.g., `index.html`).
 * `autoindex` — Enables (`on`) or disables (`off`) directory listing when no index file is found.
-* `limit_except` — Restricts allowed HTTP methods (e.g., allowing `GET` and `POST` while blocking others).
+* `methods` — Restricts allowed HTTP methods (e.g., allowing `GET` and `POST` while blocking others).
 * `return` — Configures HTTP redirections with a status code and target URL.
 * `cgi_pass` — Binds file extensions to external CGI interpreters (e.g., `.php` to `/usr/bin/php-cgi`).
+
+### Supported `listen` format
+
+```nginx
+listen 8080;           # Uses 0.0.0.0:8080
+listen 127.0.0.1:8080; # Explicit IPv4 address and port
+```
+
+Multiple `listen` directives are allowed in each server block. If none is
+specified, the parser adds a default listener at `0.0.0.0:80` and prints an
+informational message. Explicit `listen` directives are preserved; no extra
+default listener is added when at least one is present.
+
+Ports must contain decimal digits and have a value from 1 through 65535;
+leading zeros in ports are accepted.
+
+Explicit addresses use IPv4 only: exactly four dot-separated decimal octets,
+each containing 1-3 ASCII digits with a value from 0 through 255. A multi-digit
+octet must not start with zero. Hostnames, `*`, IPv6, abbreviated addresses,
+hexadecimal forms, and subnet suffixes are not supported.
+
+Address validation checks syntax. Whether the address is configured locally or
+the port is available is checked when the networking code binds the socket.
+Special-purpose ranges are not rejected by the IPv4 syntax validator:
+`0.0.0.0` is the wildcard bind address, and loopback/private addresses are valid
+configuration choices. Broadcast or multicast suitability belongs to the TCP
+listener/networking layer. Do not reject every address ending in `.0` or `.255`;
+their role depends on the subnet prefix, which is not part of this format.
 
 ---
 

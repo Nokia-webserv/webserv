@@ -2,7 +2,16 @@
 
 //OCF
 HttpRequest::HttpRequest() {}
-HttpRequest::HttpRequest(const HttpRequest& other) : _method(other._method), _path(other._path), _query(other._query), _version(other._version), _headers(other._headers), _body(other._body) {}
+
+HttpRequest::HttpRequest(const HttpRequest& other) 
+:   _method(other._method), 
+    _path(other._path), 
+    _query(other._query), 
+    _version(other._version), 
+    _headers(other._headers), 
+    _body(other._body) 
+    {}
+
 HttpRequest& HttpRequest::operator=(const HttpRequest& other) {
     if (this != &other) {
         _method = other._method;
