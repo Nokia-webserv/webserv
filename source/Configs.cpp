@@ -639,7 +639,6 @@ void Configs::parseConfigs()
         
         // add it to server config
         serverConfigsParsed.push_back(server);
-        std::cout << "server configs parsed = " << server.hostPorts[0].host << " " << server.hostPorts[0].port << "\n";
     }
     if (serverConfigsParsed.empty())
         throwParseError("No server blocks");
@@ -807,7 +806,6 @@ void Configs::parseListen(ServerConfig &server)
 
     // value : 8080
     std::string value = tokens[tokenIndex].value;
-    std::cout << "value: " << value << "\n";
 
     Listen listen;
     // default value
@@ -850,8 +848,6 @@ void Configs::parseListen(ServerConfig &server)
     if (tokens[tokenIndex].type != Token::SEMI)
         throwParseError("Expected ';' after listen");
     tokenIndex++;
-
-    std::cout << "listener parsed: " << listen.host << ":" << listen.port << "\n";
     
     server.hostPorts.push_back(listen);
 }
@@ -1032,7 +1028,6 @@ void Configs::parseServerLevelDirectives(ServerConfig &server)
     if (tokens[tokenIndex].value == "listen")
     {
         parseListen(server);
-        std::cout << "check: " << server.hostPorts[0].host << ":" << server.hostPorts[0].port << "\n";
     }
     else if(tokens[tokenIndex].value == "server_name")
     {

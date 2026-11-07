@@ -1,11 +1,8 @@
 servers=1
-server[0].host=127.0.0.1
-server[0].port=8080
-server[0].listens=2
-server[0].listen[0].host=0.0.0.0
-server[0].listen[0].port=8080
-server[0].listen[1].host=127.0.0.1
-server[0].listen[1].port=8081
+server[0].host[0]=0.0.0.0
+server[0].port[0]=8080
+server[0].host[1]=127.0.0.1
+server[0].port[1]=8081
 server[0].client_max_body_size=10485760
 server[0].client_max_header_size=10485760
 server[0].client_max_response_size=10485760

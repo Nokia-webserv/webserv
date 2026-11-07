@@ -1,9 +1,6 @@
 servers=1
-server[0].host=127.0.0.1
-server[0].port=8080
-server[0].listens=1
-server[0].listen[0].host=0.0.0.0
-server[0].listen[0].port=8080
+server[0].host[0]=0.0.0.0
+server[0].port[0]=8080
 server[0].server_name[0]=localhost
 server[0].client_max_body_size=1048576
 server[0].client_max_header_size=102400

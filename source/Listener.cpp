@@ -15,7 +15,6 @@
 // creates an IPv4 TCP listening socket and return a listening fd
 static int create_listener(const std::string& host, int port)
 {
-    std::cout << "creating listener on " << host << " " << port << "\n";
 // A. the "getaddrinfo" to prepare the host and port in network-compatible format
     // convert port from int to string
     std::ostringstream ss;

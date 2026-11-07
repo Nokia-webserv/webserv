@@ -341,7 +341,6 @@ void Server::buildPollFds()
 {
     // clear any previous data, it will be called inside a loop
     poll_fds.clear();
-    std::cout << "listeners: " << listeners.size() << "\n";
     // 1 - listening sockets
     // example : listener fd A -> fd 3
     //           listener fd B -> fd 4

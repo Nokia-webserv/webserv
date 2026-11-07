@@ -27,18 +27,11 @@ static void printConfig(const std::vector<ServerConfig> &servers)
     for (size_t i = 0; i < servers.size(); ++i)
     {
         const ServerConfig &server = servers[i];
-
-        std::cout << "server[" << i << "].host=" << server.host << "\n";
-        std::cout << "server[" << i << "].port=" << server.port << "\n";
-        std::cout << "server[" << i << "].listens="
-                  << server.listens.size() << "\n";
-
-        for (size_t j = 0; j < server.listens.size(); ++j)
+        
+        for (size_t j = 0; j < server.hostPorts.size(); ++j)
         {
-            std::cout << "server[" << i << "].listen[" << j << "].host="
-                      << server.listens[j].host << "\n";
-            std::cout << "server[" << i << "].listen[" << j << "].port="
-                      << server.listens[j].port << "\n";
+            std::cout << "server[" << i << "].host[" << j << "]=" << server.hostPorts[j].host << "\n";
+            std::cout << "server[" << i << "].port[" << j << "]=" << server.hostPorts[j].port << "\n";
         }
 
         printVector("server[" + numberToString(i) + "].server_name",
