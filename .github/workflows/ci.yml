@@ -1,6 +1,7 @@
 name: Webserv Tests
 
 on:
+  push:
   pull_request:
 
 jobs:
