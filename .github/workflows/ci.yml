@@ -1,7 +1,6 @@
 name: Webserv Tests
 
 on:
-  push:
   pull_request:
 
 jobs:
@@ -12,5 +11,20 @@ jobs:
       - name: Get repository
         uses: actions/checkout@v4
 
-      - name: Run tests
-        run: make test
+      - name: Build test
+        run: make build
+
+      - name: Startup tests
+        run: make startup
+
+      - name: Config parser tests
+        run: config
+
+      - name: TCP accept tests
+        run: accept
+
+      - name: HTTP parser tests
+        run: make parser
+      
+      - name: Integration tests
+        run: integration

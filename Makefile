@@ -43,7 +43,22 @@ fclean: clean
 
 re: fclean all
 
-test:
-	bash ./tests/run_all.sh
+build:
+	bash tests/build/build_test.sh
 
-.PHONY: all clean fclean re test
+startup:
+	bash tests/startup/run_tests.sh
+
+config:
+	bash tests/config/test_config.sh
+
+accept:
+	bash tests/tcp/accept_test/accept_test.sh
+
+parser:
+	bash tests/http/parser/parser_test.sh
+
+integration:
+	bash tests/integration/run_tests.sh
+
+.PHONY: all clean fclean re build startup config accept parser integration
