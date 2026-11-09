@@ -18,10 +18,10 @@ jobs:
         run: make startup
 
       - name: Config parser tests
-        run: config
+        run: make config
 
       - name: TCP accept tests
-        run: accept
+        run: make accept
 
       - name: HTTP parser tests
         run: make parser
