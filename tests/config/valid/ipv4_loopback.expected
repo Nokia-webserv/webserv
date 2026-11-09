@@ -1,0 +1,9 @@
+servers=1
+server[0].host[0]=127.0.0.1
+server[0].port[0]=8080
+server[0].client_max_body_size=10485760
+server[0].client_max_header_size=10485760
+server[0].client_max_response_size=10485760
+server[0].connections_max_number=1000
+server[0].error_pages=0
+server[0].locations=0

@@ -13,7 +13,7 @@
 #ifndef SERVER_HPP
 #define SERVER_HPP
 
-#include "tempServerConfig.hpp"
+#include "ServerConfig.hpp"
 #include "Listener.hpp"
 #include "ClientConnection.hpp"
 #include <vector>
@@ -22,6 +22,10 @@
 #include <map>
 #include <poll.h>
 
+#ifndef WEBSERV_CLIENT_TIMEOUT_SECONDS
+#define WEBSERV_CLIENT_TIMEOUT_SECONDS 30
+#endif
+
 class Server {
 
     private:
@@ -29,17 +33,12 @@ class Server {
         std::vector<Listener*> listeners;
         std::map<int, ClientConnection*> clients;
         
-        Listener* findListener(const std::string& host, int port);
+        std::vector<int> findListeners(const ServerConfig & servConfig) const;
 
         // a vector for the struct pollfd already in poll.h
         // starts as empty, will be filled in the buildPollFds()
         std::vector<struct pollfd> poll_fds;
-        Listener* findListenerByFd(int fd);
-        static const int POLL_TIMEOUT_MS = 1000;
-        static const int CLIENT_TIMEOUT_SECONDS = 30;
-        
-        // Max client connection as nginx default number
-        static const size_t MAX_CLIENT_CONNECTIONS = 512;
+        Listener* findListenerByFd(int fd) const;
 
         // http requests limit at a time
         static const size_t MAX_REQUESTS_PER_PASS = 16;
@@ -51,6 +50,11 @@ class Server {
         void processHttpInput(ClientConnection &client);
         void processPendingHttpInput();
         int getPollEventTimeout();
+
+        // global configs
+        static const size_t GLOBAL_MAX_CONNECTIONS = 512;
+        static const int GLOBAL_POLL_TIMEOUT_MS = 1000;
+        static const int GLOBAL_CLIENT_TIMEOUT_SECONDS = WEBSERV_CLIENT_TIMEOUT_SECONDS; // to be able to reduce it for tests
 
     public:
         Server(const std::vector<ServerConfig>& configs);

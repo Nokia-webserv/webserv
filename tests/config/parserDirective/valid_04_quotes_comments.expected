@@ -1,0 +1,13 @@
+servers=1
+server[0].host[0]=0.0.0.0
+server[0].port[0]=8080
+server[0].server_name[0]=hello world
+server[0].server_name[1]=hello'world
+server[0].server_name[2]=hello"world
+server[0].client_max_body_size=2097152
+server[0].client_max_header_size=10485760
+server[0].client_max_response_size=10485760
+server[0].connections_max_number=1000
+server[0].error_pages=1
+server[0].error_page[404]=/errors/my page.html
+server[0].locations=0

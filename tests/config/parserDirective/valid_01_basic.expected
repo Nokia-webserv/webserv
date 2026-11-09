@@ -1,0 +1,11 @@
+servers=1
+server[0].host[0]=0.0.0.0
+server[0].port[0]=8080
+server[0].server_name[0]=localhost
+server[0].client_max_body_size=1048576
+server[0].client_max_header_size=102400
+server[0].client_max_response_size=1024
+server[0].connections_max_number=512
+server[0].error_pages=1
+server[0].error_page[404]=/errors/404.html
+server[0].locations=0

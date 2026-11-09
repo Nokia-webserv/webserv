@@ -1,36 +1,30 @@
-NAME = http_parser_class_tester
+NAME := parser_test
 
-CXX = c++
-CXXFLAGS = -Wall -Wextra -Werror -std=c++98
+ROOT_DIR := ../../..
+SOURCE_DIR := $(ROOT_DIR)/source
 
-INCLUDES = -I../../../include
+CXX := c++
+CXXFLAGS := -std=c++98 -Wall -Wextra
+INCLUDES := -I$(SOURCE_DIR) -I$(ROOT_DIR)/include
 
-SRCS = parser_test.cpp \
-	../../../source/HttpParser.cpp \
-	../../../source/HttpRequest.cpp \
-	../../../source/ClientConnection.cpp \
-	../../../source/utils.cpp
+SOURCES := parser_test.cpp \
+			$(SOURCE_DIR)/HttpParser.cpp \
+			$(SOURCE_DIR)/HttpRequest.cpp \
+			$(SOURCE_DIR)/utils.cpp
 
-OBJS = $(SRCS:.cpp=.o)
+.PHONY: all test clean fclean re
 
 all: $(NAME)
 
-$(NAME): $(OBJS)
-	$(CXX) $(CXXFLAGS) $(OBJS) -o $@
+$(NAME): $(SOURCES)
+	$(CXX) $(CXXFLAGS) $(INCLUDES) $(SOURCES) -o $(NAME)
 
-%.o: %.cpp
-	$(CXX) $(CXXFLAGS) $(INCLUDES) -c $< -o $@
-
-run: $(NAME)
-	./$(NAME)
+test: $(NAME)
+	./$(NAME) fixtures
 
 clean:
-	rm -f $(OBJS)
-
-fclean: clean
 	rm -f $(NAME)
 
-re: fclean
-	$(MAKE) all
+fclean: clean
 
-.PHONY: all run clean fclean re
+re: fclean all

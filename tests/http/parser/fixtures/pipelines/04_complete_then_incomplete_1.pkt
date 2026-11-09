@@ -1,0 +1,5 @@
+GET /first HTTP/1.1
+Host: localhost
+
+GET /second HTTP/1.1
+Host: local

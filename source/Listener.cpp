@@ -108,7 +108,7 @@ static int create_listener(const std::string& host, int port)
 
 //  contructor will create (fd = -1) then creates listener_fd if valid
 Listener::Listener(const std::string &host, int port)
-    :listen_fd(-1),host(host), port(port) 
+:   listen_fd(-1), host(host), port(port) 
 {
     listen_fd = create_listener(host,port);
 }
@@ -141,7 +141,7 @@ bool Listener::matches(const std::string &host, int port) const
     return false;
 }
 
-void Listener::addConfig(const ServerConfig *config)
-{
-    configs.push_back(config);
-}
+// void Listener::addConfig(const ServerConfig *config)
+// {
+//     configs.push_back(config);
+// }

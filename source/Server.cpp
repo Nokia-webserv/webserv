@@ -12,6 +12,43 @@
 
 #include "Server.hpp"
 #include <ctime>
+#include <sstream>
+#include <cstdlib>
+// TEST_INTEGRATION #include <fstream>
+// TEST_INTEGRATION
+// TEST_INTEGRATION static void integrationLog(const std::string &message)
+// TEST_INTEGRATION {
+// TEST_INTEGRATION     const char *path = std::getenv("WEBSERV_TEST_LOG");
+// TEST_INTEGRATION     if (path == NULL)
+// TEST_INTEGRATION         return;
+// TEST_INTEGRATION     std::ofstream log(path, std::ios::out | std::ios::app);
+// TEST_INTEGRATION     if (log)
+// TEST_INTEGRATION         log << message << std::endl;
+// TEST_INTEGRATION }
+// TEST_INTEGRATION
+// TEST_INTEGRATION static void integrationLogRequest(const std::string &status, int fd)
+// TEST_INTEGRATION {
+// TEST_INTEGRATION     std::ostringstream message;
+// TEST_INTEGRATION     message << "request status=" << status << " fd=" << fd;
+// TEST_INTEGRATION     integrationLog(message.str());
+// TEST_INTEGRATION }
+// TEST_INTEGRATION
+// TEST_INTEGRATION static const char *integrationErrorName(HttpRequestError error)
+// TEST_INTEGRATION {
+// TEST_INTEGRATION     if (error == BAD_REQUEST) return "BAD_REQUEST";
+// TEST_INTEGRATION     if (error == CONTENT_TOO_LARGE) return "CONTENT_TOO_LARGE";
+// TEST_INTEGRATION     if (error == HEADER_FIELDS_TOO_LARGE) return "HEADER_FIELDS_TOO_LARGE";
+// TEST_INTEGRATION     if (error == NOT_IMPLEMENTED) return "NOT_IMPLEMENTED";
+// TEST_INTEGRATION     if (error == HTTP_VERSION_NOT_SUPPORTED) return "HTTP_VERSION_NOT_SUPPORTED";
+// TEST_INTEGRATION     return "UNKNOWN";
+// TEST_INTEGRATION }
+// TEST_INTEGRATION
+// TEST_INTEGRATION static void integrationLogEvent(const std::string &event, int fd)
+// TEST_INTEGRATION {
+// TEST_INTEGRATION     std::ostringstream message;
+// TEST_INTEGRATION     message << event << " fd=" << fd;
+// TEST_INTEGRATION     integrationLog(message.str());
+// TEST_INTEGRATION }
 
 Server::Server(const std::vector<ServerConfig> &configs)
     : configs(configs)
@@ -26,17 +63,26 @@ Server::~Server()
         delete i->second;
 }
 
-Listener *Server::findListener(const std::string &host, int port)
+std::vector<int> Server::findListeners(const ServerConfig & servConfig) const
 {
-	for (size_t i = 0; i < listeners.size(); i++)
-	{
-		if (listeners[i]->matches(host, port))
-			return listeners[i];
-	}
-	return NULL;
+    std::vector<int> uniqueListenerIndexes;
+
+    for (size_t h = 0; h < servConfig.hostPorts.size(); ++h)
+    {
+        bool match = false;
+        for (size_t i = 0; i < listeners.size(); i++)
+        {
+            match = listeners[i]->matches(servConfig.hostPorts[h].host, servConfig.hostPorts[h].port);
+            if (match)
+                break;
+        }
+        if (!match)
+            uniqueListenerIndexes.push_back(h);
+    }
+	return uniqueListenerIndexes;
 }
 
-Listener *Server::findListenerByFd(int fd)
+Listener *Server::findListenerByFd(int fd) const
 {
 	for (size_t i = 0; i < listeners.size(); i++)
 	{
@@ -48,7 +94,7 @@ Listener *Server::findListenerByFd(int fd)
 
 void Server::start()
 {
-	prepare(); // moved all listening sockets creation logic under this method to improve organization and readability
+	prepare();
 	run();
 }
 
@@ -60,22 +106,27 @@ void Server::prepare()
 {
 	for (size_t i = 0; i < configs.size(); i++)
 	{
-		Listener *unique_listener = findListener(configs[i].host, configs[i].port);
-        
-		if (unique_listener == NULL)
+		std::vector<int> unique_listeners = findListeners(configs[i]);
+		if (!unique_listeners.empty())
 		{
-			// creating new listener
-			// using the listener class + constructor to create listening socket
-			unique_listener = new Listener(configs[i].host, configs[i].port);
-			// store it in server
-			listeners.push_back(unique_listener);
-            
-			// test -> the output should be only unique listeners
-			// std::cout << "\n OUTPUT \n";
-			// std::cout << "Listening on " << configs[i].host << ":" << configs[i].port << " fd=" << unique_listener->getFd() << "\n";
+            for (size_t j = 0; j < unique_listeners.size(); ++j)
+            {
+                // creating new listener
+                std::string host = configs[i].hostPorts[unique_listeners[j]].host;
+                int port = configs[i].hostPorts[unique_listeners[j]].port;
+                // using the listener class + constructor to create listening socket
+                Listener * unique_listener = new Listener(host, port);
+                // store it in server
+                listeners.push_back(unique_listener);
+
+                // adding to configs new or already a match (reuse or create new)
+                //unique_listener->addConfig(&configs[i]);
+                
+                // test -> the output should be only unique listeners
+                // std::cout << "\n OUTPUT \n";
+                // std::cout << "Listening on " << configs[i].host << ":" << configs[i].port << " fd=" << unique_listener->getFd() << "\n";
+            }
 		}
-		// adding to configs new or already a match (reuse or create new)
-		unique_listener->addConfig(&configs[i]);
 	}
 }
 
@@ -231,6 +282,7 @@ void Server::disconnectClient(int fd)
     // if not found, return
     if (client == clients.end())
         return;
+// TEST_INTEGRATION     integrationLogEvent("disconnect", fd);
     // testing
     //std::cout << "Client disconnected: fd=" << fd << std::endl;
     // else clean
@@ -260,8 +312,9 @@ void Server::checkClientTimeout()
         time_t inactiveSeconds = now - it->second->getClientLastActive();
 
         // inactive time calculation, add in the vector
-        if (inactiveSeconds >= CLIENT_TIMEOUT_SECONDS)
+        if (inactiveSeconds >= GLOBAL_CLIENT_TIMEOUT_SECONDS)
         {
+            // TEST_INTEGRATION integrationLogEvent("timeout", it->first);
             //testing
             /*std::cout << "Client FD: " << it->first << " timed out after " 
             << inactiveSeconds << " seconds" << std::endl;*/
@@ -288,7 +341,6 @@ void Server::buildPollFds()
 {
     // clear any previous data, it will be called inside a loop
     poll_fds.clear();
-    
     // 1 - listening sockets
     // example : listener fd A -> fd 3
     //           listener fd B -> fd 4
@@ -296,7 +348,7 @@ void Server::buildPollFds()
     {
         // limit the client connection
         // don't add listener after default max
-        if (clients.size() >= MAX_CLIENT_CONNECTIONS)
+        if (clients.size() >= GLOBAL_MAX_CONNECTIONS)
             break;
         // create new struct and fill it for this listener
         struct pollfd pfd;
@@ -345,55 +397,56 @@ void Server::buildPollFds()
 // Because the listening socket is non-blocking, accept() is called
 void Server::acceptNewConnections(Listener *listener)
 {
-     while (true)
+    while (true)
     {
         // client number limitation checked before creating
         // protects in case already waiting listener
-        if (clients.size() >= MAX_CLIENT_CONNECTIONS)
+        if (clients.size() >= GLOBAL_MAX_CONNECTIONS)
             break;
         // prepare to use accept()
         sockaddr_in * clientAddress = new sockaddr_in;
         socklen_t addressLength = sizeof(*clientAddress);
 
         // accept a new conncetion and retreive client’s network address information (IP, port, IP version...)
-            int clientSocket = accept(listener->getFd(), reinterpret_cast<sockaddr*>(clientAddress), &addressLength);
-            // in terms of use and info extraction sockaddr_in is better, but accept() takes sockaddr*
-            // reinterpret cast is a special cast type used to read the bytes and reinterpret them as another data type
-            // unlike static cast which applies c++ rules of casting
+        int clientSocket = accept(listener->getFd(), reinterpret_cast<sockaddr*>(clientAddress), &addressLength);
+        // in terms of use and info extraction sockaddr_in is better, but accept() takes sockaddr*
+        // reinterpret cast is a special cast type used to read the bytes and reinterpret them as another data type
+        // unlike static cast which applies c++ rules of casting
 
-            // handle unsuccess
-            if (clientSocket < 0)
-            {
-                int savedErrno = errno; // to avoid theoretical chance that it can change
-                delete clientAddress;
-                // no new connections available
-                if (savedErrno == EAGAIN || savedErrno == EWOULDBLOCK)
-                    break;
-                // interrupted by another signal - needs to retry
-                else if (savedErrno == EINTR)
-                    continue;
-                else
-                {
-                    std::cerr << "System failure while trying to accept a new client connection";
-                    break;
-                }
-            }
-            // set socket to non-blocking mode
-            std::ostringstream fd_ss;
-            fd_ss << clientSocket;
-            std::string error_msg = "Non-blocking mode for fd #" + fd_ss.str() + " failed";
-            if (fcntl(clientSocket, F_SETFL, O_NONBLOCK) == -1) // set new set of flags + check success
-            {
-                close(clientSocket);
-                delete clientAddress;
-                std::cerr << error_msg << std::endl;
+        // handle unsuccess
+        if (clientSocket < 0)
+        {
+            int savedErrno = errno; // to avoid theoretical chance that it can change
+            delete clientAddress;
+            // no new connections available
+            if (savedErrno == EAGAIN || savedErrno == EWOULDBLOCK)
+                break;
+            // interrupted by another signal - needs to retry
+            else if (savedErrno == EINTR)
                 continue;
+            else
+            {
+                std::cerr << "System failure while trying to accept a new client connection";
+                break;
             }
-
-            // store the new connection
-            ClientConnection * newClient = new ClientConnection(clientSocket, clientAddress);
-            clients[clientSocket] = newClient;
         }
+        // set socket to non-blocking mode
+        std::ostringstream fd_ss;
+        fd_ss << clientSocket;
+        std::string error_msg = "Non-blocking mode for fd #" + fd_ss.str() + " failed";
+        if (fcntl(clientSocket, F_SETFL, O_NONBLOCK) == -1) // set new set of flags + check success
+        {
+            close(clientSocket);
+            delete clientAddress;
+            std::cerr << error_msg << std::endl;
+            continue;
+        }
+
+        // store the new connection
+        ClientConnection * newClient = new ClientConnection(clientSocket, clientAddress);
+        clients[clientSocket] = newClient;
+        // TEST_INTEGRATION integrationLogEvent("accept", clientSocket);
+    }
 }
 
 
@@ -455,6 +508,7 @@ void Server::processHttpInput(ClientConnection &client)
         // not all data are send
         if (result.status == INCOMPLETE_HEAD || result.status == INCOMPLETE_BODY)
         {
+            // TEST_INTEGRATION integrationLogRequest(result.status == INCOMPLETE_HEAD ? "INCOMPLETE_HEAD" : "INCOMPLETE_BODY", client.getFd());
             // Request is incomplete. Wait for more data.
             // wait for more data without resetting- do nothing
             // wait for next loop (another POLLIN);
@@ -465,6 +519,7 @@ void Server::processHttpInput(ClientConnection &client)
         // request is complete
         if (result.status == COMPLETE)
         {
+            // TEST_INTEGRATION integrationLogRequest("COMPLETE", client.getFd());
             // Accesss the request class
             // DEBUG START HTTP_POLL_LOOP
             // const HttpRequest& request = client.getHttpRequest();
@@ -481,7 +536,6 @@ void Server::processHttpInput(ClientConnection &client)
                 // std::cout << "Body: " << request.getBody() << "\n";
             // DEBUG END
 
-            // reset after finishing with the request
             client.getParser().reset();
             ++processedRequests;
             if(client.getRecvBuffer().empty())
@@ -492,6 +546,7 @@ void Server::processHttpInput(ClientConnection &client)
         // close connection from server side 
         if (result.status == ERROR)
         {
+            // TEST_INTEGRATION integrationLogRequest(std::string("ERROR ") + integrationErrorName(result.error), client.getFd());
             // DEBUG START HTTP_POLL_LOOP
             // std::cout << "[HTTP] Parsing error, fd="
                       // << client.getFd() << std::endl;
@@ -520,7 +575,7 @@ void Server::processHttpInput(ClientConnection &client)
 int Server::getPollEventTimeout()
 {
     // default timeout
-    int timeout = POLL_TIMEOUT_MS;
+    int timeout = GLOBAL_POLL_TIMEOUT_MS;
     
     // loop to check for pending
     for (std::map<int, ClientConnection*>::iterator it = clients.begin();
