@@ -446,7 +446,6 @@ void Server::acceptNewConnections(Listener *listener)
         ClientConnection * newClient = new ClientConnection(clientSocket, clientAddress);
         clients[clientSocket] = newClient;
         // TEST_INTEGRATION integrationLogEvent("accept", clientSocket);
-        std::cout << "New connection acceped. Listener: " << listener->getHost() << ":" << listener->getPort() << " Client: " << newClient->getIp() << "\n";
     }
 }
 
