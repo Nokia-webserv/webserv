@@ -43,4 +43,7 @@ fclean: clean
 
 re: fclean all
 
-.PHONY: all clean fclean re
+test:
+	bash ./tests/run_all.sh
+
+.PHONY: all clean fclean re test
