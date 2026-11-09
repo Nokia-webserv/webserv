@@ -28,4 +28,4 @@ jobs:
         run: make parser
       
       - name: Integration tests
-        run: integration
+        run: make integration
