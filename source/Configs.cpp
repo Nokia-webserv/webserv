@@ -796,6 +796,16 @@ bool Configs::isValidIPv4(const std::string& address) const
     return (true);
 }
 
+bool isListenDuplicate(const Listen & listen, const ServerConfig & server)
+{
+    for (size_t i = 0; i < server.hostPorts.size(); ++i)
+    {
+        if (server.hostPorts[i].host == listen.host && server.hostPorts[i].port == listen.port)
+            return true;
+    }
+    return false;
+}
+
 void Configs::parseListen(ServerConfig &server)
 {
     //skip listen
@@ -847,9 +857,13 @@ void Configs::parseListen(ServerConfig &server)
     tokenIndex++;
     if (tokens[tokenIndex].type != Token::SEMI)
         throwParseError("Expected ';' after listen");
-    tokenIndex++;
+    
+    if (isListenDuplicate(listen, server))
+        throwParseError("Duplicate listening host:port configured");
     
     server.hostPorts.push_back(listen);
+
+    tokenIndex++;
 }
 
 // server_name "example1" name2 'name3';
