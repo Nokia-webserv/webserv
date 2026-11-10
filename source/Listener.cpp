@@ -141,7 +141,13 @@ bool Listener::matches(const std::string &host, int port) const
     return false;
 }
 
-// void Listener::addConfig(const ServerConfig *config)
-// {
-//     configs.push_back(config);
-// }
+void Listener::addConfig(const ServerConfig *config)
+{
+     configs.push_back(config);
+}
+
+const std::vector<const ServerConfig*>& Listener::getConfigs() const
+{
+    return (configs);
+}
+

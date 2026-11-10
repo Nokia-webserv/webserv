@@ -6,7 +6,7 @@
 /*   By: damohame <damohame@student.42berlin.d>     +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/10/02 16:24:40 by damohame          #+#    #+#             */
-/*   Updated: 2026/11/04 22:50:57 by damohame         ###   ########.fr       */
+/*   Updated: 2026/11/10 00:55:05 by damohame         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -118,15 +118,28 @@ void Server::prepare()
                 Listener * unique_listener = new Listener(host, port);
                 // store it in server
                 listeners.push_back(unique_listener);
-
-                // adding to configs new or already a match (reuse or create new)
-                //unique_listener->addConfig(&configs[i]);
-                
                 // test -> the output should be only unique listeners
-                // std::cout << "\n OUTPUT \n";
-                // std::cout << "Listening on " << configs[i].host << ":" << configs[i].port << " fd=" << unique_listener->getFd() << "\n";
+                //std::cout << "Listening on " << host << ":" << port
+                //<< " fd=" << unique_listener->getFd()
+                //<< std::endl;
             }
 		}
+        
+        // to associate the virtual server with the unique listener
+        // loop through the configs host:port
+        for (size_t t = 0; t < configs[i].hostPorts.size(); t++)
+        {
+            // search for the listener matching this host:port
+            for (size_t k = 0; k < listeners.size(); k++)
+            {
+                if (listeners[k]->matches(configs[i].hostPorts[t].host,configs[i].hostPorts[t].port))
+                {
+                    // add the server config to the listener
+                    listeners[k]->addConfig(&configs[i]);
+                    break;
+                }
+            }
+        }
 	}
 }
 
@@ -443,7 +456,7 @@ void Server::acceptNewConnections(Listener *listener)
         }
 
         // store the new connection
-        ClientConnection * newClient = new ClientConnection(clientSocket, clientAddress);
+        ClientConnection * newClient = new ClientConnection(clientSocket, clientAddress, listener);
         clients[clientSocket] = newClient;
         // TEST_INTEGRATION integrationLogEvent("accept", clientSocket);
     }
@@ -536,6 +549,17 @@ void Server::processHttpInput(ClientConnection &client)
                 // std::cout << "Body: " << request.getBody() << "\n";
             // DEBUG END
 
+            // we will call the router
+            // the request is complete
+
+            // create the http response that we will save in the response
+            HttpResponse response;
+            // call the route function
+            RouteDecision decision = router.route(client.getHttpRequest(),client.getListener(), response);
+
+            // TEMPORARY: Test the routing decision
+            printRouteDecision(decision);
+
             client.getParser().reset();
             ++processedRequests;
             if(client.getRecvBuffer().empty())
@@ -586,3 +610,34 @@ int Server::getPollEventTimeout()
         }
         return (timeout);
 }
+
+
+// TEMPORARY: Print the routing decision for testing.
+// Can be removed after routing integration tests.
+/*
+void Server::printRouteDecision(const RouteDecision& decision)
+{
+    std::cout << "[ROUTER] Route type: " << decision.type
+              << " | Error code: " << decision.errorCode
+              << std::endl;
+
+    if (decision.server != NULL)
+    {
+        std::cout << "[ROUTER] Server names: ";
+
+        for (size_t i = 0; i < decision.server->server_names.size(); ++i)
+        {
+            std::cout << decision.server->server_names[i] << " ";
+        }
+        std::cout << std::endl;
+    }
+
+    if (decision.location != NULL)
+    {
+        std::cout << "[ROUTER] Location: ["
+          << decision.location->path
+          << "] | Length: "
+          << decision.location->path.size()
+          << std::endl;
+    }
+}*/

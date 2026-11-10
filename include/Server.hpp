@@ -6,7 +6,7 @@
 /*   By: damohame <damohame@student.42berlin.d>     +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/10/02 16:24:47 by damohame          #+#    #+#             */
-/*   Updated: 2026/11/03 23:02:06 by damohame         ###   ########.fr       */
+/*   Updated: 2026/11/10 00:55:42 by damohame         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -21,6 +21,7 @@
 #include <cerrno>
 #include <map>
 #include <poll.h>
+#include "Router.hpp"
 
 #ifndef WEBSERV_CLIENT_TIMEOUT_SECONDS
 #define WEBSERV_CLIENT_TIMEOUT_SECONDS 30
@@ -55,6 +56,10 @@ class Server {
         static const size_t GLOBAL_MAX_CONNECTIONS = 512;
         static const int GLOBAL_POLL_TIMEOUT_MS = 1000;
         static const int GLOBAL_CLIENT_TIMEOUT_SECONDS = WEBSERV_CLIENT_TIMEOUT_SECONDS; // to be able to reduce it for tests
+
+        Router router;
+        // TEMPORARY: Print the routing decision for testing.
+        //void printRouteDecision(const RouteDecision& decision);
 
     public:
         Server(const std::vector<ServerConfig>& configs);

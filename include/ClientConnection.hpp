@@ -8,12 +8,13 @@
 #include <ctime>
 #include <iostream>
 #include "HttpParser.hpp"
+#include "Listener.hpp"
 
 // class for managing a TCP-connection
 
 class ClientConnection {
     public:
-        ClientConnection(int fd, sockaddr_in * addr);
+        ClientConnection(int fd, sockaddr_in * addr,const Listener* listener);
         ~ClientConnection();
 
         int getFd() const;
@@ -48,6 +49,8 @@ class ClientConnection {
         bool hasPendingHttpInput();
         void setPendingHttpInput(bool value);
 
+        // Return the listener associated with this connection.
+        const Listener& getListener() const;
 
     private:
         int clientSocket_fd;
@@ -74,4 +77,8 @@ class ClientConnection {
         //the server must continye parsing in later event-loop.
         // without waiting for another POLLIN event
         bool pendingHttpInput;
+
+        // the listener connected to the client
+        // Used by Router to select the correct virtual server
+        const Listener* listener;
 };
