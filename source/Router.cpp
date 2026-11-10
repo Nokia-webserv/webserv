@@ -6,7 +6,7 @@
 /*   By: damohame <damohame@student.42berlin.d>     +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/11/06 22:50:16 by damohame          #+#    #+#             */
-/*   Updated: 2026/11/10 00:54:40 by damohame         ###   ########.fr       */
+/*   Updated: 2026/11/10 01:15:14 by damohame         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -216,13 +216,188 @@ RouteDecision Router::route(const HttpRequest& request, const Listener& listener
 }
 
 
+// to get the error reason depending on the error
+std::string Router::getErrorReason(int code) const
+{
+    switch (code)
+    {
+        case 400: return "Bad Request";
+        case 403: return "Forbidden";
+        case 404: return "Not Found";
+        case 405: return "Method Not Allowed";
+        case 408: return "Request Timeout";
+        case 413: return "Payload Too Large";
+        case 414: return "URI Too Long";
+        case 431: return "Request Header Fields Too Large";
+        case 500: return "Internal Server Error";
+        case 501: return "Not Implemented";
+        case 502: return "Bad Gateway";
+        case 504: return "Gateway Timeout";
+        case 505: return "HTTP Version Not Supported";
+        default:  return "Unknown Error";
+    }
+}
+
+
+//in case of 405 (method not allowed)
+// we send the response with the allowed ones
+/*
+HTTP/1.1 405 Method Not Allowed
+Allow: GET, POST
+Content-Type: text/html; charset=utf-8
+Content-Length: ...
+*/
+void Router::setAllowedMethodHeader(const LocationConfig& location, HttpResponse& response)
+{
+    std::string allowedMethods;
+    
+    // default, get allowed
+    if (location.methods.empty())
+        allowedMethods = "GET";
+
+    else
+    {
+        // loop on the methods to add them together
+        // Ex: ["GET", "POST"] -> "GET, POST"
+        for (size_t i = 0; i < location.methods.size(); i++)
+        {
+            if (!allowedMethods.empty())
+                allowedMethods += ", ";
+            
+            allowedMethods += location.methods[i];
+        }
+    }
+    response.setHeader("Allow", allowedMethods);
+}
+
+// this function read the error pages .html
+bool Router::readErrorPages(const std::string& path, std::string& content)
+{
+    // open the error page file as it is in binary mode
+    std::ifstream file(path.c_str(), std::ios::binary);
+
+    // if could not open return false
+    if (!file.is_open())
+        return false;
+
+    // create an ostring to store the file content
+    std::ostringstream buffer;
+    // read the entire file 
+    buffer << file.rdbuf();
+
+    // if any error occured return false
+    if (file.bad())
+        return false;
+
+    // copy the file content 
+    content = buffer.str();
+    return true;
+}
+
+// one function to handle the error
+// example of the configfile
+
+/*server {
+    listen 8080;
+    error_page 404 /errors/404.html;
+
+    location / {
+        root ./www;
+    }
+}*/
+// fisrt if there is custom error_pages
+// if there is default error pages
+// simple text form
 void Router::handleError(const HttpRequest& request, const RouteDecision& result, HttpResponse& response)
 {
-    (void)request;
-    (void)result;
-    (void)response;
-    // later
+    // get the HTTP reason phrase based on the code sent
+    std::string reason;
+    reason = getErrorReason(result.errorCode);
+    
+    // set the basic http info
+    // example:
+    // HTTP/1.1 404 Not Found
+    response.setVersion(request.getVersion());
+    response.setStatusCode(result.errorCode);
+    response.setReasonPhrase(reason);
+
+    if (result.errorCode == 405 && result.location != NULL)
+        setAllowedMethodHeader(*result.location, response);
+        
+    // Store the error page content and check if can open
+    std::string content;
+    bool isPageOpen = false;
+
+    // check if the server configuration has an error page
+    // error_page 400 /errors/404.html
+
+    if(result.server != NULL)
+    {
+        // iterator for the error_pages in the serverConfig
+        // to check if the error code exists
+        // and get its path
+        // ex: -> error_pages = {404: "/errors/404.html"}
+        std::map<int, std::string>::const_iterator it = result.server->error_pages.find(result.errorCode);
+        
+        // if the error_page for this code esixt
+        if (it != result.server->error_pages.end())
+        {
+            // get the error page path but without the root
+            std::string page = it->second;
+
+            // find the location that matches the error page URI
+            // /errors/404.html matches /
+            const LocationConfig* errorLocation = matchLocation(page, *result.server);
+            
+            // if found
+            if (errorLocation != NULL)
+            {
+                // get the root directory then add it to the path
+                std::string root = errorLocation->root;
+                std::string fullErrorPath = root + page;
+
+                // read the error page
+                isPageOpen = readErrorPages(fullErrorPath, content);    
+
+            }
+        }
+
+    }
+
+    // use the default error pages i case no custom 
+    if (!isPageOpen)
+    {
+        std::ostringstream path;
+        path << "./www/errors/" << result.errorCode << ".html";
+        
+        // load this page the default one
+        isPageOpen = readErrorPages(path.str(), content);
+    }
+    // if there is a custom/default set body and content-type
+    if (isPageOpen)
+    {
+        response.setBody(content);
+        response.setHeader("Content-Type", "text/html; charset=utf-8");
+    }
+    // no error page default or custom
+    // test fallback
+    else
+    {
+        std::ostringstream text;
+        text << result.errorCode << " " << reason << "\n";
+        content = text.str(); 
+
+        response.setBody(content);
+        response.setHeader("Content-Type", "text/plain; charset=utf-8");
+    }
+
+    //  Set Content-Length based on the actual response body size
+    std::ostringstream length;
+    length << content.size();
+
+    response.setHeader("Content-Length", length.str());
 }
+
 
 void Router::handleGet(const HttpRequest& request, HttpResponse& response)
 {

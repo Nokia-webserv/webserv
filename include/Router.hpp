@@ -6,7 +6,7 @@
 /*   By: damohame <damohame@student.42berlin.d>     +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/11/06 22:25:55 by damohame          #+#    #+#             */
-/*   Updated: 2026/11/10 00:24:20 by damohame         ###   ########.fr       */
+/*   Updated: 2026/11/10 01:12:58 by damohame         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -52,6 +52,10 @@ class Router
         const LocationConfig* matchLocation(const std::string& path, const ServerConfig& server) const;
         bool isMethodAllowed(const std::string &method, const LocationConfig &location) const;
         const ServerConfig* selectServer(const HttpRequest& request, const Listener& listener) const;
+        
+        bool readErrorPages(const std::string& path, std::string& content);
+        std::string getErrorReason(int code) const;
+        void setAllowedMethodHeader(const LocationConfig& location, HttpResponse& response);
         
         void handleError(const HttpRequest& request, const RouteDecision& result, HttpResponse& response);
         

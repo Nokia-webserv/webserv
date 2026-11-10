@@ -6,7 +6,7 @@
 /*   By: damohame <damohame@student.42berlin.d>     +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/10/02 16:24:40 by damohame          #+#    #+#             */
-/*   Updated: 2026/11/10 00:55:05 by damohame         ###   ########.fr       */
+/*   Updated: 2026/11/10 01:21:55 by damohame         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -558,8 +558,15 @@ void Server::processHttpInput(ClientConnection &client)
             RouteDecision decision = router.route(client.getHttpRequest(),client.getListener(), response);
 
             // TEMPORARY: Test the routing decision
-            printRouteDecision(decision);
+            //printRouteDecision(decision);
 
+            // adding the generated HTTP error response for sending.
+            if (decision.type == RouteDecision::ROUTE_ERROR)
+            {
+                client.addDataToSend(response.serialize());
+            }
+            
+            // reset the parser for next request
             client.getParser().reset();
             ++processedRequests;
             if(client.getRecvBuffer().empty())
