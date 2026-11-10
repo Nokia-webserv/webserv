@@ -6,7 +6,7 @@
 /*   By: damohame <damohame@student.42berlin.d>     +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/11/06 22:50:16 by damohame          #+#    #+#             */
-/*   Updated: 2026/11/10 01:15:14 by damohame         ###   ########.fr       */
+/*   Updated: 2026/11/10 12:37:42 by damohame         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -194,6 +194,9 @@ RouteDecision Router::route(const HttpRequest& request, const Listener& listener
     {
         result.type = RouteDecision::ROUTE_REDIRECT;
         result.errorCode = 0;
+        
+        // build the redirect response
+        handleRedirect(request, *result.location, response);
         return result;
     }
     
@@ -213,6 +216,33 @@ RouteDecision Router::route(const HttpRequest& request, const Listener& listener
         handleDelete(request, response);
 
     return result;
+}
+
+// prepare the response for error_pages and redirect
+void Router::setResponseBody(HttpResponse& response, const std::string& path, int statusCode,
+    const std::string& reason)
+{
+    std::string content;
+
+    if (readHtmlPages(path, content))
+    {
+        response.setHeader("Content-Type", "text/html; charset=utf-8");
+    }
+    else
+    {
+        std::ostringstream text;
+        text << statusCode << " " << reason << "\n";
+
+        content = text.str();
+        response.setHeader("Content-Type", "text/plain; charset=utf-8");
+    }
+
+    response.setBody(content);
+
+    std::ostringstream length;
+    length << content.size();
+
+    response.setHeader("Content-Length", length.str());
 }
 
 
@@ -270,8 +300,8 @@ void Router::setAllowedMethodHeader(const LocationConfig& location, HttpResponse
     response.setHeader("Allow", allowedMethods);
 }
 
-// this function read the error pages .html
-bool Router::readErrorPages(const std::string& path, std::string& content)
+// this function read the Html pages .html and return true
+bool Router::readHtmlPages(const std::string& path, std::string& content)
 {
     // open the error page file as it is in binary mode
     std::ifstream file(path.c_str(), std::ios::binary);
@@ -356,46 +386,70 @@ void Router::handleError(const HttpRequest& request, const RouteDecision& result
                 std::string root = errorLocation->root;
                 std::string fullErrorPath = root + page;
 
-                // read the error page
-                isPageOpen = readErrorPages(fullErrorPath, content);    
+                // read the error page for the cutomized 
+                isPageOpen = readHtmlPages(fullErrorPath, content);    
 
             }
         }
 
     }
 
-    // use the default error pages i case no custom 
-    if (!isPageOpen)
-    {
-        std::ostringstream path;
-        path << "./www/errors/" << result.errorCode << ".html";
-        
-        // load this page the default one
-        isPageOpen = readErrorPages(path.str(), content);
-    }
-    // if there is a custom/default set body and content-type
+    // load the custom page 
     if (isPageOpen)
     {
         response.setBody(content);
         response.setHeader("Content-Type", "text/html; charset=utf-8");
+
+        std::ostringstream length;
+        length << content.size();
+        response.setHeader("Content-Length", length.str());
     }
-    // no error page default or custom
-    // test fallback
+    // no custom error page
+    // load the default or the error reason
     else
     {
-        std::ostringstream text;
-        text << result.errorCode << " " << reason << "\n";
-        content = text.str(); 
+        std::ostringstream path;
+        path << "./www/errors/" << result.errorCode << ".html";
 
-        response.setBody(content);
-        response.setHeader("Content-Type", "text/plain; charset=utf-8");
+        setResponseBody(response, path.str(), result.errorCode, reason);
     }
+}
 
-    //  Set Content-Length based on the actual response body size
-    std::ostringstream length;
-    length << content.size();
+// redirect reason based on the code
+std::string Router::getRedirectCode(int code) const
+{
+    switch (code)
+    {
+        case 301: return "Moved Permanently";
+        case 302: return "Found";
 
-    response.setHeader("Content-Length", length.str());
+        // default in case of wrong error
+        default:  return "";
+    }
+}
+
+
+// build the Http redirect response
+void Router::handleRedirect(const HttpRequest& request, const LocationConfig& location, HttpResponse& response)
+{
+    // set the version and redirect code
+    response.setVersion(request.getVersion());
+    response.setStatusCode(location.redirect_code);
+    
+    
+    // set the reason phrase based on the redirect code
+    std::string reason;
+    reason = getRedirectCode(location.redirect_code);
+    response.setReasonPhrase(reason);
+    
+    // set the redirect header response
+    response.setHeader("Location", location.redirect_url);
+    
+    std::ostringstream path;
+    // default path for redirect pages
+    path << "./www/redirects/" << location.redirect_code << ".html";
+
+    setResponseBody(response, path.str(), location.redirect_code, reason);
 }
 
 

@@ -6,7 +6,7 @@
 /*   By: damohame <damohame@student.42berlin.d>     +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/11/06 22:25:55 by damohame          #+#    #+#             */
-/*   Updated: 2026/11/10 01:12:58 by damohame         ###   ########.fr       */
+/*   Updated: 2026/11/10 12:21:08 by damohame         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -53,7 +53,7 @@ class Router
         bool isMethodAllowed(const std::string &method, const LocationConfig &location) const;
         const ServerConfig* selectServer(const HttpRequest& request, const Listener& listener) const;
         
-        bool readErrorPages(const std::string& path, std::string& content);
+        bool readHtmlPages(const std::string& path, std::string& content);
         std::string getErrorReason(int code) const;
         void setAllowedMethodHeader(const LocationConfig& location, HttpResponse& response);
         
@@ -63,5 +63,10 @@ class Router
         void handlePost(const HttpRequest& request, HttpResponse& response);
         void handleDelete(const HttpRequest& request, HttpResponse& response);
         
+        void handleRedirect(const HttpRequest& request, const LocationConfig& location, HttpResponse& response);
+        std::string getRedirectCode(int code) const;
+
+        void setResponseBody(HttpResponse& response, const std::string& path, int statusCode,
+            const std::string& reason);
 };
 

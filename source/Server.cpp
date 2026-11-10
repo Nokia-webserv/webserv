@@ -6,7 +6,7 @@
 /*   By: damohame <damohame@student.42berlin.d>     +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/10/02 16:24:40 by damohame          #+#    #+#             */
-/*   Updated: 2026/11/10 01:21:55 by damohame         ###   ########.fr       */
+/*   Updated: 2026/11/10 11:58:24 by damohame         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -561,7 +561,8 @@ void Server::processHttpInput(ClientConnection &client)
             //printRouteDecision(decision);
 
             // adding the generated HTTP error response for sending.
-            if (decision.type == RouteDecision::ROUTE_ERROR)
+            if (decision.type == RouteDecision::ROUTE_ERROR
+                || decision.type == RouteDecision::ROUTE_REDIRECT)
             {
                 client.addDataToSend(response.serialize());
             }
