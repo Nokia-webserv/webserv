@@ -6,7 +6,7 @@
 /*   By: damohame <damohame@student.42berlin.d>     +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/10/02 16:24:40 by damohame          #+#    #+#             */
-/*   Updated: 2026/11/10 00:55:05 by damohame         ###   ########.fr       */
+/*   Updated: 2026/11/10 01:45:40 by damohame         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -557,8 +557,10 @@ void Server::processHttpInput(ClientConnection &client)
             // call the route function
             RouteDecision decision = router.route(client.getHttpRequest(),client.getListener(), response);
 
+            // updated later
+            (void) decision;
             // TEMPORARY: Test the routing decision
-            printRouteDecision(decision);
+            //printRouteDecision(decision);
 
             client.getParser().reset();
             ++processedRequests;
