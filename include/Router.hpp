@@ -6,7 +6,7 @@
 /*   By: damohame <damohame@student.42berlin.d>     +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/11/06 22:25:55 by damohame          #+#    #+#             */
-/*   Updated: 2026/11/11 15:19:55 by damohame         ###   ########.fr       */
+/*   Updated: 2026/11/11 23:33:47 by damohame         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -48,19 +48,18 @@ class Router
 
         RouteDecision route(const HttpRequest& request, const Listener& listener, HttpResponse& response);
         void handleParserError(const HttpRequest& request, const Listener &listener, HttpRequestError error, HttpResponse& response);
+        void handleError(const HttpRequest& request, const RouteDecision& result, HttpResponse& response);
+        const ServerConfig* selectServer(const HttpRequest& request, const Listener& listener) const;
 
     private:
 
         const LocationConfig* matchLocation(const std::string& path, const ServerConfig& server) const;
         bool isMethodAllowed(const std::string &method, const LocationConfig &location) const;
-        const ServerConfig* selectServer(const HttpRequest& request, const Listener& listener) const;
         
         bool readHtmlPages(const std::string& path, std::string& content);
         std::string getErrorReason(int code) const;
         void setAllowedMethodHeader(const LocationConfig& location, HttpResponse& response);
-        
-        void handleError(const HttpRequest& request, const RouteDecision& result, HttpResponse& response);
-        
+                
         void handleGet(const HttpRequest& request, HttpResponse& response, const LocationConfig& location);
         void handlePost(const HttpRequest& request, HttpResponse& response, const LocationConfig& location);
         void handleDelete(const HttpRequest& request, HttpResponse& response, const LocationConfig& location);
