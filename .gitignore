@@ -16,3 +16,7 @@ webserv
 # Debug / temporary files
 *.log
 *.tmp
+
+# Python cache
+__pycache__/
+*.py[cod]

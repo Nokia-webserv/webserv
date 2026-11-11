@@ -1,0 +1,31 @@
+name: Webserv Tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Get repository
+        uses: actions/checkout@v4
+
+      - name: Build test
+        run: make build
+
+      - name: Startup tests
+        run: make startup
+
+      - name: Config parser tests
+        run: make config
+
+      - name: TCP accept tests
+        run: make accept
+
+      - name: HTTP parser tests
+        run: make parser
+      
+      - name: Integration tests
+        run: make integration

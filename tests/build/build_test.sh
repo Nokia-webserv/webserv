@@ -10,6 +10,9 @@ TEST_SERVER_SOURCE="source/.test-Server.cpp"
 cleanup()
 {
 	rm -f "$TEST_SERVER_SOURCE"
+	if [ "${KEEP_BUILD_ARTIFACTS:-0}" -ne 1 ]; then
+		make fclean >/dev/null 2>&1 || true
+	fi
 }
 
 trap cleanup EXIT INT TERM
