@@ -6,7 +6,7 @@
 /*   By: damohame <damohame@student.42berlin.d>     +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/10/06 14:16:57 by damohame          #+#    #+#             */
-/*   Updated: 2026/10/10 19:23:23 by damohame         ###   ########.fr       */
+/*   Updated: 2026/11/09 23:10:24 by damohame         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -37,8 +37,10 @@ class Listener {
         int listen_fd;
         std::string host;
         int port;
-        // saving a ptr to the address of only unique host::port
-        //std::vector<const ServerConfig*> configs;
+
+        // Stores pointers to all virtual server configs
+        // associated with this listening socket.
+        std::vector<const ServerConfig*> configs;
 
     public:
         Listener(const std::string &host, int port);
@@ -48,8 +50,12 @@ class Listener {
         const std::string&  getHost() const;
         int getPort() const;
         bool matches(const std::string& host, int port) const;
-        //void addConfig(const ServerConfig* config);
         
+        // Associate all virtual servers to this listener
+        void addConfig(const ServerConfig* config);
+
+        // return all virtual servers sharing the same listener
+        const std::vector<const ServerConfig*>& getConfigs() const;
 };
 
 #endif

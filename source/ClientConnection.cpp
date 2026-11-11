@@ -1,10 +1,10 @@
 #include "ClientConnection.hpp"
 
 ClientConnection::ClientConnection(int fd,
-	sockaddr_in *addr) : clientSocket_fd(fd), addressInfo(addr),
+	sockaddr_in *addr, const Listener* listener) : clientSocket_fd(fd), addressInfo(addr),
     writeOffset(0), clientLastActive(std::time(NULL)), readClosed(false),
  	httpParser(recvBuffer) ,httpRequest(httpParser.getRequest()),
-    closedAfterResponse(false), pendingHttpInput(false)
+    closedAfterResponse(false), pendingHttpInput(false), listener(listener)
 {}
 
 ClientConnection::~ClientConnection()
@@ -257,4 +257,9 @@ bool ClientConnection::hasPendingHttpInput()
 void ClientConnection::setPendingHttpInput(bool value)
 {
 	pendingHttpInput = value;
+}
+
+const Listener& ClientConnection::getListener() const
+{
+	return (*listener);
 }
