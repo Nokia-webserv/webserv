@@ -1,3 +1,4 @@
+
 #!/usr/bin/env python3
 
 import socket
@@ -11,7 +12,9 @@ HOST = "127.0.0.1"
 PORT = 8080
 
 STARTUP_TIMEOUT = 10
-CLIENT_TIMEOUT = int(os.environ.get("TEST_TIMEOUT", "10"))
+
+# Must match the timeout configured in Webserv.
+CLIENT_TIMEOUT = int(os.environ.get("TEST_TIMEOUT", "30"))
 WAIT_TIME = CLIENT_TIMEOUT + 5
 
 BODY = b"Hello"
@@ -27,15 +30,17 @@ HEADERS = (
 def start_server(command):
     print("[INFO] Starting server:", " ".join(command))
     print("[INFO] Using config:", command[-1])
+
     server = subprocess.Popen(command)
+
     print("[PASS] Server process started with config")
     return server
 
 
 def wait_for_server(server):
-    deadline = time.time() + STARTUP_TIMEOUT
+    deadline = time.monotonic() + STARTUP_TIMEOUT
 
-    while time.time() < deadline:
+    while time.monotonic() < deadline:
         if server.poll() is not None:
             raise RuntimeError(
                 "Server exited with code " + str(server.returncode)
@@ -52,13 +57,25 @@ def wait_for_server(server):
     raise RuntimeError("Server did not start")
 
 
+def receive_until_closed(client):
+    response = b""
+
+    while True:
+        chunk = client.recv(4096)
+
+        if not chunk:
+            return response
+
+        response += chunk
+
+
 def test_incomplete_body(server):
     client = None
 
     try:
         print("[INFO] Connecting client")
         client = socket.create_connection((HOST, PORT), timeout=3)
-        client.settimeout(2)
+
         timeout_count = log_count("timeout")
 
         print("[INFO] Sending request headers")
@@ -66,32 +83,126 @@ def test_incomplete_body(server):
 
         time.sleep(0.5)
 
-        print("[INFO] Sending partial body:", len(BODY), "of 100 bytes")
+        print(
+            "[INFO] Sending partial body:",
+            len(BODY),
+            "of 100 bytes"
+        )
+
         client.sendall(BODY)
 
+        # Timeout starts after the last transmitted data.
+        start = time.monotonic()
+
         print("[INFO] Stopping transmission")
-        print("[INFO] Waiting", WAIT_TIME, "seconds for timeout")
-        wait_for_log_count("timeout", timeout_count + 1, WAIT_TIME)
+
+        # Check that Webserv does not respond immediately.
+        client.settimeout(2)
+
+        try:
+            data = client.recv(1)
+
+            if data == b"":
+                raise AssertionError(
+                    "Server closed connection before timeout"
+                )
+
+            raise AssertionError(
+                "Server responded before timeout: " + repr(data)
+            )
+
+        except socket.timeout:
+            print("[PASS] Server waits for remaining body bytes")
+
+        print(
+            "[INFO] Waiting for HTTP 408 Request Timeout"
+        )
+
+        # A deadline relative to the last sent body bytes.
+        deadline = start + WAIT_TIME
+        remaining = deadline - time.monotonic()
+
+        if remaining <= 0:
+            raise AssertionError(
+                "Observation window expired before response"
+            )
+
+        client.settimeout(remaining)
+
+        response = receive_until_closed(client)
+
+        elapsed = time.monotonic() - start
 
         if server.poll() is not None:
             raise AssertionError(
                 "Server exited with code " + str(server.returncode)
             )
 
-        try:
-            data = client.recv(1)
+        expected_status = b"HTTP/1.1 408 Request Timeout\r\n"
 
-            if data == b"":
-                print("[PASS] Server closed the incomplete body connection")
-            else:
-                raise AssertionError(
-                    "Unexpected data received: " + repr(data)
-                )
-
-        except socket.timeout:
+        if not response.startswith(expected_status):
             raise AssertionError(
-                "Connection is still open after the timeout period"
+                "Expected HTTP 408, received: "
+                + repr(response[:200])
             )
+
+        header_bytes, separator, body = response.partition(
+            b"\r\n\r\n"
+        )
+
+        if not separator:
+            raise AssertionError(
+                "HTTP response is missing header terminator"
+            )
+
+        headers_lower = header_bytes.lower()
+
+        if b"\r\nconnection: close" not in headers_lower:
+            raise AssertionError(
+                "Missing Connection: close header"
+            )
+
+        if elapsed < CLIENT_TIMEOUT - 1:
+            raise AssertionError(
+                "Server timed out too early: "
+                + str(round(elapsed, 2))
+                + " seconds"
+            )
+
+        if elapsed > WAIT_TIME:
+            raise AssertionError(
+                "Server timed out too late: "
+                + str(round(elapsed, 2))
+                + " seconds"
+            )
+
+        print(
+            "[PASS] HTTP 408 received after",
+            round(elapsed, 2),
+            "seconds"
+        )
+
+        print("[PASS] Connection closed after response")
+
+        # Preserve the original timeout logging assertion.
+        remaining = max(
+            0.1,
+            deadline - time.monotonic()
+        )
+
+        wait_for_log_count(
+            "timeout",
+            timeout_count + 1,
+            remaining
+        )
+
+        print("[PASS] Server recorded the timeout event")
+        print("[PASS] Server remains running")
+
+    except socket.timeout:
+        raise AssertionError(
+            "Server did not respond and close within timeout period"
+        )
 
     finally:
         if client:

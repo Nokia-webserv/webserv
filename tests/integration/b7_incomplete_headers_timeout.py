@@ -10,7 +10,9 @@ HOST = "127.0.0.1"
 PORT = 8080
 
 STARTUP_TIMEOUT = 10
-CLIENT_TIMEOUT = int(os.environ.get("TEST_TIMEOUT", "10"))
+
+# Must match the Webserv inactivity timeout.
+CLIENT_TIMEOUT = int(os.environ.get("TEST_TIMEOUT", "30"))
 OBSERVATION_TIME = CLIENT_TIMEOUT + 5
 
 REQUEST_PART = (
@@ -22,15 +24,17 @@ REQUEST_PART = (
 def start_server(command):
     print("[INFO] Starting server:", " ".join(command))
     print("[INFO] Using config:", command[-1])
+
     server = subprocess.Popen(command)
+
     print("[PASS] Server process started with config")
     return server
 
 
 def wait_for_server(server):
-    deadline = time.time() + STARTUP_TIMEOUT
+    deadline = time.monotonic() + STARTUP_TIMEOUT
 
-    while time.time() < deadline:
+    while time.monotonic() < deadline:
         if server.poll() is not None:
             raise RuntimeError(
                 "Server exited with code " + str(server.returncode)
@@ -47,6 +51,18 @@ def wait_for_server(server):
     raise RuntimeError("Server did not start")
 
 
+def receive_until_closed(client):
+    response = b""
+
+    while True:
+        chunk = client.recv(4096)
+
+        if not chunk:
+            return response
+
+        response += chunk
+
+
 def test_incomplete_headers(server):
     client = None
 
@@ -58,33 +74,84 @@ def test_incomplete_headers(server):
         print("[INFO] Sending incomplete request headers")
         client.sendall(REQUEST_PART)
 
+        # Incomplete headers must not cause an immediate response.
+        try:
+            data = client.recv(1)
+
+            if data == b"":
+                raise AssertionError(
+                    "Server closed the connection before timeout"
+                )
+
+            raise AssertionError(
+                "Server responded before timeout: " + repr(data)
+            )
+
+        except socket.timeout:
+            print("[PASS] No immediate response for incomplete headers")
+
         print(
-            "[INFO] Waiting",
-            OBSERVATION_TIME,
-            "seconds for server timeout"
+            "[INFO] Waiting for HTTP 408 (timeout:",
+            CLIENT_TIMEOUT,
+            "seconds)"
         )
-        time.sleep(OBSERVATION_TIME)
+
+        start = time.monotonic()
+
+        # Allow enough time for the configured inactivity timeout.
+        client.settimeout(OBSERVATION_TIME + 2)
+
+        response = receive_until_closed(client)
+
+        elapsed_after_wait = time.monotonic() - start
 
         if server.poll() is not None:
             raise AssertionError(
                 "Server exited with code " + str(server.returncode)
             )
 
-        try:
-            data = client.recv(1)
+        expected_status = b"HTTP/1.1 408 Request Timeout\r\n"
 
-            if data == b"":
-                print("[PASS] Server closed the connection")
-            else:
-                print("[FAIL] Server sent unexpected data:", data)
-                raise AssertionError("Unexpected data received")
-
-        except socket.timeout:
+        if not response.startswith(expected_status):
             raise AssertionError(
-                "Connection is still open after "
-                + str(OBSERVATION_TIME)
+                "Expected HTTP 408, received: "
+                + repr(response[:200])
+            )
+
+        if b"Connection: close\r\n" not in response:
+            raise AssertionError(
+                "Missing Connection: close header"
+            )
+
+        # The first receive already waited approximately 2 seconds.
+        total_elapsed = elapsed_after_wait + 2
+
+        if total_elapsed < CLIENT_TIMEOUT - 1:
+            raise AssertionError(
+                "Server timed out too early: "
+                + str(round(total_elapsed, 2))
                 + " seconds"
             )
+
+        if total_elapsed > OBSERVATION_TIME:
+            raise AssertionError(
+                "Server timed out too late: "
+                + str(round(total_elapsed, 2))
+                + " seconds"
+            )
+
+        print(
+            "[PASS] HTTP 408 received after",
+            round(total_elapsed, 2),
+            "seconds"
+        )
+        print("[PASS] Connection closed after response")
+        print("[PASS] Server remains running")
+
+    except socket.timeout:
+        raise AssertionError(
+            "Server did not respond and close within the timeout window"
+        )
 
     finally:
         if client:
@@ -108,7 +175,7 @@ def main():
 
         test_incomplete_headers(server)
 
-        print("\n[PASS] B7 - Incomplete headers stability test passed")
+        print("\n[PASS] B7 - Incomplete headers timeout test passed")
 
     except Exception as error:
         print("\n[FAIL] B7 -", error)
