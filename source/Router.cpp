@@ -6,7 +6,7 @@
 /*   By: damohame <damohame@student.42berlin.d>     +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/11/06 22:50:16 by damohame          #+#    #+#             */
-/*   Updated: 2026/11/12 00:24:01 by damohame         ###   ########.fr       */
+/*   Updated: 2026/11/12 00:28:37 by damohame         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -192,12 +192,12 @@ RouteDecision Router::route(const HttpRequest& request, const Listener& listener
     // 4- check the redirect
     if (result.location->has_redirect)
     {
-        result.type = RouteDecision::ROUTE_REDIRECT;
-        result.errorCode = 0;
-        
+        //result.type = RouteDecision::ROUTE_REDIRECT;
+        //result.errorCode = 0;
+        // next pr
         // build the redirect response
-        handleRedirect(request, *result.location, response);
-        return result;
+       // handleRedirect(request, *result.location, response);
+        //return result;
     }
     
     // 5- CGI 
