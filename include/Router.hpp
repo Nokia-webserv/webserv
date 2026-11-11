@@ -6,7 +6,7 @@
 /*   By: damohame <damohame@student.42berlin.d>     +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/11/06 22:25:55 by damohame          #+#    #+#             */
-/*   Updated: 2026/11/11 14:21:13 by damohame         ###   ########.fr       */
+/*   Updated: 2026/11/11 15:19:55 by damohame         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -16,6 +16,7 @@
 #include "HttpRequest.hpp"
 #include "Listener.hpp"
 #include "HttpResponse.hpp"
+#include "HttpParser.hpp"
 #include <string>
 
 struct RouteDecision
@@ -46,6 +47,7 @@ class Router
         ~Router();
 
         RouteDecision route(const HttpRequest& request, const Listener& listener, HttpResponse& response);
+        void handleParserError(const HttpRequest& request, const Listener &listener, HttpRequestError error, HttpResponse& response);
 
     private:
 
@@ -68,5 +70,8 @@ class Router
 
         void setResponseBody(HttpResponse& response, const std::string& path, int statusCode,
             const std::string& reason);
+        
+        int parserErrorToStatus(HttpRequestError error);
+
 };
 

@@ -6,7 +6,7 @@
 /*   By: damohame <damohame@student.42berlin.d>     +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/11/06 22:50:16 by damohame          #+#    #+#             */
-/*   Updated: 2026/11/11 14:21:10 by damohame         ###   ########.fr       */
+/*   Updated: 2026/11/11 15:20:34 by damohame         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -450,6 +450,50 @@ void Router::handleRedirect(const HttpRequest& request, const LocationConfig& lo
     path << "./www/redirects/" << location.redirect_code << ".html";
 
     setResponseBody(response, path.str(), location.redirect_code, reason);
+}
+
+int Router::parserErrorToStatus(HttpRequestError error)
+{
+    switch (error)
+    {
+        case BAD_REQUEST:
+            return (400);
+        case CONTENT_TOO_LARGE:
+            return (413);
+        case HEADER_FIELDS_TOO_LARGE:
+           return (431);
+        case NOT_IMPLEMENTED:
+            return (501);
+        case HTTP_VERSION_NOT_SUPPORTED:
+            return (505);
+        default:
+            return (400);
+    }
+}
+
+// public function to handle the errors in the HttpParser
+void Router::handleParserError(const HttpRequest& request, const Listener &listener, HttpRequestError error, HttpResponse& response)
+{
+    // to reuse handleError
+    // we need to pass a RouteDecision 
+    RouteDecision result;
+    
+    result.type = RouteDecision::ROUTE_ERROR;
+    result.errorCode = parserErrorToStatus(error);
+    result.server = selectServer(request, listener);
+
+    // the original is const and we need to modify the version
+    // if not valid
+    // local copy
+    HttpRequest errorRequest = request;
+    
+    // to use a supported version in response
+    if (errorRequest.getVersion() != "HTTP/1.0" && errorRequest.getVersion() != "HTTP/1.1")
+        errorRequest.setVersion("HTTP/1.1");
+
+    handleError(errorRequest, result, response);
+    response.setHeader("Connection", "close");
+    
 }
 
 

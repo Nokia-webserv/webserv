@@ -6,7 +6,7 @@
 /*   By: damohame <damohame@student.42berlin.d>     +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/10/02 16:24:40 by damohame          #+#    #+#             */
-/*   Updated: 2026/11/11 14:21:02 by damohame         ###   ########.fr       */
+/*   Updated: 2026/11/11 15:22:58 by damohame         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -585,6 +585,11 @@ void Server::processHttpInput(ClientConnection &client)
             // std::cout << "[HTTP] Parsing error, fd="
                       // << client.getFd() << std::endl;
             // DEBUG END
+
+            HttpResponse response;
+            
+            router.handleParserError(client.getHttpRequest(), client.getListener(), result.error, response);
+            client.addDataToSend(response.serialize());
             client.setCloseAfterResponse();
             return;
         }
