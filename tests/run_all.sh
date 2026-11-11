@@ -41,6 +41,8 @@ run_test()
         echo "[FAIL] $name (exit code: $status)"
         FAILED+=("$name")
     fi
+
+    return "$status"
 }
 
 echo "============================================================"
@@ -53,31 +55,22 @@ echo "[INFO] Client timeout: $TIMEOUT seconds"
 run_test "BUILD" bash tests/build/build_test.sh "$SPECIAL_FLAGS"
 
 # 2. STARTUP
-for test in tests/startup/*.sh; do
-    run_test "STARTUP: $(basename "$test")" \
-        bash "$test" "$SERVER" "$CONFIG"
-done
+run_test "STARTUP TESTS" bash tests/startup/run_tests.sh \
+    "$SERVER" "$CONFIG" "$SPECIAL_FLAGS"
 
 # 3. CONFIG PARSER UNIT TEST
 run_test "CONFIG PARSER" bash tests/config/test_config.sh
 
 # 4. TCP
 run_test "TCP ACCEPT" bash tests/tcp/accept_test/accept_test.sh \
-    "$SERVER" "$CONFIG"
+    "$SERVER" "$CONFIG" "$SPECIAL_FLAGS"
 
 # 5. HTTP PARSER
 run_test "HTTP PARSER" bash tests/http/parser/parser_test.sh
 
 # 6. INTEGRATION
-for test in tests/integration/*.py; do
-    if [ "$(basename "$test")" = "common.py" ]; then
-        continue
-    fi
-    : > "tests/integration/logs/$(basename "$test" .py).server.log"
-    run_test "INTEGRATION: $(basename "$test")" \
-    env WEBSERV_TEST_LOG="tests/integration/logs/$(basename "$test" .py).server.log" \
-    python3 "$test" "$SERVER" "$CONFIG"
-done
+run_test "INTEGRATION TESTS" bash tests/integration/run_tests.sh \
+    "$SERVER" "$CONFIG" "$TIMEOUT"
 
 # TEST ARTIFACT CLEANUP
 run_test "TEST ARTIFACT CLEANUP" bash -c '

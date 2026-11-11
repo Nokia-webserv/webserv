@@ -6,7 +6,7 @@
 /*   By: damohame <damohame@student.42berlin.d>     +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/11/06 22:50:16 by damohame          #+#    #+#             */
-/*   Updated: 2026/11/10 12:37:42 by damohame         ###   ########.fr       */
+/*   Updated: 2026/11/11 14:21:10 by damohame         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -209,11 +209,11 @@ RouteDecision Router::route(const HttpRequest& request, const Listener& listener
     
     // 6- method handler one request at a time
     if (request.getMethod() == "GET")
-        handleGet(request, response);
+        handleGet(request, response, *result.location);
     else if (request.getMethod() == "POST")
-        handlePost(request, response);
+        handlePost(request, response, *result.location);
     else if (request.getMethod() == "DELETE")
-        handleDelete(request, response);
+        handleDelete(request, response, *result.location);
 
     return result;
 }
@@ -453,21 +453,24 @@ void Router::handleRedirect(const HttpRequest& request, const LocationConfig& lo
 }
 
 
-void Router::handleGet(const HttpRequest& request, HttpResponse& response)
+void Router::handleGet(const HttpRequest& request, HttpResponse& response, const LocationConfig& location)
 {
     (void)request;
     (void)response;
+    (void)location;
     //to be implemented: Get handler
 }
-void Router::handlePost(const HttpRequest& request, HttpResponse& response)
+void Router::handlePost(const HttpRequest& request, HttpResponse& response, const LocationConfig& location)
 {
     (void)request;
     (void)response;
+    (void)location;
     //to be implemeneted:  post handler;
 }
-void Router::handleDelete(const HttpRequest& request, HttpResponse& response)
+void Router::handleDelete(const HttpRequest& request, HttpResponse& response, const LocationConfig& location)
 {
     (void)request;
     (void)response;
+    (void)location;
     // to be implemented: Delete handler
 }

@@ -22,8 +22,9 @@ SERVER_PID=$!
 
 cleanup()
 {
-    kill -TERM "$SERVER_PID" 2>/dev/null
-    wait "$SERVER_PID" 2>/dev/null
+    kill -TERM "$SERVER_PID" 2>/dev/null || true
+    wait "$SERVER_PID" 2>/dev/null || true
+    rm -f /tmp/webserv_port_conflict.log
 }
 
 trap cleanup EXIT

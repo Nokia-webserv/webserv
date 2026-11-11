@@ -16,6 +16,14 @@ echo "[INFO] Using config: $CONFIG"
 "$SERVER" "$CONFIG" &
 SERVER_PID=$!
 
+cleanup()
+{
+    kill -TERM "$SERVER_PID" 2>/dev/null || true
+    wait "$SERVER_PID" 2>/dev/null || true
+}
+
+trap cleanup EXIT INT TERM
+
 sleep 1
 
 if kill -0 "$SERVER_PID" 2>/dev/null; then
@@ -26,6 +34,3 @@ else
     echo "STARTUP: FAIL"
     exit 1
 fi
-
-kill -TERM "$SERVER_PID"
-wait "$SERVER_PID" 2>/dev/null || true
