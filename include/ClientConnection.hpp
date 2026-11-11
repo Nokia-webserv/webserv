@@ -52,6 +52,9 @@ class ClientConnection {
         // Return the listener associated with this connection.
         const Listener& getListener() const;
 
+        // get the value from the parser
+        bool hasIncompleteRequest() const;
+
     private:
         int clientSocket_fd;
         sockaddr_in * addressInfo;

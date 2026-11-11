@@ -6,7 +6,7 @@
 /*   By: damohame <damohame@student.42berlin.d>     +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/10/02 16:24:40 by damohame          #+#    #+#             */
-/*   Updated: 2026/11/11 14:12:32 by damohame         ###   ########.fr       */
+/*   Updated: 2026/11/12 00:24:52 by damohame         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -322,7 +322,8 @@ void Server::checkClientTimeout()
     for (std::map<int, ClientConnection*>::iterator it = clients.begin();
          it != clients.end(); ++it)
     {
-        time_t inactiveSeconds = now - it->second->getClientLastActive();
+        ClientConnection& client = *(it->second);
+        time_t inactiveSeconds = now - client.getClientLastActive();
 
         // inactive time calculation, add in the vector
         if (inactiveSeconds >= GLOBAL_CLIENT_TIMEOUT_SECONDS)
@@ -330,8 +331,42 @@ void Server::checkClientTimeout()
             // TEST_INTEGRATION integrationLogEvent("timeout", it->first);
             //testing
             /*std::cout << "Client FD: " << it->first << " timed out after " 
-            << inactiveSeconds << " seconds" << std::endl;*/
-            
+            << inactiveSeconds << " seconds" << std::endl;*/ 
+
+            // if already the server will close the response
+            // wait for POLLOUT to finish
+            if (client.shouldCloseAfterResponse())
+                continue;
+
+            // sendbuffer has data to be send
+            if (client.hasDataToSend())
+            {
+                continue;
+            }
+            // prepare and sent the timeout error 
+            if (client.hasIncompleteRequest())
+            {
+                HttpResponse response;
+                RouteDecision result;
+
+                result.type = RouteDecision::ROUTE_ERROR;
+                result.errorCode = 408;
+                result.server = router.selectServer(client.getHttpRequest(), client.getListener());
+                
+                HttpRequest request = client.getHttpRequest();
+
+                if (request.getVersion() != "HTTP/1.0" && request.getVersion() != "HTTP/1.1")
+                    request.setVersion("HTTP/1.1");
+                
+                router.handleError(request, result, response);
+                response.setHeader("Connection","close");
+                
+                client.addDataToSend(response.serialize());
+                client.setCloseAfterResponse();
+
+                continue;
+            }
+            // normal idel client
             timedOutClients.push_back(it->first);
         }
     }
@@ -563,7 +598,8 @@ void Server::processHttpInput(ClientConnection &client)
             //printRouteDecision(decision);
 
             // adding the generated HTTP error response for sending.
-            if (decision.type == RouteDecision::ROUTE_ERROR)
+            if (decision.type == RouteDecision::ROUTE_ERROR
+                || decision.type == RouteDecision::ROUTE_REDIRECT)
             {
                 client.addDataToSend(response.serialize());
             }
@@ -584,6 +620,11 @@ void Server::processHttpInput(ClientConnection &client)
             // std::cout << "[HTTP] Parsing error, fd="
                       // << client.getFd() << std::endl;
             // DEBUG END
+            
+           HttpResponse response;
+            
+            router.handleParserError(client.getHttpRequest(), client.getListener(), result.error, response);
+            client.addDataToSend(response.serialize());
             client.setCloseAfterResponse();
             return;
         }

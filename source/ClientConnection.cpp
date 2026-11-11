@@ -263,3 +263,8 @@ const Listener& ClientConnection::getListener() const
 {
 	return (*listener);
 }
+
+bool ClientConnection::hasIncompleteRequest() const
+{
+	return httpParser.hasIncompleteRequest();
+}

@@ -836,3 +836,9 @@ void HttpParser::setStatus(HttpRequestStatus status)
 {
     _status = status;
 }
+
+bool HttpParser::hasIncompleteRequest() const
+{
+    return ((_status == INCOMPLETE_HEAD && !_recvBuffer.empty())
+        || _status == INCOMPLETE_BODY);
+}
