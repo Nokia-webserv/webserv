@@ -31,4 +31,5 @@ jobs:
         run: make integration
         
       - name: Run redirect tests
+        if: success() || failure()
         run: make redirect-test
