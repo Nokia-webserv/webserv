@@ -204,13 +204,11 @@ RouteDecision Router::route(const HttpRequest& request, const Listener& listener
     // example:
     // ".py" -> "/usr/bin/python3"
     // ".php" -> "/usr/bin/php-cgi"
-    bool res;
-    if ((res = hasCGIextension(request.getPath(), result.location->cgi_handlers)))
+    std::string ext;
+    if (hasCGIextension(request.getPath(), result.location->cgi_handlers, ext))
     {
-        
-        //handleCGI();
+        //handleCGI(request, response, *result.location);
     }
-    std::cout << "result: " << res << "\n";
     
     // 6- method handler one request at a time
     if (request.getMethod() == "GET")
@@ -241,7 +239,7 @@ bool inCGIextensionList(const std::map<std::string, std::string> & extensionList
     return true;
 }
 
-bool Router::hasCGIextension(const std::string & path, const std::map<std::string, std::string> & extensionList) const
+bool Router::hasCGIextension(const std::string & path, const std::map<std::string, std::string> & extensionList, std::string& ext) const
 {
     std::string extension = extractExtension(path);
     if (extension.empty())
@@ -251,6 +249,7 @@ bool Router::hasCGIextension(const std::string & path, const std::map<std::strin
     if (!inCGIextensionList(extensionList, extension))
         return false;
 
+    ext = extension;
     return true;
 }
 
@@ -517,3 +516,8 @@ void Router::handleDelete(const HttpRequest& request, HttpResponse& response, co
     (void) location;
     // to be implemented: Delete handler
 }
+
+// void Router::handleCGI(const HttpRequest& request, HttpResponse& response, const LocationConfig& location)
+// {
+//     //CGI cgi(request, response, location);
+// }
