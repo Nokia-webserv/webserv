@@ -1,0 +1,38 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Webserv - Upload</title>
+</head>
+<body>
+    <h1>Upload Test</h1>
+
+    <h2>1. Text Upload</h2>
+    <p>Enter text to send to the server.</p>
+
+    <form action="/upload" method="POST"
+          enctype="text/plain">
+        <textarea name="text" rows="4" cols="50"
+                  placeholder="Enter text here..."></textarea>
+        <br><br>
+        <button type="submit">Upload Text</button>
+    </form>
+
+    <hr>
+
+    <h2>2. File Upload</h2>
+    <p>Select a file to upload to the server.</p>
+
+    <form action="/upload" method="POST"
+          enctype="multipart/form-data">
+        <input type="file" name="file" required>
+        <br><br>
+        <button type="submit">Upload File</button>
+    </form>
+
+    <hr>
+
+    <a href="index.html">Back to Home</a>
+</body>
+</html>

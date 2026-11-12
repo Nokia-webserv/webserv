@@ -53,6 +53,10 @@ class HttpParser {
         static const unsigned long tempClientMaxHeaderSize = 1024;
         static const unsigned long tempMaxTrailerSize = 1024;
     
+        // to know if the request in complete
+        // used in checkTimeout()
+        bool hasIncompleteRequest() const;
+
     private:
         HttpRequestStatus _checkHead(); // checks if head part is complete
         HttpRequestStatus _checkBody(); // checks if body is complete
