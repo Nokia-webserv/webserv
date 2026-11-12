@@ -59,6 +59,8 @@ class Router
         bool readHtmlPages(const std::string& path, std::string& content);
         std::string getErrorReason(int code) const;
         void setAllowedMethodHeader(const LocationConfig& location, HttpResponse& response);
+
+        bool hasCGIextension(const std::string & path, const std::map<std::string, std::string> & extensionList) const;
                 
         void handleGet(const HttpRequest& request, HttpResponse& response, const LocationConfig& location);
         void handlePost(const HttpRequest& request, HttpResponse& response, const LocationConfig& location);

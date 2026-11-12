@@ -204,8 +204,13 @@ RouteDecision Router::route(const HttpRequest& request, const Listener& listener
     // example:
     // ".py" -> "/usr/bin/python3"
     // ".php" -> "/usr/bin/php-cgi"
-    // to be later implemented
-
+    bool res;
+    if ((res = hasCGIextension(request.getPath(), result.location->cgi_handlers)))
+    {
+        
+        //handleCGI();
+    }
+    std::cout << "result: " << res << "\n";
     
     // 6- method handler one request at a time
     if (request.getMethod() == "GET")
@@ -216,6 +221,37 @@ RouteDecision Router::route(const HttpRequest& request, const Listener& listener
         handleDelete(request, response, *result.location);
 
     return result;
+}
+
+std::string extractExtension(const std::string & path)
+{
+    size_t dotPos = path.find(".");
+    if (dotPos == std::string::npos)
+        return "";
+
+    std::string ext = path.substr(dotPos);
+    return ext;
+}
+
+bool inCGIextensionList(const std::map<std::string, std::string> & extensionList, const std::string & extension)
+{
+    std::map<std::string, std::string>::const_iterator it = extensionList.find(extension);
+    if (it == extensionList.end())
+        return false;
+    return true;
+}
+
+bool Router::hasCGIextension(const std::string & path, const std::map<std::string, std::string> & extensionList) const
+{
+    std::string extension = extractExtension(path);
+    if (extension.empty())
+        return false;
+    std::cout << extension << "\n";
+    
+    if (!inCGIextensionList(extensionList, extension))
+        return false;
+
+    return true;
 }
 
 // prepare the response for error_pages and redirect
