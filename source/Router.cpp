@@ -6,7 +6,7 @@
 /*   By: damohame <damohame@student.42berlin.d>     +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/11/06 22:50:16 by damohame          #+#    #+#             */
-/*   Updated: 2026/11/12 17:13:58 by damohame         ###   ########.fr       */
+/*   Updated: 2026/11/13 20:05:55 by damohame         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -196,7 +196,7 @@ RouteDecision Router::route(const HttpRequest& request, const Listener& listener
         result.errorCode = 0;
 
         //build the redirect response
-        handleRedirect(request, *result.location, response);
+        handleRedirect(request, result.location->redirect_code, result.location->redirect_url,response);
         return result;
     }
     
@@ -430,26 +430,26 @@ std::string Router::getRedirectCode(int code) const
 
 
 // build the Http redirect response
-void Router::handleRedirect(const HttpRequest& request, const LocationConfig& location, HttpResponse& response)
+void Router::handleRedirect(const HttpRequest& request, int statusCode, const std::string& targetUrl,HttpResponse& response)
 {
     // set the version and redirect code
     response.setVersion(request.getVersion());
-    response.setStatusCode(location.redirect_code);
+    response.setStatusCode(statusCode);
     
     
     // set the reason phrase based on the redirect code
     std::string reason;
-    reason = getRedirectCode(location.redirect_code);
+    reason = getRedirectCode(statusCode);
     response.setReasonPhrase(reason);
     
     // set the redirect header response
-    response.setHeader("Location", location.redirect_url);
+    response.setHeader("Location", targetUrl);
     
     std::ostringstream path;
     // default path for redirect pages
-    path << "./www/redirects/" << location.redirect_code << ".html";
+    path << "./www/redirects/" << statusCode << ".html";
 
-    setResponseBody(response, path.str(), location.redirect_code, reason);
+    setResponseBody(response, path.str(), statusCode, reason);
 }
 
 int Router::parserErrorToStatus(HttpRequestError error)
