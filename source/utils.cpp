@@ -1,4 +1,5 @@
 #include "utils.hpp"
+#include <sstream>
 
 // Changes all chars of a string to lowercase
 std::string strTolower(std::string str)
@@ -121,4 +122,10 @@ void trimStr(std::string & value)
         value.erase(0, 1);
     while (!value.empty() && (value[value.size()-1] == ' ' || value[value.size()-1] == '\t'))
         value.erase(value.size() - 1);
+}
+
+std::string toString(size_t val) {
+    std::ostringstream stream;
+    stream << val;
+    return stream.str();
 }
