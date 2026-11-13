@@ -74,7 +74,7 @@ Below is the initial set of directives that is highly recommended to support by 
 * `autoindex` — Enables (`on`) or disables (`off`) directory listing when no index file is found.
 * `methods` — Restricts allowed HTTP methods (e.g., allowing `GET` and `POST` while blocking others).
 * `return` — Configures HTTP redirections with a status code and target URL.
-* `cgi_pass` — Binds file extensions to external CGI interpreters (e.g., `.php` to `/usr/bin/php-cgi`).
+* `cgi_extension` — Binds file extensions to external CGI interpreters (e.g., `.php` to `/usr/bin/php-cgi`).
 
 ### Supported `listen` format
 

@@ -156,7 +156,7 @@ const ServerConfig* Router::selectServer(const HttpRequest& request, const Liste
 // 6- methods handler
 // - Httpresponse
 // - error handler
-RouteDecision Router::route(const HttpRequest& request, const Listener& listener, HttpResponse& response)
+RouteDecision Router::route(const HttpRequest& request, const Listener& listener, HttpResponse& response, std::map<int, CGI*>& cgiMap)
 {
     RouteDecision result;
 
@@ -204,8 +204,12 @@ RouteDecision Router::route(const HttpRequest& request, const Listener& listener
     // example:
     // ".py" -> "/usr/bin/python3"
     // ".php" -> "/usr/bin/php-cgi"
-    // to be later implemented
-
+    std::string ext;
+    if (hasCGIextension(request.getPath(), result.location->cgi_handlers, ext))
+    {
+        handleCGI(request, response, *result.location, ext, cgiMap);
+        result.type = RouteDecision::ROUTE_CGI;
+    }
     
     // 6- method handler one request at a time
     if (request.getMethod() == "GET")
@@ -216,6 +220,39 @@ RouteDecision Router::route(const HttpRequest& request, const Listener& listener
         handleDelete(request, response, *result.location);
 
     return result;
+}
+
+std::string extractExtension(const std::string & path)
+{
+    size_t dotPos = path.find(".");
+    if (dotPos == std::string::npos)
+        return "";
+
+    std::string ext = path.substr(dotPos);
+    return ext;
+}
+
+// searches extracted extension in cgi handlers from location block in configs
+bool inCGIextensionList(const std::map<std::string, std::string> & extensionList, const std::string & extension)
+{
+    std::map<std::string, std::string>::const_iterator it = extensionList.find(extension);
+    if (it == extensionList.end())
+        return false;
+    return true;
+}
+
+bool Router::hasCGIextension(const std::string & path, const std::map<std::string, std::string> & extensionList, std::string& ext) const
+{
+    std::string extension = extractExtension(path); std::cout << "Extension extracted: " << extension << "\n";
+    if (extension.empty())
+        return false;
+    
+    if (!inCGIextensionList(extensionList, extension)) // searches extracted extension in cgi handlers (from location block in configs)
+    {    std::cout << "Not in the list\n"; return false;}
+    std::cout << "Extension found in the list\n";
+    
+    ext = extension;
+    return true;
 }
 
 // prepare the response for error_pages and redirect
@@ -480,4 +517,10 @@ void Router::handleDelete(const HttpRequest& request, HttpResponse& response, co
     (void)response;
     (void) location;
     // to be implemented: Delete handler
+}
+
+void Router::handleCGI(const HttpRequest& request, HttpResponse& response, const LocationConfig& location, const std::string& extension, std::map<int, CGI*>& cgiMap)
+{
+    CGI cgi(request, response, location, extension, cgiMap);
+    cgi.runScript(); // creates pipes, forks process, runs the script
 }

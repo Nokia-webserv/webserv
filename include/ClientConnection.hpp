@@ -9,6 +9,7 @@
 #include <iostream>
 #include "HttpParser.hpp"
 #include "Listener.hpp"
+#include "CGI.hpp"
 
 // class for managing a TCP-connection
 
@@ -23,37 +24,32 @@ class ClientConnection {
         std::string getBuffer() const;
         HttpParser & getParser();
         HttpRequest & getRequest();
+        const HttpRequest& getHttpRequest() const;
+        const std::string& getRecvBuffer() const;
+        time_t getClientLastActive() const;
+        // Return the listener associated with this connection.
+        const Listener& getListener() const;
+        std::map<int, CGI*> cgiMap; // contains all actively running CGI scripts per client
 
-        //void addRecvBuffer(std::string rawStr);
-        void clearBuffer();
         HttpParsingResult callParser();
-
-        bool hasDataToSend();
         bool readData();
         bool writeData();
+        void clearBuffer();
         void addDataToSend(const std::string &data);
-
-        bool isReadClosed();
         void setReadClosed();
-        time_t getClientLastActive() const;
         void updateLastActive();
+        void setPendingHttpInput(bool value);
+        void setCloseAfterResponse();
+
+        bool hasDataToSend() const;
+        bool isReadClosed() const;
+        bool shouldCloseAfterResponse() const;
+        bool hasPendingHttpInput() const;
+        // get the value from the parser
+        bool hasIncompleteRequest() const;
         
         // testing
         //void printReceivedData() const;
-        const HttpRequest& getHttpRequest() const;
-        const std::string& getRecvBuffer() const;
-
-        bool shouldCloseAfterResponse();
-        void setCloseAfterResponse();
-
-        bool hasPendingHttpInput();
-        void setPendingHttpInput(bool value);
-
-        // Return the listener associated with this connection.
-        const Listener& getListener() const;
-
-        // get the value from the parser
-        bool hasIncompleteRequest() const;
 
     private:
         int clientSocket_fd;
@@ -68,19 +64,16 @@ class ClientConnection {
         // server stop reading from client.
         // client might be waiting for response
         bool readClosed;
-
-        HttpParser httpParser;
-        HttpRequest & httpRequest; // refers to the parsed http request owned by parser for easier access
-
         // true when the server decide to close connection.
         // or after sending all queued response data
-        bool closedAfterResponse;
-
+        bool closeAfterResponse;
         //true when http input has a pending data in buffer
         //the server must continye parsing in later event-loop.
         // without waiting for another POLLIN event
         bool pendingHttpInput;
 
+        HttpParser httpParser;
+        HttpRequest & httpRequest; // refers to the parsed http request owned by parser for easier access
         // the listener connected to the client
         // Used by Router to select the correct virtual server
         const Listener* listener;
