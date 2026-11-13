@@ -19,7 +19,8 @@ SRCS = source/main.cpp \
        source/ServerConfig.cpp \
        source/LocationConfig.cpp \
 	   source/utils.cpp \
-	   source/Router.cpp
+	   source/Router.cpp \
+	   source/CGI.cpp
 
 OBJS = $(patsubst source/%.cpp,objects/%.o,$(SRCS))
 

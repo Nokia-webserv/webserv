@@ -29,7 +29,7 @@ class ClientConnection {
         time_t getClientLastActive() const;
         // Return the listener associated with this connection.
         const Listener& getListener() const;
-        std::map<int, CGI&> cgiMap;
+        std::map<int, CGI*> cgiMap;
 
         HttpParsingResult callParser();
         bool readData();

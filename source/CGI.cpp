@@ -1,9 +1,10 @@
 #include "CGI.hpp"
 
-CGI::CGI(const HttpRequest & request, HttpResponse & response, const LocationConfig & location, const std::string & cgi_extension)
+CGI::CGI(const HttpRequest & request, HttpResponse & response, const LocationConfig & location, const std::string & cgi_extension, std::map<int, CGI*>& cgiMap)
 :   extension(cgi_extension),
     interpreterPath(location.cgi_handlers.find(cgi_extension)->second),
     response(response),
+    clientsCGImap(cgiMap),
     responseReady(false)
 {
     setArgv(request, location);
@@ -46,6 +47,12 @@ void CGI::setEnvp(const HttpRequest & request/*, std::vector<std::string> envp_r
     //}
 }
 
+void CGI::runScript()
+{
+    //1. create pipes, fork, etc, and run execve
+    //2. record in cgiMap
+}
+
 void CGI::processOutput()
 {
     // readOutput();
@@ -53,7 +60,7 @@ void CGI::processOutput()
         // responseReady = true;
 }
 
-bool CGI::isResponseReady()
+bool CGI::isResponseReady() const
 {
     return responseReady;
 }

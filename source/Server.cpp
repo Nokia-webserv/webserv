@@ -96,7 +96,7 @@ int Server::findClientByCGIfd(int fd) const
 {
     for (std::map<int, ClientConnection*>::const_iterator i = clients.begin(); i != clients.end(); ++i)
     {
-        const std::map<int, CGI&>& cgiMap = i->second->cgiMap;
+        const std::map<int, CGI*>& cgiMap = i->second->cgiMap;
         if (cgiMap.find(fd) != cgiMap.end())
             return i->first;
     }
@@ -229,7 +229,7 @@ void Server::handleListenersEvents(Listener *listener, short revents)
 void Server::handleCGIevents(int cgi_fd, short revents, int client_fd)
 {
     ClientConnection& client = *(clients.find(client_fd)->second);
-    CGI& cgi = client.cgiMap.find(cgi_fd)->second;
+    CGI& cgi = *client.cgiMap.find(cgi_fd)->second;
     if (revents & POLLIN)
         cgi.processOutput(); // reads until EOF then builds response
 
@@ -458,8 +458,8 @@ void Server::buildPollFds()
         poll_fds.push_back(pfd);
 
         ClientConnection& currentClient = *(it->second);
-        std::map<int, CGI&>& cgiMap = currentClient.cgiMap;
-        for (std::map<int, CGI&>::iterator j = cgiMap.begin(); j != cgiMap.end(); ++j)
+        std::map<int, CGI*>& cgiMap = currentClient.cgiMap;
+        for (std::map<int, CGI*>::iterator j = cgiMap.begin(); j != cgiMap.end(); ++j)
         {
             pfd.fd = j->first;
             pfd.events = 0 | POLLIN;
@@ -622,7 +622,7 @@ void Server::processHttpInput(ClientConnection &client)
             // create the http response that we will save in the response
             HttpResponse response;
             // call the route function
-            RouteDecision decision = router.route(client.getHttpRequest(),client.getListener(), response);
+            RouteDecision decision = router.route(client.getHttpRequest(),client.getListener(), response, client.cgiMap);
 
             // updated later
             (void) decision;

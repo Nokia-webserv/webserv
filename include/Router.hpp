@@ -47,7 +47,7 @@ class Router
         Router();
         ~Router();
 
-        RouteDecision route(const HttpRequest& request, const Listener& listener, HttpResponse& response);
+        RouteDecision route(const HttpRequest& request, const Listener& listener, HttpResponse& response, std::map<int, CGI*>& cgiMap);
         void handleParserError(const HttpRequest& request, const Listener &listener, HttpRequestError error, HttpResponse& response);
         void handleError(const HttpRequest& request, const RouteDecision& result, HttpResponse& response);
         const ServerConfig* selectServer(const HttpRequest& request, const Listener& listener) const;
@@ -63,7 +63,7 @@ class Router
 
         bool hasCGIextension(const std::string & path, const std::map<std::string, std::string> & extensionList, std::string & ext) const;
                 
-        void handleCGI(const HttpRequest& request, HttpResponse& response, const LocationConfig& location, const std::string& extension);
+        void handleCGI(const HttpRequest& request, HttpResponse& response, const LocationConfig& location, const std::string& extension, std::map<int, CGI*>& cgiMap);
         void handleGet(const HttpRequest& request, HttpResponse& response, const LocationConfig& location);
         void handlePost(const HttpRequest& request, HttpResponse& response, const LocationConfig& location);
         void handleDelete(const HttpRequest& request, HttpResponse& response, const LocationConfig& location);

@@ -1,10 +1,16 @@
 #include "ClientConnection.hpp"
 
-ClientConnection::ClientConnection(int fd,
-	sockaddr_in *addr, const Listener* listener) : clientSocket_fd(fd), addressInfo(addr),
-    writeOffset(0), clientLastActive(std::time(NULL)), readClosed(false),
- 	httpParser(recvBuffer) ,httpRequest(httpParser.getRequest()),
-    closeAfterResponse(false), pendingHttpInput(false), listener(listener)
+ClientConnection::ClientConnection(int fd, sockaddr_in *addr, const Listener* listener)
+:	clientSocket_fd(fd), 
+	addressInfo(addr),
+	writeOffset(0), 
+	clientLastActive(std::time(NULL)), 
+	readClosed(false),
+	closeAfterResponse(false),
+	pendingHttpInput(false),
+	httpParser(recvBuffer),
+	httpRequest(httpParser.getRequest()),
+    listener(listener)
 {}
 
 ClientConnection::~ClientConnection()
