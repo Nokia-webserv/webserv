@@ -92,6 +92,17 @@ Listener *Server::findListenerByFd(int fd) const
 	return NULL;
 }
 
+int Server::findClientByCGIfd(int fd) const
+{
+    for (std::map<int, ClientConnection*>::const_iterator i = clients.begin(); i != clients.end(); ++i)
+    {
+        const std::map<int, CGI&>& cgiMap = i->second->cgiMap;
+        if (cgiMap.find(fd) != cgiMap.end())
+            return i->first;
+    }
+    return -1;
+}
+
 void Server::start()
 {
 	prepare();
@@ -189,9 +200,12 @@ void Server::run()
 
             if (listener != NULL)
                 handleListenersEvents(listener, poll_fds[i].revents);
+            int client_fd;
+            if (!listener && (client_fd = findClientByCGIfd(poll_fds[i].fd)) > -1)
+                handleCGIevents(poll_fds[i].fd ,poll_fds[i].revents, client_fd);
             else
             {
-                // if not listener than client
+                // if not listener, not CGI then client
                 // get the client with the right fd
                handleClientEvents(poll_fds[i].fd, poll_fds[i].revents);
             }
@@ -200,8 +214,6 @@ void Server::run()
         checkClientTimeout();
 	}
 }
-
-
 
 // handle events for listening sockets
 void Server::handleListenersEvents(Listener *listener, short revents)
@@ -214,6 +226,16 @@ void Server::handleListenersEvents(Listener *listener, short revents)
         acceptNewConnections(listener);
 }
 
+void Server::handleCGIevents(int cgi_fd, short revents, int client_fd)
+{
+    ClientConnection& client = *(clients.find(client_fd)->second);
+    CGI& cgi = client.cgiMap.find(cgi_fd)->second;
+    if (revents & POLLIN)
+        cgi.processOutput(); // reads until EOF then builds response
+
+    if (cgi.isResponseReady())
+        client.addDataToSend(cgi.response.serialize());
+}
 
 // POLLERR (Socket error)
 // POLLNVAL (Invalid file descriptor)
@@ -434,6 +456,16 @@ void Server::buildPollFds()
         pfd.revents = 0;
         // stores it in the vector 
         poll_fds.push_back(pfd);
+
+        ClientConnection& currentClient = *(it->second);
+        std::map<int, CGI&>& cgiMap = currentClient.cgiMap;
+        for (std::map<int, CGI&>::iterator j = cgiMap.begin(); j != cgiMap.end(); ++j)
+        {
+            pfd.fd = j->first;
+            pfd.events = 0 | POLLIN;
+            pfd.revents = 0;
+            poll_fds.push_back(pfd);
+        }
     }
 }
 
@@ -621,7 +653,7 @@ void Server::processHttpInput(ClientConnection &client)
                       // << client.getFd() << std::endl;
             // DEBUG END
             
-           HttpResponse response;
+            HttpResponse response;
             
             router.handleParserError(client.getHttpRequest(), client.getListener(), result.error, response);
             client.addDataToSend(response.serialize());

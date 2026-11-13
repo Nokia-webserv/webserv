@@ -1,9 +1,10 @@
 #include "CGI.hpp"
 
-CGI::CGI(const HttpRequest & request, HttpResponse & response, const LocationConfig & location, const std::string& cgi_extension)
-:   response(response),
-    extension(cgi_extension),
-    interpreterPath(location.cgi_handlers.find(cgi_extension)->second)
+CGI::CGI(const HttpRequest & request, HttpResponse & response, const LocationConfig & location, const std::string & cgi_extension)
+:   extension(cgi_extension),
+    interpreterPath(location.cgi_handlers.find(cgi_extension)->second),
+    response(response),
+    responseReady(false)
 {
     setArgv(request, location);
     setEnvp(request);
@@ -28,7 +29,7 @@ void CGI::setArgv(const HttpRequest & request, const LocationConfig & location)
     argv += interpreterPath + " " + interpreterPath + " " + scriptPath;
 }
 
-void CGI::setEnvp(const HttpRequest & request/*, std::vector<std::string> envp_required*/)
+void CGI::setEnvp(const HttpRequest & request/*, std::vector<std::string> envp_required*/) /*in case other cgi scripts will be supported*/
 {
     std::string tempEnvp[3];
 
@@ -43,4 +44,16 @@ void CGI::setEnvp(const HttpRequest & request/*, std::vector<std::string> envp_r
     envp.push_back(tempEnvp[2].c_str());
     envp.push_back(NULL);
     //}
+}
+
+void CGI::processOutput()
+{
+    // readOutput();
+    // buildResponse();
+        // responseReady = true;
+}
+
+bool CGI::isResponseReady()
+{
+    return responseReady;
 }

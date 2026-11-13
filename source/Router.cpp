@@ -207,7 +207,8 @@ RouteDecision Router::route(const HttpRequest& request, const Listener& listener
     std::string ext;
     if (hasCGIextension(request.getPath(), result.location->cgi_handlers, ext))
     {
-        //handleCGI(request, response, *result.location);
+        handleCGI(request, response, *result.location, ext);
+        result.type = RouteDecision::ROUTE_CGI;
     }
     
     // 6- method handler one request at a time
@@ -517,7 +518,7 @@ void Router::handleDelete(const HttpRequest& request, HttpResponse& response, co
     // to be implemented: Delete handler
 }
 
-// void Router::handleCGI(const HttpRequest& request, HttpResponse& response, const LocationConfig& location)
-// {
-//     //CGI cgi(request, response, location);
-// }
+void Router::handleCGI(const HttpRequest& request, HttpResponse& response, const LocationConfig& location, const std::string& extension)
+{
+    CGI cgi(request, response, location, extension);
+}

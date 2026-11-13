@@ -40,12 +40,14 @@ class Server {
         // starts as empty, will be filled in the buildPollFds()
         std::vector<struct pollfd> poll_fds;
         Listener* findListenerByFd(int fd) const;
+        int findClientByCGIfd(int fd) const;
 
         // http requests limit at a time
         static const size_t MAX_REQUESTS_PER_PASS = 16;
         
         void handleListenersEvents(Listener *listener, short revents);
         void handleClientEvents(int fd, short revents);
+        void handleCGIevents(int cgi_fd, short revents, int client_fd);
         void disconnectClient(int fd);
         void checkClientTimeout();
         void processHttpInput(ClientConnection &client);

@@ -18,6 +18,7 @@
 #include "HttpResponse.hpp"
 #include "HttpParser.hpp"
 #include <string>
+#include "CGI.hpp"
 
 struct RouteDecision
 {
@@ -62,7 +63,7 @@ class Router
 
         bool hasCGIextension(const std::string & path, const std::map<std::string, std::string> & extensionList, std::string & ext) const;
                 
-        //void handleCGI(const HttpRequest& request, HttpResponse& response, const LocationConfig& location);
+        void handleCGI(const HttpRequest& request, HttpResponse& response, const LocationConfig& location, const std::string& extension);
         void handleGet(const HttpRequest& request, HttpResponse& response, const LocationConfig& location);
         void handlePost(const HttpRequest& request, HttpResponse& response, const LocationConfig& location);
         void handleDelete(const HttpRequest& request, HttpResponse& response, const LocationConfig& location);
