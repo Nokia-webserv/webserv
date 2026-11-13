@@ -6,7 +6,7 @@
 /*   By: damohame <damohame@student.42berlin.d>     +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/11/06 22:50:16 by damohame          #+#    #+#             */
-/*   Updated: 2026/11/12 00:40:02 by damohame         ###   ########.fr       */
+/*   Updated: 2026/11/13 20:05:55 by damohame         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -192,12 +192,12 @@ RouteDecision Router::route(const HttpRequest& request, const Listener& listener
     // 4- check the redirect
     if (result.location->has_redirect)
     {
-        //result.type = RouteDecision::ROUTE_REDIRECT;
-        //result.errorCode = 0;
-        // next pr
-        // build the redirect response
-       // handleRedirect(request, *result.location, response);
-        //return result;
+        result.type = RouteDecision::ROUTE_REDIRECT;
+        result.errorCode = 0;
+
+        //build the redirect response
+        handleRedirect(request, result.location->redirect_code, result.location->redirect_url,response);
+        return result;
     }
     
     // 5- CGI 
@@ -413,6 +413,43 @@ void Router::handleError(const HttpRequest& request, const RouteDecision& result
 
         setResponseBody(response, path.str(), result.errorCode, reason);
     }
+}
+
+// redirect reason based on the code
+std::string Router::getRedirectCode(int code) const
+{
+    switch (code)
+    {
+        case 301: return "Moved Permanently";
+        case 302: return "Found";
+
+        // default in case of wrong error
+        default:  return "";
+    }
+}
+
+
+// build the Http redirect response
+void Router::handleRedirect(const HttpRequest& request, int statusCode, const std::string& targetUrl,HttpResponse& response)
+{
+    // set the version and redirect code
+    response.setVersion(request.getVersion());
+    response.setStatusCode(statusCode);
+    
+    
+    // set the reason phrase based on the redirect code
+    std::string reason;
+    reason = getRedirectCode(statusCode);
+    response.setReasonPhrase(reason);
+    
+    // set the redirect header response
+    response.setHeader("Location", targetUrl);
+    
+    std::ostringstream path;
+    // default path for redirect pages
+    path << "./www/redirects/" << statusCode << ".html";
+
+    setResponseBody(response, path.str(), statusCode, reason);
 }
 
 int Router::parserErrorToStatus(HttpRequestError error)
