@@ -3,10 +3,10 @@
 /*                                                        :::      ::::::::   */
 /*   Server.cpp                                         :+:      :+:    :+:   */
 /*                                                    +:+ +:+         +:+     */
-/*   By: damohame <damohame@student.42berlin.d>     +#+  +:+       +#+        */
+/*   By: atammur <atammur@student.42berlin.de>      +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/10/02 16:24:40 by damohame          #+#    #+#             */
-/*   Updated: 2026/11/12 00:24:52 by damohame         ###   ########.fr       */
+/*   Updated: 2026/11/13 04:20:33 by atammur          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -597,9 +597,11 @@ void Server::processHttpInput(ClientConnection &client)
             // TEMPORARY: Test the routing decision
             //printRouteDecision(decision);
 
-            // adding the generated HTTP error response for sending.
+            // Queue the generated HTTP response for sending.
             if (decision.type == RouteDecision::ROUTE_ERROR
-                || decision.type == RouteDecision::ROUTE_REDIRECT)
+                || decision.type == RouteDecision::ROUTE_REDIRECT ||
+                (decision.type == RouteDecision::ROUTE_SERVE &&
+                client.getHttpRequest().getMethod() == "GET"))
             {
                 client.addDataToSend(response.serialize());
             }
