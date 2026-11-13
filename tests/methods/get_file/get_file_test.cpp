@@ -100,7 +100,7 @@ static void checkFile(const std::string& name, const std::string& root,
     }
 }
 
-// GH71 builds error responses. Here only the GET routing decision is checked.
+// Check the routing decision and the error response that GET actually produces.
 static void checkError(const std::string& name, const std::string& root,
                        const std::string& uri, int expectedCode)
 {
@@ -116,7 +116,22 @@ static void checkError(const std::string& name, const std::string& root,
         RouteDecision decision = router.route(request, listener, response);
         require(decision.type == RouteDecision::ROUTE_ERROR, "Missing ROUTE_ERROR");
         require(decision.errorCode == expectedCode, "Wrong HTTP error code");
-        std::cout << "[PASS] " << name << " (decision only)\n";
+        const std::string wire = response.serialize();
+        std::ostringstream code;
+        code << expectedCode;
+        require(wire.find("HTTP/1.1 " + code.str() + " ") == 0, "Wrong error status line");
+        const std::string::size_type separator = wire.find("\r\n\r\n");
+        require(separator != std::string::npos, "Missing error header/body separator");
+        const std::string headers = wire.substr(0, separator + 2);
+        const std::string body = wire.substr(separator + 4);
+        require(!body.empty(), "Empty error response body");
+        require(headers.find("\r\nContent-Type: ") != std::string::npos,
+                "Missing error Content-Type");
+        std::ostringstream length;
+        length << body.size();
+        require(headers.find("\r\nContent-Length: " + length.str() + "\r\n")
+                    != std::string::npos, "Wrong error Content-Length");
+        std::cout << "[PASS] " << name << '\n';
         ++passed;
     }
     catch (const std::exception& error)
@@ -154,6 +169,8 @@ int main(int argc, char** argv)
         writeFixture(root + "/exact.txt", std::string(1000, 'x'));
         writeFixture(root + "/larger.txt", std::string(1001, 'y'));
         writeFixture(root + "/denied.txt", text);
+        require(mkfifo((root + "/special.fifo").c_str(), 0600) == 0,
+                "Cannot create non-regular file fixture");
     }
     catch (const std::exception& error)
     {
@@ -176,6 +193,8 @@ int main(int argc, char** argv)
     checkFile("Query is not part of the disk path", root, "/files/hello.txt", text, "text/plain", "/files", "HTTP/1.1", "download=1");
     checkError("Missing file maps to 404", root, "/files/missing.txt", 404);
     checkError("Regular file used as a directory maps to 404", root, "/files/hello.txt/child", 404);
+    checkError("FIFO is rejected with 403 without trying to read it",
+               root, "/files/special.fifo", 403);
 
     if (geteuid() == 0)
     {

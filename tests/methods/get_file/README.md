@@ -20,10 +20,11 @@ removed when the script exits; no generated binary is left in the repository.
 Coverage: text and UTF-8, empty and binary files, reads crossing a buffer
 boundary, nested paths, root/trailing-slash combinations, MIME types,
 HTTP versions and a separate query string. Missing files and invalid path
-components check the 404 routing decision; an unreadable file checks 403.
+components check 404; an unreadable file and a FIFO check 403. Error cases
+check both the routing decision and the serialized status, body, Content-Type
+and Content-Length. The FIFO case checks that GET rejects a non-regular file
+without opening it for a blocking read.
 The permission case is explicitly skipped when run as root.
 
-This suite checks error routing decisions; the directory component suite also
-checks generated error responses after the GH71 integration. Directories,
-autoindex and URI normalization (#107) are outside this suite. These tests do
+Directories, autoindex and URI normalization (#107) are outside this suite. These tests do
 not simulate disk read failures or verify descriptor cleanup on exceptions.
