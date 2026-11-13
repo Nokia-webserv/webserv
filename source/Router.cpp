@@ -6,7 +6,7 @@
 /*   By: atammur <atammur@student.42berlin.de>      +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/11/06 22:50:16 by damohame          #+#    #+#             */
-/*   Updated: 2026/11/13 03:47:02 by atammur          ###   ########.fr       */
+/*   Updated: 2026/11/13 18:33:29 by atammur          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -536,7 +536,7 @@ void Router::serveDir(const HttpRequest& request, HttpResponse& response, RouteD
     if (!requestPath.empty() && requestPath[requestPath.size() - 1] != '/') {
         //redirect to url with '/'
         result.type = RouteDecision::ROUTE_REDIRECT;
-        handleRedirect(request, *result.location, response);
+        handleRedirect(request, 301, requestPath + "/", response);
         return ;
     }
     
@@ -643,6 +643,39 @@ std::string Router::generateFilesList(std::string& dirPath, std::string& request
     return filesList.str();
 }
 
+std:: string Router::escapeHtml(std::string filename) {
+    
+}
+
+//we decode it in request parser, need to encode back for response
+std:: string Router::urlEncodePath(std::string path) {
+    std::string encoded;
+    std::string allowed = 
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+    "abcdefghijklmnopqrstuvwxyz"
+    "0123456789-._~/";
+    
+    //if normal chars - we copy them straight
+    for (size_t i = 0; i < path.size(); i++) {
+        if (allowed.find(path[i]) != std::string::npos) {
+            encoded += path[i];
+            continue;
+        }
+
+        //if need to encode - we encode back to hex
+        std::ostringstream ss;
+
+        ss << "%" 
+        << std::hex 
+        << std::uppercase 
+        << std::setfill('0') //fill with leading 0 if needed
+        << std::setw(2) //gotta be 2 digits
+        << static_cast<int>(static_cast<unsigned char>(path[i])); //unsigned char for UTF-8
+        encoded += ss.str();
+    }
+    return encoded;
+}
+
 // according to subject:
 // requestPath:   /images/holiday/cat.png
 // location.path: /images
@@ -677,6 +710,7 @@ void Router::handleFileError(int errorNum, const HttpRequest& request, HttpRespo
     else if (errorNum == EACCES)
         result.errorCode = 403;
     else {
+        //log to server and prepare a response
         std::cerr << "File operation failed. ErrorNum: " << errorNum << std::endl;
         result.errorCode = 500;
     }
@@ -763,7 +797,7 @@ std::string Router::getContentType(const std::string& path) {
     std::string::size_type dot = path.find_last_of('.');
     std::string::size_type slash = path.find_last_of('/');
     
-    //if theres no '.' or its directory name return generic file type (nginx uses it as default/ unknown type in nginx.conf)
+    //if theres no '.' or its directory name - return generic file type (nginx uses it as default/ unknown type in nginx.conf)
     if (dot == std::string::npos || (slash != std::string::npos && dot < slash))
         return "application/octet-stream";
     
