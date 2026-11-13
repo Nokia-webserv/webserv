@@ -243,14 +243,14 @@ bool inCGIextensionList(const std::map<std::string, std::string> & extensionList
 
 bool Router::hasCGIextension(const std::string & path, const std::map<std::string, std::string> & extensionList, std::string& ext) const
 {
-    std::string extension = extractExtension(path);
+    std::string extension = extractExtension(path); std::cout << "Extension extracted: " << extension << "\n";
     if (extension.empty())
         return false;
-    std::cout << extension << "\n";
     
     if (!inCGIextensionList(extensionList, extension)) // searches extracted extension in cgi handlers (from location block in configs)
-        return false;
-
+    {    std::cout << "Not in the list\n"; return false;}
+    std::cout << "Extension found in the list\n";
+    
     ext = extension;
     return true;
 }
