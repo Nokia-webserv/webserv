@@ -94,11 +94,12 @@ Listener *Server::findListenerByFd(int fd) const
 
 int Server::findClientByCGIfd(int fd) const
 {
+    // cycles through each client and each cgi object until cgi ids match
     for (std::map<int, ClientConnection*>::const_iterator i = clients.begin(); i != clients.end(); ++i)
     {
         const std::map<int, CGI*>& cgiMap = i->second->cgiMap;
         if (cgiMap.find(fd) != cgiMap.end())
-            return i->first;
+            return i->first; // client fd
     }
     return -1;
 }
@@ -228,13 +229,42 @@ void Server::handleListenersEvents(Listener *listener, short revents)
 
 void Server::handleCGIevents(int cgi_fd, short revents, int client_fd)
 {
-    ClientConnection& client = *(clients.find(client_fd)->second);
-    CGI& cgi = *client.cgiMap.find(cgi_fd)->second;
-    if (revents & POLLIN)
-        cgi.processOutput(); // reads until EOF then builds response
+    /* Error handling */
+    bool error = false;
+    
+    std::map<int, ClientConnection*>::iterator cc = clients.find(client_fd); // finds current client
+    if (cc == clients.end())
+        error = true;
+    ClientConnection* client;
+    if (!error)
+        client = cc->second;
 
-    if (cgi.isResponseReady())
-        client.addDataToSend(cgi.response.serialize());
+    std::map<int, CGI*>::iterator cg;
+    CGI* cgi;
+    if (!error)
+    {
+        cg = client->cgiMap.find(cgi_fd); // finds the processed cgi in cgi map   
+        if (cg == client->cgiMap.end())
+            error = true;
+        else
+            cgi = cg->second;
+    }
+    
+    if (error || (revents & (POLLNVAL | POLLERR))) // processes any kind of error at this stage
+    {
+        // cgi.handleError()
+            // send error 500
+        // cgi.cleanup()
+            // close fd
+            // remove from cgi map
+    }
+    
+    /* Valid event processing */
+    if (revents & (POLLIN | POLLHUP)) // if there is data to be read
+        cgi->processOutput(); // reads until EOF then builds response and cleans up
+
+    if (cgi->isResponseReady()) // if response is built, adds it to sendBuffer
+        client->addDataToSend(cgi->response.serialize());
 }
 
 // POLLERR (Socket error)
@@ -457,12 +487,13 @@ void Server::buildPollFds()
         // stores it in the vector 
         poll_fds.push_back(pfd);
 
+        // 3 - CGI fds
         ClientConnection& currentClient = *(it->second);
-        std::map<int, CGI*>& cgiMap = currentClient.cgiMap;
+        std::map<int, CGI*>& cgiMap = currentClient.cgiMap; // each client tracks all its cgi scripts
         for (std::map<int, CGI*>::iterator j = cgiMap.begin(); j != cgiMap.end(); ++j)
         {
             pfd.fd = j->first;
-            pfd.events = 0 | POLLIN;
+            pfd.events = 0 | POLLIN; // server waits for data to be read from child process
             pfd.revents = 0;
             poll_fds.push_back(pfd);
         }
@@ -622,7 +653,7 @@ void Server::processHttpInput(ClientConnection &client)
             // create the http response that we will save in the response
             HttpResponse response;
             // call the route function
-            RouteDecision decision = router.route(client.getHttpRequest(),client.getListener(), response, client.cgiMap);
+            RouteDecision decision = router.route(client.getHttpRequest(), client.getListener(), response, client.cgiMap);
 
             // updated later
             (void) decision;

@@ -232,6 +232,7 @@ std::string extractExtension(const std::string & path)
     return ext;
 }
 
+// searches extracted extension in cgi handlers from location block in configs
 bool inCGIextensionList(const std::map<std::string, std::string> & extensionList, const std::string & extension)
 {
     std::map<std::string, std::string>::const_iterator it = extensionList.find(extension);
@@ -247,7 +248,7 @@ bool Router::hasCGIextension(const std::string & path, const std::map<std::strin
         return false;
     std::cout << extension << "\n";
     
-    if (!inCGIextensionList(extensionList, extension))
+    if (!inCGIextensionList(extensionList, extension)) // searches extracted extension in cgi handlers (from location block in configs)
         return false;
 
     ext = extension;
@@ -521,4 +522,5 @@ void Router::handleDelete(const HttpRequest& request, HttpResponse& response, co
 void Router::handleCGI(const HttpRequest& request, HttpResponse& response, const LocationConfig& location, const std::string& extension, std::map<int, CGI*>& cgiMap)
 {
     CGI cgi(request, response, location, extension, cgiMap);
+    cgi.runScript(); // creates pipes, forks process, runs the script
 }

@@ -5,21 +5,23 @@ CGI::CGI(const HttpRequest & request, HttpResponse & response, const LocationCon
     interpreterPath(location.cgi_handlers.find(cgi_extension)->second),
     response(response),
     clientsCGImap(cgiMap),
+    cgi_fd(-1),
     responseReady(false)
 {
     setArgv(request, location);
     setEnvp(request);
 }
 
+// resolves path according to configs
 void CGI::resolveScriptPath(const HttpRequest & request, const LocationConfig & location)
 {
     scriptPath += location.root;
     if (scriptPath.size() && scriptPath[scriptPath.size()-1] != '/')
-        scriptPath += '/';
+        scriptPath += '/'; // ensures slash at the beginning
     std::string tempPath = request.getPath();
     if (tempPath.size() && tempPath[0] == '/')
         scriptPath.append(tempPath.substr(1));
-    else
+    else // eliminates double-slash
         scriptPath += tempPath;
 }
 
@@ -30,6 +32,7 @@ void CGI::setArgv(const HttpRequest & request, const LocationConfig & location)
     argv += interpreterPath + " " + interpreterPath + " " + scriptPath;
 }
 
+// prepares environmental arguments for execve (implemented as per current needs)
 void CGI::setEnvp(const HttpRequest & request/*, std::vector<std::string> envp_required*/) /*in case other cgi scripts will be supported*/
 {
     std::string tempEnvp[3];
@@ -37,27 +40,35 @@ void CGI::setEnvp(const HttpRequest & request/*, std::vector<std::string> envp_r
     // size_t s = envp_required.size();
     //for (size_t i = 0; i < s; i++) {
     tempEnvp[0] = "\"REQUEST_METHOD=\"" + request.getMethod() + "\"";
-    tempEnvp[1] = "\"CONTENT_LENGTH=\"" + request.getMethod() + "\"";
-    tempEnvp[2] = "\"PATH=\"" + request.getMethod() + "\"";
+    tempEnvp[1] = "\"PATH=\"" + request.getPath() + "\"";
+    if (request.getHeaders().find("content-length") != request.getHeaders().end())
+        tempEnvp[2] = "\"CONTENT_LENGTH=\"" + request.getHeaders().find("content-length")->second + "\"";
+    else
+        tempEnvp[2] = "";
 
     envp.push_back(tempEnvp[0].c_str());
     envp.push_back(tempEnvp[1].c_str());
-    envp.push_back(tempEnvp[2].c_str());
+    if (!tempEnvp[2].empty())
+        envp.push_back(tempEnvp[2].c_str());
     envp.push_back(NULL);
     //}
 }
 
 void CGI::runScript()
 {
-    //1. create pipes, fork, etc, and run execve
-    //2. record in cgiMap
+    // create pipes, fork, etc, and run execve
+    // save cgi_fd (= parent listening fd)
+    // record parent listening fd in cgiMap (to add it to poll)
 }
 
+// reads until EOF then builds response
 void CGI::processOutput()
 {
     // readOutput();
+    // after EOF:
     // buildResponse();
         // responseReady = true;
+    // cleanup cgi object: close fd, remove from cgi map
 }
 
 bool CGI::isResponseReady() const
