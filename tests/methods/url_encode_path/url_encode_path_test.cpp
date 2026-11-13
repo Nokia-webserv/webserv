@@ -77,12 +77,12 @@ int main()
         if (actual == cases[i].expected && input == cases[i].input)
         {
             ++passed;
-            std::cout << "[PASS] " << cases[i].name << '\n';
+            std::cout << "\033[32m[PASS]\033[0m " << cases[i].name << '\n';
         }
         else
         {
             ++failed;
-            std::cout << "[FAIL] " << cases[i].name << '\n';
+            std::cout << "\033[31m[FAIL]\033[0m " << cases[i].name << '\n';
             if (input != cases[i].input)
                 std::cout << "       Input was modified\n";
         }

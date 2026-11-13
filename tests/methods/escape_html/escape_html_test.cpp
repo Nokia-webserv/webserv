@@ -77,7 +77,7 @@ int main()
         if (success) ++passed;
         else ++failed;
 
-        std::cout << (success ? "[PASS] " : "[FAIL] ") << cases[i].name << '\n'
+        std::cout << (success ? "\033[32m[PASS]\033[0m " : "\033[31m[FAIL]\033[0m ") << cases[i].name << '\n'
                   << "       Before:   " << displayBytes(cases[i].input)
                   << "\n       After:    " << displayBytes(actual)
                   << "\n       Expected: " << displayBytes(cases[i].expected) << '\n';
