@@ -6,7 +6,7 @@
 /*   By: atammur <atammur@student.42berlin.de>      +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/11/06 22:25:55 by damohame          #+#    #+#             */
-/*   Updated: 2026/11/13 03:36:15 by atammur          ###   ########.fr       */
+/*   Updated: 2026/11/13 19:06:31 by atammur          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -86,4 +86,6 @@ class Router
         void serveFile(const HttpRequest& request, HttpResponse& response, RouteDecision& result, std::string& path);
         void serveDir(const HttpRequest& request, HttpResponse& response, RouteDecision& result, std::string& path);
         std::string generateFilesList(std::string& dirPath, std::string& requestPath);
+        std::string urlEncodePath(std::string path);
+        std::string escapeHtml(std::string input);
 };

@@ -6,7 +6,7 @@
 /*   By: atammur <atammur@student.42berlin.de>      +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/11/06 22:50:16 by damohame          #+#    #+#             */
-/*   Updated: 2026/11/13 18:33:29 by atammur          ###   ########.fr       */
+/*   Updated: 2026/11/13 19:08:40 by atammur          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -630,11 +630,9 @@ std::string Router::generateFilesList(std::string& dirPath, std::string& request
             continue;
 
         filesList   << "<li><a href=\""
-                    //TODO: issue 115 << escapeHtml(urlEncodePath(requestPath + filename))
-                    << requestPath << filename
+                    << escapeHtml(urlEncodePath(requestPath + filename))
                     << "\">" 
-                    //TODO: issue 115 << escapeHtml(filename)
-                    << filename
+                    << escapeHtml(filename)
                     << "</a></li>\n";
     }
     if (closedir(dir) == -1)
@@ -643,8 +641,36 @@ std::string Router::generateFilesList(std::string& dirPath, std::string& request
     return filesList.str();
 }
 
-std:: string Router::escapeHtml(std::string filename) {
-    
+// &	&amp;
+// <	&lt;
+// >	&gt;
+// "	&quot;
+// '	&#39;
+std:: string Router::escapeHtml(std::string input) {
+    std::string escaped;
+
+    for (size_t i = 0; i < input.size(); i++) {
+        switch (input[i]) {
+            case '&': 
+                escaped += "&amp;";
+                break;
+            case '<': 
+                escaped += "&lt;";
+                break;
+            case '>': 
+                escaped += "&gt;";
+                break;
+            case '\"': 
+                escaped += "&quot;";
+                break;
+            case '\'': 
+                escaped += "&#39;";
+                break;
+            default: 
+                escaped += input[i];
+        }
+    }
+    return escaped;
 }
 
 //we decode it in request parser, need to encode back for response
