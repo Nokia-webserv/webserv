@@ -62,4 +62,7 @@ parser:
 integration:
 	bash tests/integration/run_tests.sh
 
-.PHONY: all clean fclean re build startup config accept parser integration
+timeout-test: $(NAME)
+	bash tests/timeout/run_tests.sh ./webserv tests/timeout/timeout_test.conf
+
+.PHONY: all clean fclean re build startup config accept parser integration timeout-test
