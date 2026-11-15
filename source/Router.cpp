@@ -1,12 +1,12 @@
 /* ************************************************************************** */
 /*                                                                            */
 /*                                                        :::      ::::::::   */
-/*   Router.cpp                                         :+:      :+:    :+:   */
+/*   router.cpp                                         :+:      :+:    :+:   */
 /*                                                    +:+ +:+         +:+     */
-/*   By: damohame <damohame@student.42berlin.d>     +#+  +:+       +#+        */
+/*   By: atammur <atammur@student.42berlin.de>      +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/11/06 22:50:16 by damohame          #+#    #+#             */
-/*   Updated: 2026/11/12 00:40:02 by damohame         ###   ########.fr       */
+/*   Updated: 2026/11/16 00:42:05 by atammur          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -15,6 +15,7 @@
 #include <cctype>
 #include <sstream>
 #include <fstream>
+#include "utils.hpp"
 
 Router::Router()
 {}
@@ -467,13 +468,105 @@ void Router::handleGet(const HttpRequest& request, HttpResponse& response, const
     (void) location;
     //to be implemented: Get handler
 }
-void Router::handlePost(const HttpRequest& request, HttpResponse& response, const LocationConfig& location)
+
+
+
+
+
+
+void Router::handlePost(const HttpRequest& request, HttpResponse& response, RouteDecision& result)
 {
-    (void)request;
-    (void)response;
-    (void) location;
-    //to be implemeneted:  post handler;
+    // check whether upload_store is configured. return 403 if not
+    if (result.location->upload_store.empty()) {
+        handleError(403); //TODO
+        return ;
+    }
+
+    // get the upload format from the Content-Type header
+    std::string format;
+    std::map<std::string, std::string>::const_iterator it = request.getHeaders().find("content-type");
+    if (it != request.getHeaders().end()) {
+        std::string contentType = it->second;
+        //if it is multipart/form-data, handle multipart upload separately
+        if (contentType.find("multipart/form-data") == 0) {
+            handleMultipart();
+            return ;
+        }
+        format = getFileFormat(contentType);
+    }
+
+    // otherwise treat the request body as raw file data
+        
+    //  generate a unique filename. we do it for safety and to avoid file duplication/rewrite on server.
+    //  we use simplest sequential counter ONLY due to limitations of allowed functions/libraries.
+    //  retry with +1 if the filename already exists.
+    std::string filename = "upload_";
+    unsigned long counter = 0;
+    int fd;
+    while (true) {
+        if (counter > 100000) {
+            handleError(500);
+            return ;
+        }
+        std::ostringstream path;
+        // build the destination path using upload_store and the filename.
+        path << result.location->upload_store << "/" << filename << counter << format;
+        // try to create a new file
+        fd = open(path.str().c_str(), O_WRONLY | O_CREAT | O_EXCL, 0644);
+        if (fd >= 0)
+            break;
+        //  if the filename already exists, generate another one and retry
+        if (errno == EEXIST) {
+            ++counter;
+            continue;
+        }
+        handleFileError(); //TODO 
+        return ;
+    }
+
+    // write the request body to the file. make sure partial writes are handled
+    std::string body = request.getBody();
+    size_t bytesWritten = 0;
+    while(bytesWritten < body.size()) {
+        ssize_t n = write(fd, body.data() + bytesWritten, body.size() - bytesWritten);
+        //    handle partial writes and write errors
+        if (n <= 0) {
+            int savedErrno = errno;
+            close(fd);
+            handleFileError(savedErrno); //TODO
+            return ;
+        }
+        bytesWritten += static_cast<size_t>(n);
+    }
+    
+    //  close the file
+    //handle error if occurs
+    if (close(fd) == -1) {
+        handleFileError(-1); //TODO
+        return ;
+    }
+
+    //  make headers and return 201 on successful upload
+    fillResponse(201);
 }
+
+std::string Router::getFileFormat(const std::string& type) {
+    std::map<std::string, std::string> types = getMime();
+    
+    for (std::map<std::string, std::string>::const_iterator it = types.begin(); it != types.end(); ++it) {
+        if (it->second == type)
+            return ("." + it->first);
+    }
+    return "";
+}
+
+
+
+
+
+
+
+
 void Router::handleDelete(const HttpRequest& request, HttpResponse& response, const LocationConfig& location)
 {
     (void)request;
