@@ -91,5 +91,8 @@ class ClientConnection {
         // associate with the listener, then sets this limit in the 
         // http parser.
         void defineMaxBodySize();
-};
 
+        // same logic as the defineMaxBodySize
+        // but for header
+        void defineMaxHeaderSize();
+};

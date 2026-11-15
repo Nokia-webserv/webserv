@@ -50,7 +50,7 @@ class HttpParser {
 
         // removed the constant for body_max_size
         static const unsigned long tempMaxChunkSizeLine = 1024;
-        static const unsigned long tempClientMaxHeaderSize = 1024;
+        // remove the constant for header_size
         static const unsigned long tempMaxTrailerSize = 1024;
     
         // to know if the request in complete
@@ -59,6 +59,8 @@ class HttpParser {
 
         // MAX_body_size 
         void setMaxBodySize(long size);
+
+        void setMaxHeaderSize(long size);
 
     private:
         HttpRequestStatus _checkHead(); // checks if head part is complete
@@ -133,4 +135,7 @@ class HttpParser {
 
         // to hold the value of _maxBodySize
         long _maxBodySize;
+
+        // to hold the max header size
+        long _maxHeaderSize;
 };

@@ -6,7 +6,7 @@
 /*   By: damohame <damohame@student.42berlin.d>     +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/11/06 22:50:16 by damohame          #+#    #+#             */
-/*   Updated: 2026/11/15 23:13:47 by damohame         ###   ########.fr       */
+/*   Updated: 2026/11/16 00:46:41 by damohame         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -165,6 +165,23 @@ bool Router::isBodySizeAllowed(const HttpRequest& request, const ServerConfig& s
     return (maxBodySize >= 0 && request.getBody().size() <= static_cast<size_t>(maxBodySize));
 }
 
+//check if the request exceeds the allowed header size
+bool Router::isHeaderSizeAllowed(const HttpRequest& request, const ServerConfig& server, const LocationConfig& location) const
+{
+    // get the server limit as a start
+    long maxHeaderSize = server.client_max_header_size;
+    
+    // check for the location specific configuration 
+    // if available
+    if (location.client_max_header_size >= 0)
+        maxHeaderSize = location.client_max_header_size;
+
+    
+    // Check whether the header fits within the effective limit.
+    return (maxHeaderSize >= 0 && request.getHeaderSize() <= static_cast<size_t>(maxHeaderSize));
+}
+
+
 // 1- select the virtual server
 // 2 match the location
 // 3- if the method allowed
@@ -197,6 +214,15 @@ RouteDecision Router::route(const HttpRequest& request, const Listener& listener
         return result;
     }
 
+    // extra step--- check for limit size validation
+    if (!isHeaderSizeAllowed(request, *result.server, *result.location))
+    {
+        result.type = RouteDecision::ROUTE_ERROR;
+        result.errorCode = 431;
+        handleError(request, result, response);
+        return result;
+    }
+    
     // extra step--- check for limit size validation
     if (!isBodySizeAllowed(request, *result.server, *result.location))
     {

@@ -6,7 +6,7 @@
 /*   By: damohame <damohame@student.42berlin.d>     +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/11/06 22:25:55 by damohame          #+#    #+#             */
-/*   Updated: 2026/11/15 23:13:44 by damohame         ###   ########.fr       */
+/*   Updated: 2026/11/16 00:45:24 by damohame         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -71,4 +71,6 @@ class Router
 
 
         bool isBodySizeAllowed(const HttpRequest& request, const ServerConfig& server, const LocationConfig& location) const;
+        bool isHeaderSizeAllowed(const HttpRequest& request, const ServerConfig& server, const LocationConfig& location) const;
+
 };

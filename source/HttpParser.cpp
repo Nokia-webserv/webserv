@@ -13,7 +13,8 @@ HttpParser::HttpParser(std::string & recvBuffer)
     _chunkState (SIZE), 
     _chunkBytesRemaining(0), 
     _trailerBytesReceived(0),
-    _maxBodySize(10485760)
+    _maxBodySize(10485760),
+    _maxHeaderSize(10485760)
 
 {}
 
@@ -181,7 +182,7 @@ HttpRequestStatus HttpParser::_checkHead()
                 break;
             }
         }
-        if (pos >= tempClientMaxHeaderSize)
+        if (_maxHeaderSize < 0 || pos >= static_cast<size_t>(_maxHeaderSize))
         {
             _status = ERROR;
             _error = HEADER_FIELDS_TOO_LARGE;
@@ -213,6 +214,7 @@ void HttpParser::_extractHead()
         // DEBUG END
 
     std::string head = _recvBuffer.substr(0, _scanPosition + 1);
+    _parsedRequest.setHeaderSize(head.size());
     _strExtractedRequest.append(head);
     _recvBuffer.erase(0, _scanPosition + 1);
     _scanPosition = 0;
@@ -852,4 +854,10 @@ bool HttpParser::hasIncompleteRequest() const
 void HttpParser::setMaxBodySize(long size)
 {
     _maxBodySize = size;
+}
+
+// set the max_header_size
+void HttpParser::setMaxHeaderSize(long size)
+{
+    _maxHeaderSize = size;
 }

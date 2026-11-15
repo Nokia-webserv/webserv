@@ -1,7 +1,7 @@
 #include "HttpRequest.hpp"
 
 //OCF
-HttpRequest::HttpRequest() {}
+HttpRequest::HttpRequest(): _headerSize(0)  {}
 
 HttpRequest::HttpRequest(const HttpRequest& other) 
 :   _method(other._method), 
@@ -9,7 +9,8 @@ HttpRequest::HttpRequest(const HttpRequest& other)
     _query(other._query), 
     _version(other._version), 
     _headers(other._headers), 
-    _body(other._body) 
+    _body(other._body),
+    _headerSize(other._headerSize)
     {}
 
 HttpRequest& HttpRequest::operator=(const HttpRequest& other) {
@@ -20,6 +21,7 @@ HttpRequest& HttpRequest::operator=(const HttpRequest& other) {
         _version = other._version;
         _headers = other._headers;
         _body = other._body;
+        _headerSize = other._headerSize;
     }
     return *this;
 }
@@ -33,6 +35,7 @@ void HttpRequest::clear()
     _version.clear();
     _headers.clear();
     _body.clear();
+    _headerSize = 0;
 }
 
 //getters
@@ -83,4 +86,10 @@ void HttpRequest::setHeader(const std::string& key, const std::string& value) {
 }
 void HttpRequest::setBody(const std::string& body) {
     _body = body;
+}
+void HttpRequest::setHeaderSize(size_t size){
+    _headerSize = size;
+}
+size_t HttpRequest::getHeaderSize() const{
+    return (_headerSize);
 }

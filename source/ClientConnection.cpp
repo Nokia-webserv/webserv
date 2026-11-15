@@ -7,6 +7,7 @@ ClientConnection::ClientConnection(int fd,
     closedAfterResponse(false), pendingHttpInput(false), listener(listener)
 {
 	defineMaxBodySize();
+	defineMaxHeaderSize();
 }
 
 ClientConnection::~ClientConnection()
@@ -311,4 +312,37 @@ void ClientConnection::defineMaxBodySize()
 
 	httpParser.setMaxBodySize(maxBodySize);
 
+}
+
+
+void ClientConnection::defineMaxHeaderSize()
+{
+	// get all virtual servers associate with the listener
+	const std::vector<const ServerConfig*>& configs = listener->getConfigs();
+
+	long maxHeaderSize = 0;
+	
+	// check every server
+	for (size_t i = 0; i < configs.size(); i++)
+	{
+		const ServerConfig* server = configs[i];
+
+		// server level
+		if (server->client_max_header_size >= 0 && server->client_max_header_size > maxHeaderSize)
+			maxHeaderSize = server->client_max_header_size;
+
+		// check every location
+		for (size_t j = 0; j < server->locations.size(); j++)
+		{
+			long locationMax = server->locations[j].client_max_header_size;
+
+			// update only if location has bigger value then the server
+			if (locationMax >= 0 && locationMax > maxHeaderSize)
+				maxHeaderSize = locationMax;
+		}
+	}
+
+	// set the parser's maximum header size
+	// the matching location's exact limit will be checked in step 2
+	httpParser.setMaxHeaderSize(maxHeaderSize);
 }
