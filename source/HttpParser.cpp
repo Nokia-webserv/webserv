@@ -395,7 +395,8 @@ bool HttpParser::_decodeRequestLine()
         return false;
     }
     _parsedRequest.setPath(normalized);
-
+    //std::cout << "[URI] Original: " << decoded
+    //      << " | Normalized: " << normalized << std::endl;
     decoded.clear();
     if (!decodeStr(_parsedRequest.getQuery(), decoded))
     {
