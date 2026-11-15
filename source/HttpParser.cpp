@@ -385,8 +385,16 @@ bool HttpParser::_decodeRequestLine()
     {
         _error = BAD_REQUEST;
         return false;
-    }    
-    _parsedRequest.setPath(decoded);
+    }
+
+    // adding normalization after decoding
+    std::string normalized;
+    if(!normalizeURI(decoded, normalized))
+    {
+        _error = BAD_REQUEST;
+        return false;
+    }
+    _parsedRequest.setPath(normalized);
 
     decoded.clear();
     if (!decodeStr(_parsedRequest.getQuery(), decoded))
@@ -916,9 +924,9 @@ bool HttpParser::normalizeURI(const std::string& path, std::string& normalized) 
     //  "/images///" -> "/images/"
     //  "/images/."  -> "/images/"
     //  "/a/b/.."    -> "/a/"
-    if ( path[path.size()- 1] == '/' ||
+    if (( path[path.size()- 1] == '/' ||
         (path.size() >= 2 && path.compare(path.size() - 2, 2, "/.") == 0) ||
-        (path.size() >= 3 && path.compare(path.size() - 3, 3, "/..") == 0)
+        (path.size() >= 3 && path.compare(path.size() - 3, 3, "/..") == 0))
         && normalized[normalized.size() - 1] != '/')
         {
             normalized += "/";   
