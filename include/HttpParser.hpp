@@ -128,4 +128,7 @@ class HttpParser {
         size_t _chunkBytesRemaining;
         size_t _trailerBytesReceived;
 
+        // to normalize repeated slashes and "." ".." path traversal
+        bool normalizeURI(const std::string& path, std::string& normalized) const;
+
 };

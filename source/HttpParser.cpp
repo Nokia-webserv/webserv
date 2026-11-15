@@ -842,3 +842,86 @@ bool HttpParser::hasIncompleteRequest() const
     return ((_status == INCOMPLETE_HEAD && !_recvBuffer.empty())
         || _status == INCOMPLETE_BODY);
 }
+
+// validate the decoded URI path
+// and normalize the uri to match nginx style 
+bool HttpParser::normalizeURI(const std::string& path, std::string& normalized) const
+{
+
+    normalized.clear();
+    
+    // reject the a uri without a /  
+    if (path.empty() || path[0] != '/')
+        return false;
+    
+
+
+     // ex : "/images/cats/cat.png"
+     // -> "images" , "cats" , "cat.png"  
+
+     std::vector <std::string> tokens;
+     size_t start = 1;
+
+     // tokenize the path when "/" found
+    while (start < path.size())
+    {
+        size_t end = path.find('/', start);
+        if (end == std::string::npos)
+            end = path.size();
+
+        std::string token = path.substr(start, end - start);
+
+        // skip "//" - > empty ""
+        // skip /./
+        //  "/images/./cat.png" -> ["images", "cat.png"]
+        if (token.empty() || token == ".")
+        {
+            // do nth skip 
+        }
+        // .. means go back on directory
+        // might cause securtity issues
+        // need to be normalized
+        // "/images/../cat.png" - > ["images"] ["cat.png"]
+        else if (token == "..")
+        {
+            // Reject ".." if there is no parent segment to remove.
+            // /../images - >reject
+            if (tokens.empty())
+                return false;
+            // normalize , remove from path
+            tokens.pop_back();
+        }
+        // normal filename directory keep it
+        else
+        {
+            tokens.push_back(token);
+        }
+
+        // go to next token
+        start = end + 1;
+    }
+ 
+    // rebuilt the normalized path with the valid tokens
+    // ["images", "cat.png"] -> "/images/cat.png"
+    for (size_t i = 0; i < tokens.size(); i++)
+    {
+        normalized += "/";
+        normalized += tokens[i];
+    }
+    // If all tokens were removed, the normalized path is "/".
+    if (normalized.empty())
+        normalized = "/";
+
+    // adding a trailing slashes if the original URI has one
+    //  "/images///" -> "/images/"
+    //  "/images/."  -> "/images/"
+    //  "/a/b/.."    -> "/a/"
+    if ( path[path.size()- 1] == '/' ||
+        (path.size() >= 2 && path.compare(path.size() - 2, 2, "/.") == 0) ||
+        (path.size() >= 3 && path.compare(path.size() - 3, 3, "/..") == 0)
+        && normalized[normalized.size() - 1] != '/')
+        {
+            normalized += "/";   
+        }
+    return true;
+}
