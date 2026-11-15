@@ -234,45 +234,53 @@ void Server::handleCGIevents(int cgi_fd, short revents, int client_fd)
 
     bool error = false;
     
-    std::map<int, ClientConnection*>::iterator int_cc = clients.find(client_fd); // finds current client
+    // finds current client
+    std::map<int, ClientConnection*>::iterator int_cc = clients.find(client_fd); 
     if (int_cc == clients.end())
         error = true;
     ClientConnection* client;
     if (!error)
         client = int_cc->second;
 
+    // finds current cgi
     std::map<int, CGI*>::iterator int_cgi;
     CGI* cgi;
     if (!error)
     {
-        int_cgi = client->cgiMap.find(cgi_fd); // finds the processed cgi in cgi map   
+        int_cgi = client->cgiMap.find(cgi_fd);  
         if (int_cgi == client->cgiMap.end())
             error = true;
         else
             cgi = int_cgi->second;
     }
     
-    if (error || (revents & (POLLNVAL | POLLERR))) // processes any kind of error at this stage
+    // processes any kind of error at this stage
+    if (error || (revents & (POLLNVAL | POLLERR))) 
         cgi->decision.errorCode = 500;
     
     /* Valid event processing */
 
-    if (!cgi->getErrorCode() && (revents & (POLLIN | POLLHUP))) // if there is data to be read
-        cgi->processOutput(); // reads until EOF then builds response and cleans up
+    // processes CGI output
+    if (!cgi->getErrorCode() && (revents & (POLLIN | POLLHUP)))
+        cgi->processOutput();
     
+    // handles errors arised from the output
     if(cgi->getErrorCode())
     {
         cgi->terminateChildProcess();
         terminationStatus tStatus = cgi->getTerminationStatus();
+        // prevents object destruction before full process termination
         if (tStatus == stillRunning || tStatus == interrupted || tStatus == otherError)
             return;
         
+        // builds error response
         Router router;
         router.handleError(cgi->request, cgi->decision, cgi->response);
         cgi->setResponseReady();
     }
 
-    if (cgi->isResponseReady()) // if response is built, adds it to sendBuffer
+    // places response into the queue & cleans up the object
+    if (cgi->isResponseReady())
     {
         client->addDataToSend(cgi->response.serialize());
         cgi->cleanUp(true);

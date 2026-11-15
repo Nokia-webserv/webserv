@@ -10,9 +10,7 @@
 #include <signal.h>
 #include <cerrno>
 
-#define D_ERROR_MSG "CGI_ERROR"
-
-//struct RouteDecision;
+#define D_ERROR_MSG "CGI_ERROR" // specific error message sent from child (CGI) to parent (server)
 
 enum terminationStatus
 {
@@ -38,27 +36,21 @@ class CGI {
         RouteDecision decision;
         
         int getFd() const;
-        int getPid() const;
-        const std::string& getScriptPath() const;
-        const std::vector<const char*>& getArgv() const;
-        const std::vector<const char*>& getEnvp() const;
-        const std::string& getBuffer() const;
         int getErrorCode() const;
-        int** getPipes();
         time_t getStartTime() const;
         terminationStatus getTerminationStatus() const;
         
-        void setResponseReady();
+        void setResponseReady(); // marks response ready for placing in send queue
         bool isResponseReady() const;
         
-        void runScript();
-        void processOutput();
+        void runScript(); // runs CGI
+        void processOutput(); // processes CGI result
         void terminateChildProcess();
         void cleanUp(bool easeFromMap);
 
     private:
-        int pipeRead[2];
-        int pipeWrite[2];
+        int pipeRead[2]; // pipe where CGI reads from
+        int pipeWrite[2]; // pipe where CGI writes to
         int pid;
         std::string scriptPath; // e.g. www/scripts/script.py
         std::vector<char*> argv; // for execve()

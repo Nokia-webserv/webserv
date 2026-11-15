@@ -543,7 +543,7 @@ void Router::handleCGI(const HttpRequest& request, HttpResponse& response, Route
     return; */
 
     cgi->runScript(); // creates pipes, forks process, runs the script
-    if (cgi->getErrorCode())
+    if (cgi->getErrorCode()) // handles pipe and fork errors
     {
         delete cgi;
         result.errorCode = 500;
