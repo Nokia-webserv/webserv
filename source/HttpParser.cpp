@@ -12,7 +12,8 @@ HttpParser::HttpParser(std::string & recvBuffer)
     _bodyBytesToExtract(0),
     _chunkState (SIZE), 
     _chunkBytesRemaining(0), 
-    _trailerBytesReceived(0)
+    _trailerBytesReceived(0),
+    _maxBodySize(10485760)
 
 {}
 
@@ -517,7 +518,7 @@ bool HttpParser::_headersPostValidation()
             return false;
         }
 
-        if (length.number > tempClientMaxBodySize)
+        if (length.number > _maxBodySize)
         {
             _error = CONTENT_TOO_LARGE;
             return false;
@@ -636,8 +637,11 @@ HttpRequestStatus HttpParser::_chunkBodySize()
     }
 
     // to reject exceeding maximum allowed size.
-    if (_strExtractedBody.size() > tempClientMaxBodySize ||
-        chunkSize > tempClientMaxBodySize - _strExtractedBody.size())
+    // casting to size_t
+    size_t maxBodySize = static_cast<size_t>(_maxBodySize);
+
+    if (_strExtractedBody.size() > maxBodySize ||
+        chunkSize > maxBodySize - _strExtractedBody.size())
     {
         _error = CONTENT_TOO_LARGE;
         return ERROR;
@@ -841,4 +845,11 @@ bool HttpParser::hasIncompleteRequest() const
 {
     return ((_status == INCOMPLETE_HEAD && !_recvBuffer.empty())
         || _status == INCOMPLETE_BODY);
+}
+
+
+// to set the max_body_size
+void HttpParser::setMaxBodySize(long size)
+{
+    _maxBodySize = size;
 }
