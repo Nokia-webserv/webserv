@@ -264,7 +264,7 @@ void Server::handleCGIevents(int cgi_fd, short revents, int client_fd)
     {
         cgi->termianteChildProcess();
         terminationStatus tStatus = cgi->getTerminationStatus();
-        if (tStatus == stillRunning || tStatus == interrupred || tStatus == otherError)
+        if (tStatus == stillRunning || tStatus == interrupted || tStatus == otherError)
             return;
         Router router;
         router.handleError(cgi->request, cgi->decision, cgi->response);
@@ -274,7 +274,7 @@ void Server::handleCGIevents(int cgi_fd, short revents, int client_fd)
     if (cgi->isResponseReady()) // if response is built, adds it to sendBuffer
     {
         client->addDataToSend(cgi->response.serialize());
-        cgi->cleanUp(true, cgi->getPipes());
+        cgi->cleanUp(true);
         delete cgi;
     }
 }

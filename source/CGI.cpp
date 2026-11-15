@@ -1,4 +1,5 @@
 #include "CGI.hpp"
+#include "Router.hpp" 
 #include <iostream>
 #include <ctime>
 #include <poll.h>
@@ -6,15 +7,15 @@
 CGI::CGI(const HttpRequest & request, HttpResponse & response, RouteDecision& decision, const std::string& cgi_extension, std::map<int, CGI*>& cgiMap)
 :   extension(cgi_extension),
     interpreterPath(decision.location->cgi_handlers.find(cgi_extension)->second),
+    clientsCGImap(cgiMap),
     request(request),
     response(response),
     decision(decision),
-    clientsCGImap(cgiMap),
     pid(-2),
     responseReady(false),
     error_code(decision.errorCode),
-    startTime(std::time(NULL)),
-    termination_status(none)
+    termination_status(none),
+    startTime(std::time(NULL))
 {
     pipeRead[0] = -1, pipeRead[1] = -1; 
     pipeWrite[0] = -1, pipeWrite[1] = -1;
@@ -28,7 +29,7 @@ CGI::~CGI()
         termianteChildProcess();
     if (termination_status != terminated)
         std::cerr << "Failure to correctly terminate child process. PID: " << pid << "\n";
-    cleanUp(false, getPipes());
+    cleanUp(false);
 }
 
 // resolves path according to configs
@@ -89,7 +90,7 @@ void CGI::termianteChildProcess()
         {
             switch (errno)
             {
-                case EINTR: termination_status = interrupred; return;
+                case EINTR: termination_status = interrupted; return;
                 case ECHILD: termination_status = reapedAlready; return;
                 default: termination_status = otherError; return;
             }
@@ -100,7 +101,7 @@ void CGI::termianteChildProcess()
     termination_status = terminated;
 }
 
-void CGI::cleanUp(bool eraseFromMap, int* pipe_ends[4]) 
+void CGI::cleanUp(bool eraseFromMap) 
 {
     if (eraseFromMap)
     {
@@ -109,6 +110,7 @@ void CGI::cleanUp(bool eraseFromMap, int* pipe_ends[4])
             clientsCGImap.erase(int_cgi->first);
     }
 
+    int* pipe_ends[4] = {&pipeRead[0], &pipeRead[1], &pipeWrite[0], &pipeWrite[1]};
     for (int i = 0; i < 4; i++)
     {
         if (*pipe_ends[i] != -1)
@@ -161,7 +163,7 @@ void CGI::runScript()
 }
 
 // reads until EOF then builds response
-int CGI::processOutput()
+void CGI::processOutput()
 {
     // readOutput();
         // check for error, change error code, return
@@ -181,12 +183,6 @@ void CGI::setResponseReady()
     responseReady = true;
 }
 
-int** CGI::getPipes()
-{
-    int* pipe_ends[4] = {&pipeRead[0], &pipeRead[1], &pipeWrite[0], &pipeWrite[1]};
-    return pipe_ends;
-}
-
 time_t CGI::getStartTime() const
 {
     return startTime;
@@ -195,4 +191,14 @@ time_t CGI::getStartTime() const
 terminationStatus CGI::getTerminationStatus() const
 {
     return termination_status;
+}
+
+int CGI::getErrorCode() const
+{
+    return error_code;
+}
+
+int CGI::getFd() const
+{
+    return pipeWrite[1];
 }

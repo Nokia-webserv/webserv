@@ -17,9 +17,9 @@
 #include "Listener.hpp"
 #include "HttpResponse.hpp"
 #include "HttpParser.hpp"
-#include "ClientConnection.hpp"
 #include <string>
 
+class CGI;
 
 struct RouteDecision
 {

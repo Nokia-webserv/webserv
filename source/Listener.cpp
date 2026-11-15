@@ -12,6 +12,8 @@
 
 #include "Listener.hpp"
 
+static int create_listener(const std::string& host, int port);
+
 //  contructor will create (fd = -1) then creates listener_fd if valid
 Listener::Listener(const std::string &host, int port)
 :   listen_fd(-1), host(host), port(port) 

@@ -15,7 +15,7 @@
 
 #include "ServerConfig.hpp"
 #include "Listener.hpp"
-//#include "ClientConnection.hpp"
+#include "ClientConnection.hpp"
 #include <vector>
 #include <iostream>
 #include <cerrno>

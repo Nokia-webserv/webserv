@@ -3,20 +3,22 @@
 #include "HttpRequest.hpp"
 #include "HttpResponse.hpp"
 #include "LocationConfig.hpp"
-#include "Router.hpp"
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <signal.h>
+#include <cerrno>
 
 #define D_ERROR_MSG "CGI_ERROR"
+
+struct RouteDecision;
 
 enum terminationStatus
 {
     none,
     terminated,
     stillRunning,
-    interrupred,
+    interrupted,
     reapedAlready,
     otherError
 };
@@ -25,6 +27,7 @@ enum terminationStatus
 class CGI {
     public:
         CGI(const HttpRequest& request, HttpResponse& response, RouteDecision& decision, const std::string& cgi_extension, std::map<int, CGI*>& cgiMap);
+        ~CGI();
         
         const std::string extension;
         const std::string interpreterPath; // e.g. /usr/bin/python3
@@ -48,9 +51,9 @@ class CGI {
         bool isResponseReady() const;
         
         void runScript();
-        int processOutput();
+        void processOutput();
         void termianteChildProcess();
-        void cleanUp(bool easeFromMap, int* pipe_ends[4]);
+        void cleanUp(bool easeFromMap);
 
     private:
         int pipeRead[2];

@@ -11,6 +11,7 @@
 /* ************************************************************************** */
 
 #include "Router.hpp"
+#include "CGI.hpp"
 #include "HttpResponse.hpp"
 #include <cctype>
 #include <sstream>
