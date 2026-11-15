@@ -12,8 +12,9 @@ CGI::CGI(const HttpRequest & request, HttpResponse & response, RouteDecision& de
     clientsCGImap(cgiMap),
     pid(-2),
     responseReady(false),
-    error_code(error_code),
-    startTime(std::time(NULL))
+    error_code(decision.errorCode),
+    startTime(std::time(NULL)),
+    termination_status(none)
 {
     pipeRead[0] = -1, pipeRead[1] = -1; 
     pipeWrite[0] = -1, pipeWrite[1] = -1;
@@ -23,7 +24,8 @@ CGI::CGI(const HttpRequest & request, HttpResponse & response, RouteDecision& de
 
 CGI::~CGI()
 {
-    termianteChildProcess();
+    if (termination_status != terminated)
+        termianteChildProcess();
     if (termination_status != terminated)
         std::cerr << "Failure to correctly terminate child process. PID: " << pid << "\n";
     cleanUp(false, getPipes());
@@ -119,10 +121,8 @@ void CGI::cleanUp(bool eraseFromMap, int* pipe_ends[4])
 
 void CGI::runScript()
 {
-    // create pipes, fork, etc, and run execve
     if (pipe(pipeRead) == -1 || pipe(pipeWrite) == -1)
     {
-        cleanUp(true, getPipes());
         error_code = 500;
         return;
     }
@@ -130,14 +130,13 @@ void CGI::runScript()
     pid_t pid = fork();
     if (pid == -1)
     {
-        //handleError();
+        error_code = 500;
         return;
     }
     else if (pid == 0)
     {
         if (dup2(pipeRead[0], STDIN_FILENO) == -1 || dup2(pipeWrite[1], STDOUT_FILENO) == -1)
-        {//handle error
-            //error_code = 500;
+        {
             std::string buf = D_ERROR_MSG;
             write(pipeWrite[1], buf.c_str(), buf.size());
             while (true)
@@ -148,8 +147,6 @@ void CGI::runScript()
         close(pipeWrite[1]);
         close(pipeWrite[0]);
         execve(scriptPath.c_str(), &argv[0], &envp[0]);
-        //handleError(); + exit + check regularly
-        //error_code = 500;
         std::string buf = D_ERROR_MSG; // define
         write(STDOUT_FILENO, buf.c_str(), buf.size());
         while (true)
@@ -159,9 +156,7 @@ void CGI::runScript()
     pipeRead[0] = -1;
     close(pipeWrite[1]);
     pipeWrite[1] = -1;
-    // save cgi_fd (= parent listening fd)
     this->pid = pid; 
-    // record parent listening fd in cgiMap (to add it to poll)
     clientsCGImap[pipeWrite[0]] = this;
 }
 

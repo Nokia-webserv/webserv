@@ -527,8 +527,16 @@ void Router::handleDelete(const HttpRequest& request, HttpResponse& response, co
 
 void Router::handleCGI(const HttpRequest& request, HttpResponse& response, RouteDecision& result, const std::string& extension,std::map<int, CGI*>& cgiMap)
 {
-    CGI* cgi = new CGI(request, response, result, extension, cgiMap);
-    //check success and catch error
+    CGI* cgi;
+    
+    try {
+        cgi = new CGI(request, response, result, extension, cgiMap);
+    }
+    catch (...) {
+        result.errorCode = 500;
+        return;
+    }
+
     cgi->runScript(); // creates pipes, forks process, runs the script
     if (cgi->getErrorCode())
         delete cgi;

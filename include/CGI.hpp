@@ -13,6 +13,7 @@
 
 enum terminationStatus
 {
+    none,
     terminated,
     stillRunning,
     interrupred,
@@ -67,6 +68,5 @@ class CGI {
         void resolveScriptPath(const HttpRequest & request, const LocationConfig & location); // resolves path according to configs
         void setArgv(const HttpRequest & request, const LocationConfig & location);
         void setEnvp(const HttpRequest & request);
-        void recordInClient() const;
         void readOutput();
 };
