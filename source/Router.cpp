@@ -538,7 +538,7 @@ void Router::handleCGI(const HttpRequest& request, HttpResponse& response, Route
     
     // Test 1: allocation error
     // the following block will replace the block above
-    /* std::cout << "Imitating allocation error\n";
+    /* std::cout << "=== TEST: Imitating allocation error ===\n";
     result.errorCode = 500;
     return; */
 

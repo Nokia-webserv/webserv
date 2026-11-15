@@ -272,6 +272,18 @@ void Server::handleCGIevents(int cgi_fd, short revents, int client_fd)
         // prevents object destruction before full process termination
         if (tStatus == stillRunning || tStatus == interrupted || tStatus == otherError)
             return;
+
+        /* Test 4: termination error (retry) */
+        // the following block will replace the block above
+        /* static int count = 0;
+        if (!count)
+        {
+            std::cout << "=== TEST: Termination retry ===\n";
+            std::cout << "Attempt 1\n";
+            count++;
+            return;
+        }
+        std::cout << "Attempt 2\n"; */
         
         // builds error response
         Router router;

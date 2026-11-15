@@ -24,9 +24,9 @@ CGI::CGI(const HttpRequest & request, HttpResponse & response, RouteDecision dec
 
 CGI::~CGI()
 {
-    if (termination_status != terminated)
+    if (pid != -2 && termination_status != terminated)
         terminateChildProcess();
-    if (termination_status != terminated)
+    if (pid != -2 && termination_status != terminated)
         std::cerr << "Failure to correctly terminate child process. PID: " << pid << "\n";
     cleanUp(false);
 }
@@ -136,8 +136,8 @@ void CGI::runScript()
 
     /* Test 2: pipe error */
     // the following block will replace the block above
-    /* std::cout << "Imitating pipe error\n";
-    result.errorCode = 500;
+    /* std::cout << "=== TEST: Imitating pipe error ===\n";
+    error_code = 500;
     return; */
 
     /* clones current process */
@@ -167,10 +167,12 @@ void CGI::runScript()
 
         /* Test 3: error in child proces */
         // the following block will replace the block above
-        /* std::string buf = D_ERROR_MSG;
-        write(pipeWrite[1], buf.c_str(), buf.size());
+        /* std::cout << "=== TEST: Imitating error in subprocess ===\n";
+        std::string buf1 = D_ERROR_MSG;
+        write(pipeWrite[1], buf1.c_str(), buf1.size());
         while (true)
-            poll(NULL, 0, -1);  */
+            poll(NULL, 0, -1);
+        std::cout << "Must not reach here\n";  */
 
         close(pipeRead[0]); // after dup no pipe end is needed
         close(pipeRead[1]);

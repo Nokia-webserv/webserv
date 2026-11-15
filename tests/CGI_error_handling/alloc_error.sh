@@ -28,7 +28,7 @@ perl -0777 -i -pe '
 
 # 2) uncomment the test block
 perl -0777 -i -pe '
-    s{/\*\s*(std::cout\s*<<\s*"Imitating allocation error\\n";\s*result\.errorCode\s*=\s*500;\s*return;)\s*\*/}{$1}
+    s{/\*\s*(std::cout\s*<<\s*"=== TEST: Imitating allocation error ===\\n";\s*result\.errorCode\s*=\s*500;\s*return;)\s*\*/}{$1}
 ' "$ROUTER"
 
 # sanity check: both edits must have happened
