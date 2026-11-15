@@ -28,7 +28,10 @@ struct ParserSession
     std::string recvBuffer;
     HttpParser parser;
 
-    ParserSession() : parser(recvBuffer) {}
+    ParserSession() : parser(recvBuffer)
+    {
+        parser.setMaxBodySize(2000);
+    }
 };
 
 // -----------------------------------------------------------------------------
@@ -655,6 +658,112 @@ static size_t runPipelineTests(const std::string &root)
 }
 
 // -----------------------------------------------------------------------------
+// BODY SIZE RESET tests
+// -----------------------------------------------------------------------------
+
+
+static std::string makeBodySizeRequest(size_t bodySize)
+{
+    std::ostringstream request;
+
+    request << "GET / HTTP/1.1\r\n";
+    request << "Host: body-test\r\n";
+    request << "Content-Length: " << bodySize << "\r\n";
+    request << "\r\n";
+    request << std::string(bodySize, 'A');
+
+    return request.str();
+}
+
+static bool checkBodySizeLimit(
+    const std::string &name,
+    long limit,
+    size_t bodySize,
+    bool useDefault,
+    bool expectAllowed)
+{
+    ParserSession session;
+
+    if (useDefault)
+        session.parser.setMaxBodySize(10485760);
+    else
+        session.parser.setMaxBodySize(limit);
+    session.recvBuffer = makeBodySizeRequest(bodySize);
+
+    HttpParsingResult result = session.parser.run();
+
+    bool success;
+
+    if (expectAllowed)
+        success = result.status == COMPLETE
+               && session.parser.getRequest().getBody().size() == bodySize;
+    else
+        success = result.status == ERROR
+               && result.error == CONTENT_TOO_LARGE;
+
+    printResult(name, "", success);
+    return success;
+}
+
+static size_t runBodySizeLimitTests()
+{
+    size_t failures = 0;
+
+    if (!checkBodySizeLimit(
+            "Default 10 MiB: exact boundary",
+            0, 10485760, true, true))
+        ++failures;
+
+    if (!checkBodySizeLimit(
+            "Server limit 10: exact boundary",
+            10, 10, false, true))
+        ++failures;
+
+    if (!checkBodySizeLimit(
+            "Location limit 5: exact boundary",
+            5, 5, false, true))
+        ++failures;
+
+    if (!checkBodySizeLimit(
+            "Location limit 20: exact boundary",
+            20, 20, false, true))
+        ++failures;
+
+    if (!checkBodySizeLimit(
+            "Zero limit: empty body",
+            0, 0, false, true))
+        ++failures;
+
+    return failures;
+}
+
+static size_t runBodySizeResetTest()
+{
+    ParserSession session;
+    session.parser.setMaxBodySize(5);
+
+    session.recvBuffer = makeBodySizeRequest(5);
+    HttpParsingResult first = session.parser.run();
+
+    bool success = first.status == COMPLETE
+                && session.parser.getRequest().getBody().size() == 5;
+
+    if (success)
+    {
+        session.parser.reset();
+
+        session.recvBuffer += makeBodySizeRequest(6);
+        HttpParsingResult second = session.parser.run();
+
+        success = second.status == ERROR
+               && second.error == CONTENT_TOO_LARGE;
+    }
+
+    printResult("Body size limit preserved after reset", "", success);
+    return success ? 0 : 1;
+}
+
+// -----------------------------------------------------------------------------
 // Main
 // -----------------------------------------------------------------------------
 
@@ -674,13 +783,22 @@ int main(int argc, char **argv)
     std::cout << "\n========== PIPELINE TESTS ==========\n";
     size_t pipelineFailures = runPipelineTests(root);
 
+    std::cout << "\n========== BODY SIZE LIMIT TESTS ==========\n";
+    size_t bodySizeFailures = runBodySizeLimitTests();
+
+    std::cout << "\n========== BODY SIZE RESET TEST ==========\n";
+    size_t resetFailures = runBodySizeResetTest();
+    
     size_t totalFailures =
-        headFailures + bodyFailures + pipelineFailures;
+        headFailures + bodyFailures + pipelineFailures
+        + bodySizeFailures + resetFailures;
 
     std::cout << "\n========== SUMMARY ==========\n";
     std::cout << "Head failures:     " << headFailures << "\n";
     std::cout << "Body failures:     " << bodyFailures << "\n";
     std::cout << "Pipeline failures: " << pipelineFailures << "\n";
+    std::cout << "Body size failures: " << bodySizeFailures << "\n";
+    std::cout << "Reset failures:     " << resetFailures << "\n";
     std::cout << "Total failures:    " << totalFailures << "\n";
 
     return totalFailures == 0 ? 0 : 1;

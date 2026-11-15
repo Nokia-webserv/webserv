@@ -4,32 +4,36 @@ set -eu
 SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
 cd "$SCRIPT_DIR"
 
-TRACE_SOURCE=$(mktemp --suffix=.cpp)
-RESULT_OUTPUT=$(mktemp)
-TRACE_OUTPUT=$(mktemp)
+# Portable temporary directory for macOS and Linux.
+TEMP_DIR=$(mktemp -d "${TMPDIR:-/tmp}/webserv_parser_XXXXXX")
+TRACE_SOURCE="$TEMP_DIR/HttpParser.cpp"
+RESULT_OUTPUT="$TEMP_DIR/result.txt"
+TRACE_OUTPUT="$TEMP_DIR/trace.txt"
 
 cleanup()
 {
-	rm -f "$TRACE_SOURCE" "$RESULT_OUTPUT" "$TRACE_OUTPUT" parser_test
+    rm -rf "$TEMP_DIR"
+    rm -f parser_test
 }
 
-trap cleanup EXIT INT TERM
+trap cleanup EXIT
+trap 'exit 1' INT TERM
 
 # Activate only source lines explicitly marked as test tracing instructions.
 sed 's@^// TEST_TRACE @@' \
-	../../../source/HttpParser.cpp > "$TRACE_SOURCE"
+    ../../../source/HttpParser.cpp > "$TRACE_SOURCE"
 
 c++ -std=c++98 -Wall -Wextra \
-	-I../../../source -I../../../include \
-	parser_test.cpp \
-	"$TRACE_SOURCE" \
-	../../../source/HttpRequest.cpp \
-	../../../source/utils.cpp \
-	-o parser_test
+    -I../../../source -I../../../include \
+    parser_test.cpp \
+    "$TRACE_SOURCE" \
+    ../../../source/HttpRequest.cpp \
+    ../../../source/utils.cpp \
+    -o parser_test
 
 if ./parser_test fixtures > "$RESULT_OUTPUT" 2> "$TRACE_OUTPUT"; then
-	cat "$RESULT_OUTPUT"
-	exit 0
+    cat "$RESULT_OUTPUT"
+    exit 0
 fi
 
 cat "$RESULT_OUTPUT"
