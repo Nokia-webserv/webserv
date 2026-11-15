@@ -1,10 +1,10 @@
 #include "CGI.hpp"
-#include "Router.hpp" 
+//#include "Router.hpp" 
 #include <iostream>
 #include <ctime>
 #include <poll.h>
 
-CGI::CGI(const HttpRequest & request, HttpResponse & response, RouteDecision& decision, const std::string& cgi_extension, std::map<int, CGI*>& cgiMap)
+CGI::CGI(const HttpRequest & request, HttpResponse & response, RouteDecision decision, const std::string& cgi_extension, std::map<int, CGI*>& cgiMap)
 :   extension(cgi_extension),
     interpreterPath(decision.location->cgi_handlers.find(cgi_extension)->second),
     clientsCGImap(cgiMap),
@@ -13,7 +13,7 @@ CGI::CGI(const HttpRequest & request, HttpResponse & response, RouteDecision& de
     decision(decision),
     pid(-2),
     responseReady(false),
-    error_code(decision.errorCode),
+    error_code(this->decision.errorCode),
     termination_status(none),
     startTime(std::time(NULL))
 {
@@ -26,7 +26,7 @@ CGI::CGI(const HttpRequest & request, HttpResponse & response, RouteDecision& de
 CGI::~CGI()
 {
     if (termination_status != terminated)
-        termianteChildProcess();
+        terminateChildProcess();
     if (termination_status != terminated)
         std::cerr << "Failure to correctly terminate child process. PID: " << pid << "\n";
     cleanUp(false);
@@ -48,7 +48,6 @@ void CGI::resolveScriptPath(const HttpRequest & request, const LocationConfig & 
 void CGI::setArgv(const HttpRequest & request, const LocationConfig & location)
 {
     resolveScriptPath(request, location);
-    std::cout << "Script path: " << scriptPath << "\n";
 
     argv.push_back(const_cast<char*>(interpreterPath.c_str()));
     argv.push_back(const_cast<char*>(interpreterPath.c_str()));
@@ -76,10 +75,9 @@ void CGI::setEnvp(const HttpRequest & request/*, std::vector<std::string> envp_r
         envp.push_back(const_cast<char*>(tempEnvp[2].c_str()));
     envp.push_back(NULL);
     //}
-    std::cout << "envp: " << envp[0] << " " << envp[1]; if (envp[2]) std::cout << " " << envp[2]; std::cout << "\n";
 }
 
-void CGI::termianteChildProcess()
+void CGI::terminateChildProcess()
 {
     kill(pid, SIGKILL);
     int status;
@@ -129,6 +127,12 @@ void CGI::runScript()
         return;
     }
 
+    // Test 2: pipe error
+    // the following block will replace the block above
+    /* std::cout << "Imitating pipe error\n";
+    result.errorCode = 500;
+    return; */
+
     pid_t pid = fork();
     if (pid == -1)
     {
@@ -148,11 +152,14 @@ void CGI::runScript()
         close(pipeRead[1]);
         close(pipeWrite[1]);
         close(pipeWrite[0]);
-        execve(scriptPath.c_str(), &argv[0], &envp[0]);
+        //execve(scriptPath.c_str(), &argv[0], &envp[0]);
         std::string buf = D_ERROR_MSG; // define
         write(STDOUT_FILENO, buf.c_str(), buf.size());
         while (true)
+        {
+            std::cerr << "sleeping\n";
             poll(NULL, 0, -1);
+        }
     }
     close(pipeRead[0]);
     pipeRead[0] = -1;
@@ -171,6 +178,8 @@ void CGI::processOutput()
     // buildResponse();
         // responseReady = true;
     // cleanup cgi object: close fd, remove from cgi map
+    std::cout << "tipa read\n";
+    error_code = 500;
 }
 
 bool CGI::isResponseReady() const

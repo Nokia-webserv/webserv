@@ -250,13 +250,12 @@ bool inCGIextensionList(const std::map<std::string, std::string> & extensionList
 
 bool Router::hasCGIextension(const std::string & path, const std::map<std::string, std::string> & extensionList, std::string& ext) const
 {
-    std::string extension = extractExtension(path); std::cout << "Extension extracted: " << extension << "\n";
+    std::string extension = extractExtension(path);
     if (extension.empty())
         return false;
     
     if (!inCGIextensionList(extensionList, extension)) // searches extracted extension in cgi handlers (from location block in configs)
-    {    std::cout << "Not in the list\n"; return false;}
-    std::cout << "Extension found in the list\n";
+        return false;
     
     ext = extension;
     return true;
@@ -387,7 +386,6 @@ void Router::handleError(const HttpRequest& request, const RouteDecision& result
     // get the HTTP reason phrase based on the code sent
     std::string reason;
     reason = getErrorReason(result.errorCode);
-    
     // set the basic http info
     // example:
     // HTTP/1.1 404 Not Found
@@ -537,8 +535,17 @@ void Router::handleCGI(const HttpRequest& request, HttpResponse& response, Route
         result.errorCode = 500;
         return;
     }
+    
+    // Test 1: allocation error
+    // the following block will replace the block above
+    /* std::cout << "Imitating allocation error\n";
+    result.errorCode = 500;
+    return; */
 
     cgi->runScript(); // creates pipes, forks process, runs the script
     if (cgi->getErrorCode())
+    {
         delete cgi;
+        result.errorCode = 500;
+    }
 }

@@ -262,10 +262,11 @@ void Server::handleCGIevents(int cgi_fd, short revents, int client_fd)
     
     if(cgi->getErrorCode())
     {
-        cgi->termianteChildProcess();
+        cgi->terminateChildProcess();
         terminationStatus tStatus = cgi->getTerminationStatus();
         if (tStatus == stillRunning || tStatus == interrupted || tStatus == otherError)
             return;
+        
         Router router;
         router.handleError(cgi->request, cgi->decision, cgi->response);
         cgi->setResponseReady();

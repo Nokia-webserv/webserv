@@ -3,6 +3,7 @@
 #include "HttpRequest.hpp"
 #include "HttpResponse.hpp"
 #include "LocationConfig.hpp"
+#include "Router.hpp"
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/wait.h>
@@ -11,7 +12,7 @@
 
 #define D_ERROR_MSG "CGI_ERROR"
 
-struct RouteDecision;
+//struct RouteDecision;
 
 enum terminationStatus
 {
@@ -26,15 +27,15 @@ enum terminationStatus
 /* This class represents each isntance of a CGI script in http request */
 class CGI {
     public:
-        CGI(const HttpRequest& request, HttpResponse& response, RouteDecision& decision, const std::string& cgi_extension, std::map<int, CGI*>& cgiMap);
+        CGI(const HttpRequest& request, HttpResponse& response, RouteDecision decision, const std::string& cgi_extension, std::map<int, CGI*>& cgiMap);
         ~CGI();
         
         const std::string extension;
         const std::string interpreterPath; // e.g. /usr/bin/python3
         std::map<int, CGI*>& clientsCGImap; // contains all actively running CGI scripts per client
-        const HttpRequest& request;
-        HttpResponse& response;
-        RouteDecision& decision;
+        const HttpRequest request;
+        HttpResponse response;
+        RouteDecision decision;
         
         int getFd() const;
         int getPid() const;
@@ -52,7 +53,7 @@ class CGI {
         
         void runScript();
         void processOutput();
-        void termianteChildProcess();
+        void terminateChildProcess();
         void cleanUp(bool easeFromMap);
 
     private:
