@@ -159,7 +159,7 @@ const ServerConfig* Router::selectServer(const HttpRequest& request, const Liste
 RouteDecision Router::route(const HttpRequest& request, const Listener& listener, HttpResponse& response, std::map<int, CGI*>& cgiMap)
 {
     RouteDecision result;
-
+    result.errorCode = 0;
     // 1- virtual server selection
     result.server = selectServer(request, listener);
     if (result.server == NULL)
@@ -207,7 +207,13 @@ RouteDecision Router::route(const HttpRequest& request, const Listener& listener
     std::string ext;
     if (hasCGIextension(request.getPath(), result.location->cgi_handlers, ext))
     {
-        handleCGI(request, response, *result.location, ext, cgiMap);
+        handleCGI(request, response, result, ext, cgiMap);
+        if (result.errorCode)
+        {
+            result.type = RouteDecision::ROUTE_ERROR;
+            handleError(request, result, response);
+            return result;
+        }
         result.type = RouteDecision::ROUTE_CGI;
     }
     
@@ -519,8 +525,8 @@ void Router::handleDelete(const HttpRequest& request, HttpResponse& response, co
     // to be implemented: Delete handler
 }
 
-void Router::handleCGI(const HttpRequest& request, HttpResponse& response, const LocationConfig& location, const std::string& extension, std::map<int, CGI*>& cgiMap)
+void Router::handleCGI(const HttpRequest& request, HttpResponse& response, RouteDecision& result, const std::string& extension,std::map<int, CGI*>& cgiMap)
 {
-    CGI cgi(request, response, location, extension, cgiMap);
+    CGI cgi(request, response, result, extension, cgiMap);
     cgi.runScript(); // creates pipes, forks process, runs the script
 }

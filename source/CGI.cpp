@@ -1,19 +1,24 @@
 #include "CGI.hpp"
 #include <iostream>
 #include <ctime>
+#include <poll.h>
 
-CGI::CGI(const HttpRequest & request, HttpResponse & response, const LocationConfig & location, const std::string & cgi_extension, std::map<int, CGI*>& cgiMap)
+CGI::CGI(const HttpRequest & request, HttpResponse & response, RouteDecision& result, const std::string& cgi_extension, std::map<int, CGI*>& cgiMap)
 :   extension(cgi_extension),
-    interpreterPath(location.cgi_handlers.find(cgi_extension)->second),
+    interpreterPath(result.location->cgi_handlers.find(cgi_extension)->second),
+    request(request),
     response(response),
+    result(result),
     clientsCGImap(cgiMap),
-    cgi_read_fd(-1),
-    cgi_write_fd(-1),
+    /* cgi_read_fd(-1),
+    cgi_write_fd(-1), */
     pid(-2),
-    responseReady(false)
+    responseReady(false),
+    error_code(error_code)
 {
-    std::cout << "Constructing CGI object\n";
-    setArgv(request, location);
+    pipeRead[0] = -1, pipeRead[1] = -1; 
+    pipeWrite[0] = -1, pipeWrite[1] = -1;
+    setArgv(request, *result.location);
     setEnvp(request);
 }
 
@@ -64,14 +69,29 @@ void CGI::setEnvp(const HttpRequest & request/*, std::vector<std::string> envp_r
     std::cout << "envp: " << envp[0] << " " << envp[1]; if (envp[2]) std::cout << " " << envp[2]; std::cout << "\n";
 }
 
+void CGI::cleanUp(int* pipe_ends[4]) 
+{
+    std::map<int, CGI*>::iterator int_cgi = clientsCGImap.find(pipeWrite[0]);
+    if (int_cgi != clientsCGImap.end())
+        clientsCGImap.erase(int_cgi->first);
+
+    for (int i = 0; i < 4; i++)
+    {
+        if (*pipe_ends[i] != -1)
+        {
+            close(*pipe_ends[i]);
+            *pipe_ends[i] = -1;
+        }
+    }
+}
+
 void CGI::runScript()
 {
     // create pipes, fork, etc, and run execve
-    int pipeWriteToCGI[2] = {-1, -1};
-    int pipeReadFromCGI[2] = {-1, -1};
-    if (pipe(pipeWriteToCGI) == -1 || pipe(pipeReadFromCGI) == -1)
+    if (pipe(pipeRead) == -1 || pipe(pipeWrite) == -1)
     {
-        //handleError();
+        cleanUp(getPipes());
+        error_code = 500;
         return;
     }
 
@@ -83,34 +103,41 @@ void CGI::runScript()
     }
     else if (pid == 0)
     {
-        if (dup2(pipeWriteToCGI[0], STDIN_FILENO) == -1 || dup2(pipeReadFromCGI[1], STDOUT_FILENO) == -1)
+        if (dup2(pipeRead[0], STDIN_FILENO) == -1 || dup2(pipeWrite[1], STDOUT_FILENO) == -1)
         {//handle error
+            error_code = 500;
+            std::string buf = D_ERROR_MSG;
+            write(pipeWrite[1], buf.c_str(), buf.size());
+            while (true)
+                poll(NULL, 0, -1);
         }
-        close(pipeWriteToCGI[0]);
-        close(pipeReadFromCGI[1]);
-        close(pipeWriteToCGI[1]);
-        close(pipeReadFromCGI[0]);
+        close(pipeRead[0]);
+        close(pipeRead[1]);
+        close(pipeWrite[1]);
+        close(pipeWrite[0]);
         execve(scriptPath.c_str(), &argv[0], &envp[0]);
         //handleError(); + exit + check regularly
-        std::string buf = "CGI_ERROR"; // define
+        error_code = 500;
+        std::string buf = D_ERROR_MSG; // define
         write(STDOUT_FILENO, buf.c_str(), buf.size());
-        char c;
-        read(STDIN_FILENO, &c, 1); //dont close pipe before kill
+        while (true)
+            poll(NULL, 0, -1);
     }
-    close(pipeWriteToCGI[0]);
-    close(pipeReadFromCGI[1]);
+    close(pipeRead[0]);
+    pipeRead[0] = -1;
+    close(pipeWrite[1]);
+    pipeWrite[1] = -1;
     // save cgi_fd (= parent listening fd)
-    cgi_read_fd = pipeReadFromCGI[0];
-    cgi_write_fd = pipeWriteToCGI[1];
     this->pid = pid; 
     // record parent listening fd in cgiMap (to add it to poll)
-    clientsCGImap[cgi_read_fd] = this;
+    clientsCGImap[pipeWrite[0]] = this;
 }
 
 // reads until EOF then builds response
-void CGI::processOutput()
+int CGI::processOutput()
 {
     // readOutput();
+
     // after EOF:
     // buildResponse();
         // responseReady = true;
@@ -122,7 +149,13 @@ bool CGI::isResponseReady() const
     return responseReady;
 }
 
-void CGI::handleError()
+void CGI::setResponseReady()
 {
+    responseReady = true;
+}
 
+int** CGI::getPipes()
+{
+    int* pipe_ends[4] = {&pipeRead[0], &pipeRead[1], &pipeWrite[0], &pipeWrite[1]};
+    return pipe_ends;
 }

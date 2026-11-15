@@ -233,22 +233,22 @@ void Server::handleCGIevents(int cgi_fd, short revents, int client_fd)
 
     bool error = false;
     
-    std::map<int, ClientConnection*>::iterator cc = clients.find(client_fd); // finds current client
-    if (cc == clients.end())
+    std::map<int, ClientConnection*>::iterator int_cc = clients.find(client_fd); // finds current client
+    if (int_cc == clients.end())
         error = true;
     ClientConnection* client;
     if (!error)
-        client = cc->second;
+        client = int_cc->second;
 
-    std::map<int, CGI*>::iterator cg;
+    std::map<int, CGI*>::iterator int_cgi;
     CGI* cgi;
     if (!error)
     {
-        cg = client->cgiMap.find(cgi_fd); // finds the processed cgi in cgi map   
-        if (cg == client->cgiMap.end())
+        int_cgi = client->cgiMap.find(cgi_fd); // finds the processed cgi in cgi map   
+        if (int_cgi == client->cgiMap.end())
             error = true;
         else
-            cgi = cg->second;
+            cgi = int_cgi->second;
     }
     
     if (error || (revents & (POLLNVAL | POLLERR))) // processes any kind of error at this stage
@@ -264,9 +264,24 @@ void Server::handleCGIevents(int cgi_fd, short revents, int client_fd)
 
     else if (revents & (POLLIN | POLLHUP)) // if there is data to be read
         cgi->processOutput(); // reads until EOF then builds response and cleans up
+    
+    if(cgi->getErrorCode())
+    {
+        if (kill(cgi->getPid(), SIGKILL) == -1)
+            return;
+        int status;
+        if (!waitpid(cgi->getPid(), &status, WNOHANG))
+            return;
+        Router router;
+        router.handleError(cgi->request, cgi->result, cgi->response);
+        cgi->setResponseReady();
+    }
 
     if (cgi->isResponseReady()) // if response is built, adds it to sendBuffer
+    {
         client->addDataToSend(cgi->response.serialize());
+        cgi->cleanUp(cgi->getPipes());
+    }
 }
 
 // POLLERR (Socket error)
@@ -492,9 +507,9 @@ void Server::buildPollFds()
         // 3 - CGI fds
         ClientConnection& currentClient = *(it->second);
         std::map<int, CGI*>& cgiMap = currentClient.cgiMap; // each client tracks all its cgi scripts
-        for (std::map<int, CGI*>::iterator j = cgiMap.begin(); j != cgiMap.end(); ++j)
+        for (std::map<int, CGI*>::iterator int_cgi = cgiMap.begin(); int_cgi != cgiMap.end(); ++int_cgi)
         {
-            pfd.fd = j->first;
+            pfd.fd = int_cgi->first;
             pfd.events = 0 | POLLIN; // server waits for data to be read from child process
             pfd.revents = 0;
             poll_fds.push_back(pfd);
