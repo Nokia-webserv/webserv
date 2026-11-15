@@ -201,8 +201,8 @@ void Server::run()
 
             if (listener != NULL)
                 handleListenersEvents(listener, poll_fds[i].revents);
-            int client_fd;
-            if (!listener && (client_fd = findClientByCGIfd(poll_fds[i].fd)) > -1)
+            int client_fd = findClientByCGIfd(poll_fds[i].fd);
+            if (!listener && client_fd > -1)
                 handleCGIevents(poll_fds[i].fd ,poll_fds[i].revents, client_fd);
             else
             {
@@ -213,6 +213,7 @@ void Server::run()
     
         }
         checkClientTimeout();
+        checkCGItimeout();
 	}
 }
 
@@ -252,35 +253,29 @@ void Server::handleCGIevents(int cgi_fd, short revents, int client_fd)
     }
     
     if (error || (revents & (POLLNVAL | POLLERR))) // processes any kind of error at this stage
-    {
-        // cgi.handleError()
-            // send error 500
-        // cgi.cleanup()
-            // close fd
-            // remove from cgi map
-    }
+        cgi->decision.errorCode = 500;
     
     /* Valid event processing */
 
-    else if (revents & (POLLIN | POLLHUP)) // if there is data to be read
+    if (!cgi->getErrorCode() && (revents & (POLLIN | POLLHUP))) // if there is data to be read
         cgi->processOutput(); // reads until EOF then builds response and cleans up
     
     if(cgi->getErrorCode())
     {
-        if (kill(cgi->getPid(), SIGKILL) == -1)
-            return;
-        int status;
-        if (!waitpid(cgi->getPid(), &status, WNOHANG))
+        cgi->termianteChildProcess();
+        terminationStatus tStatus = cgi->getTerminationStatus();
+        if (tStatus == stillRunning || tStatus == interrupred || tStatus == otherError)
             return;
         Router router;
-        router.handleError(cgi->request, cgi->result, cgi->response);
+        router.handleError(cgi->request, cgi->decision, cgi->response);
         cgi->setResponseReady();
     }
 
     if (cgi->isResponseReady()) // if response is built, adds it to sendBuffer
     {
         client->addDataToSend(cgi->response.serialize());
-        cgi->cleanUp(cgi->getPipes());
+        cgi->cleanUp(true, cgi->getPipes());
+        delete cgi;
     }
 }
 
@@ -442,6 +437,29 @@ void Server::checkClientTimeout()
     // disconnect all the timedout client from the server
     for (size_t i = 0; i < timedOutClients.size(); ++i)
         disconnectClient(timedOutClients[i]);   
+}
+
+void Server::checkCGItimeout()
+{
+    std::map<int, ClientConnection*>::iterator int_cc;
+    std::map<int, CGI*>::iterator int_cgi;
+    ClientConnection* cc;
+    CGI* cgi;
+    time_t now;
+
+    for (int_cc = clients.begin(); int_cc != clients.end(); ++int_cc)
+    {   
+        cc = int_cc->second;
+        for (int_cgi = cc->cgiMap.begin(); int_cgi != cc->cgiMap.end(); ++int_cgi)
+        {
+            cgi = int_cgi->second;
+            now = std::time(NULL);
+            if (now - cgi->getStartTime() > GLOBAL_CLIENT_TIMEOUT_SECONDS)
+            {
+                handleCGIevents(cgi->getFd(), POLLERR, cc->getFd());
+            }
+        }
+    }
 }
 
 // build the pollfd struct to match the poll events and builtin format
@@ -687,7 +705,7 @@ void Server::processHttpInput(ClientConnection &client)
             // reset the parser for next request
             client.getParser().reset();
             ++processedRequests;
-            if(client.getRecvBuffer().empty())
+            if (client.getRecvBuffer().empty())
                 return;
             continue;
         }

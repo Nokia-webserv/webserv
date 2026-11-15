@@ -3,23 +3,30 @@
 #include <ctime>
 #include <poll.h>
 
-CGI::CGI(const HttpRequest & request, HttpResponse & response, RouteDecision& result, const std::string& cgi_extension, std::map<int, CGI*>& cgiMap)
+CGI::CGI(const HttpRequest & request, HttpResponse & response, RouteDecision& decision, const std::string& cgi_extension, std::map<int, CGI*>& cgiMap)
 :   extension(cgi_extension),
-    interpreterPath(result.location->cgi_handlers.find(cgi_extension)->second),
+    interpreterPath(decision.location->cgi_handlers.find(cgi_extension)->second),
     request(request),
     response(response),
-    result(result),
+    decision(decision),
     clientsCGImap(cgiMap),
-    /* cgi_read_fd(-1),
-    cgi_write_fd(-1), */
     pid(-2),
     responseReady(false),
-    error_code(error_code)
+    error_code(error_code),
+    startTime(std::time(NULL))
 {
     pipeRead[0] = -1, pipeRead[1] = -1; 
     pipeWrite[0] = -1, pipeWrite[1] = -1;
-    setArgv(request, *result.location);
+    setArgv(request, *decision.location);
     setEnvp(request);
+}
+
+CGI::~CGI()
+{
+    termianteChildProcess();
+    if (termination_status != terminated)
+        std::cerr << "Failure to correctly terminate child process. PID: " << pid << "\n";
+    cleanUp(false, getPipes());
 }
 
 // resolves path according to configs
@@ -69,11 +76,36 @@ void CGI::setEnvp(const HttpRequest & request/*, std::vector<std::string> envp_r
     std::cout << "envp: " << envp[0] << " " << envp[1]; if (envp[2]) std::cout << " " << envp[2]; std::cout << "\n";
 }
 
-void CGI::cleanUp(int* pipe_ends[4]) 
+void CGI::termianteChildProcess()
 {
-    std::map<int, CGI*>::iterator int_cgi = clientsCGImap.find(pipeWrite[0]);
-    if (int_cgi != clientsCGImap.end())
-        clientsCGImap.erase(int_cgi->first);
+    kill(pid, SIGKILL);
+    int status;
+    int result = waitpid(pid, &status, WNOHANG);
+    if (result != pid)
+    {
+        if (result == -1)
+        {
+            switch (errno)
+            {
+                case EINTR: termination_status = interrupred; return;
+                case ECHILD: termination_status = reapedAlready; return;
+                default: termination_status = otherError; return;
+            }
+        }
+        termination_status = stillRunning;
+        return;
+    }
+    termination_status = terminated;
+}
+
+void CGI::cleanUp(bool eraseFromMap, int* pipe_ends[4]) 
+{
+    if (eraseFromMap)
+    {
+        std::map<int, CGI*>::iterator int_cgi = clientsCGImap.find(pipeWrite[0]);
+        if (int_cgi != clientsCGImap.end())
+            clientsCGImap.erase(int_cgi->first);
+    }
 
     for (int i = 0; i < 4; i++)
     {
@@ -90,7 +122,7 @@ void CGI::runScript()
     // create pipes, fork, etc, and run execve
     if (pipe(pipeRead) == -1 || pipe(pipeWrite) == -1)
     {
-        cleanUp(getPipes());
+        cleanUp(true, getPipes());
         error_code = 500;
         return;
     }
@@ -105,7 +137,7 @@ void CGI::runScript()
     {
         if (dup2(pipeRead[0], STDIN_FILENO) == -1 || dup2(pipeWrite[1], STDOUT_FILENO) == -1)
         {//handle error
-            error_code = 500;
+            //error_code = 500;
             std::string buf = D_ERROR_MSG;
             write(pipeWrite[1], buf.c_str(), buf.size());
             while (true)
@@ -117,7 +149,7 @@ void CGI::runScript()
         close(pipeWrite[0]);
         execve(scriptPath.c_str(), &argv[0], &envp[0]);
         //handleError(); + exit + check regularly
-        error_code = 500;
+        //error_code = 500;
         std::string buf = D_ERROR_MSG; // define
         write(STDOUT_FILENO, buf.c_str(), buf.size());
         while (true)
@@ -137,7 +169,7 @@ void CGI::runScript()
 int CGI::processOutput()
 {
     // readOutput();
-
+        // check for error, change error code, return
     // after EOF:
     // buildResponse();
         // responseReady = true;
@@ -158,4 +190,14 @@ int** CGI::getPipes()
 {
     int* pipe_ends[4] = {&pipeRead[0], &pipeRead[1], &pipeWrite[0], &pipeWrite[1]};
     return pipe_ends;
+}
+
+time_t CGI::getStartTime() const
+{
+    return startTime;
+}
+
+terminationStatus CGI::getTerminationStatus() const
+{
+    return termination_status;
 }

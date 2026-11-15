@@ -15,8 +15,9 @@ ClientConnection::ClientConnection(int fd, sockaddr_in *addr, const Listener* li
 
 ClientConnection::~ClientConnection()
 {
+	for (std::map<int, CGI*>::iterator int_cgi = cgiMap.begin(); int_cgi != cgiMap.end(); ++int_cgi)
+		delete int_cgi->second;
 	delete	addressInfo;
-
 	close(clientSocket_fd);
 }
 

@@ -50,6 +50,7 @@ class Server {
         void handleCGIevents(int cgi_fd, short revents, int client_fd);
         void disconnectClient(int fd);
         void checkClientTimeout();
+        void checkCGItimeout();
         void processHttpInput(ClientConnection &client);
         void processPendingHttpInput();
         int getPollEventTimeout();
