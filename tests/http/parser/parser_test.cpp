@@ -28,10 +28,7 @@ struct ParserSession
     std::string recvBuffer;
     HttpParser parser;
 
-    ParserSession() : parser(recvBuffer)
-    {
-        parser.setMaxBodySize(2000);
-    }
+    ParserSession() : parser(recvBuffer) {}
 };
 
 // -----------------------------------------------------------------------------
@@ -657,10 +654,6 @@ static size_t runPipelineTests(const std::string &root)
     return failures;
 }
 
-// -----------------------------------------------------------------------------
-// BODY SIZE RESET tests
-// -----------------------------------------------------------------------------
-
 
 static std::string makeBodySizeRequest(size_t bodySize)
 {
@@ -684,10 +677,9 @@ static bool checkBodySizeLimit(
 {
     ParserSession session;
 
-    if (useDefault)
-        session.parser.setMaxBodySize(10485760);
-    else
+    if (!useDefault)
         session.parser.setMaxBodySize(limit);
+
     session.recvBuffer = makeBodySizeRequest(bodySize);
 
     HttpParsingResult result = session.parser.run();
@@ -737,6 +729,10 @@ static size_t runBodySizeLimitTests()
     return failures;
 }
 
+// -----------------------------------------------------------------------------
+// BODY SIZE RESET tests
+// -----------------------------------------------------------------------------
+
 static size_t runBodySizeResetTest()
 {
     ParserSession session;
@@ -761,6 +757,122 @@ static size_t runBodySizeResetTest()
 
     printResult("Body size limit preserved after reset", "", success);
     return success ? 0 : 1;
+}
+
+
+// -----------------------------------------------------------------------------
+// HEADER SIZE LIMIT tests
+// -----------------------------------------------------------------------------
+
+static std::string makeHeaderSizeRequest(size_t headerSize)
+{
+    const std::string prefix = "GET / HTTP/1.1\r\nHost: test\r\nX-Pad: ";
+    const std::string suffix = "\r\n\r\n";
+    const size_t minimumSize = prefix.size() + suffix.size();
+
+    if (headerSize < minimumSize)
+        return "";
+
+    return prefix + std::string(headerSize - minimumSize, 'A') + suffix;
+}
+
+static bool checkHeaderSizeLimit(const std::string& name,
+                                 long limit,
+                                 size_t headerSize,
+                                 bool useDefault,
+                                 bool expectAllowed)
+{
+    ParserSession session;
+    if (!useDefault)
+        session.parser.setMaxHeaderSize(limit);
+
+    session.recvBuffer = makeHeaderSizeRequest(headerSize);
+    HttpParsingResult result = session.parser.run();
+
+    bool success;
+    if (expectAllowed)
+        success = result.status == COMPLETE
+               && session.parser.getRequest().getHeaderSize() == headerSize;
+    else
+        success = result.status == ERROR
+               && result.error == HEADER_FIELDS_TOO_LARGE;
+
+    printResult(name, "", success);
+    return success;
+}
+
+static size_t runHeaderSizeLimitTests()
+{
+    size_t failures = 0;
+
+    if (!checkHeaderSizeLimit("Header limit 100: one byte below", 100, 99, false, true))
+        ++failures;
+    if (!checkHeaderSizeLimit("Header limit 100: exact boundary", 100, 100, false, true))
+        ++failures;
+    if (!checkHeaderSizeLimit("Header limit 100: one byte above", 100, 101, false, false))
+        ++failures;
+    if (!checkHeaderSizeLimit("Header limit 200: larger override accepted", 200, 150, false, true))
+        ++failures;
+    if (!checkHeaderSizeLimit("Default 10 MiB: exact boundary", 0, 10485760, true, true))
+        ++failures;
+    if (!checkHeaderSizeLimit("Default 10 MiB: one byte above", 0, 10485761, true, false))
+        ++failures;
+
+    return failures;
+}
+
+static size_t runHeaderSizeResetTest()
+{
+    ParserSession session;
+    session.parser.setMaxHeaderSize(100);
+    session.recvBuffer = makeHeaderSizeRequest(100);
+    HttpParsingResult first = session.parser.run();
+
+    bool success = first.status == COMPLETE
+                && session.parser.getRequest().getHeaderSize() == 100;
+
+    if (success)
+    {
+        session.parser.reset();
+        success = session.parser.getRequest().getHeaderSize() == 0;
+        session.recvBuffer += makeHeaderSizeRequest(101);
+        HttpParsingResult second = session.parser.run();
+        success = success && second.status == ERROR
+                && second.error == HEADER_FIELDS_TOO_LARGE;
+    }
+
+    printResult("Header size preserved as limit after reset", "", success);
+    return success ? 0 : 1;
+}
+
+static size_t runHeaderSizeIncrementalTests()
+{
+    size_t failures = 0;
+    for (size_t requestedSize = 100; requestedSize <= 101; ++requestedSize)
+    {
+        ParserSession session;
+        session.parser.setMaxHeaderSize(100);
+        const std::string splitRequest = makeHeaderSizeRequest(requestedSize);
+        session.recvBuffer = splitRequest.substr(0, 25);
+        HttpParsingResult first = session.parser.run();
+        bool success = first.status == INCOMPLETE_HEAD;
+        session.recvBuffer += splitRequest.substr(25);
+        HttpParsingResult second = session.parser.run();
+        if (requestedSize == 100)
+            success = success && second.status == COMPLETE
+                    && session.parser.getRequest().getHeaderSize() == 100;
+        else
+            success = success && second.status == ERROR
+                    && second.error == HEADER_FIELDS_TOO_LARGE;
+
+        printResult(requestedSize == 100
+                    ? "Header exact limit across two recv calls"
+                    : "Header over limit across two recv calls", "", success);
+        if (!success)
+            ++failures;
+    }
+
+    return failures;
 }
 
 // -----------------------------------------------------------------------------
@@ -788,10 +900,20 @@ int main(int argc, char **argv)
 
     std::cout << "\n========== BODY SIZE RESET TEST ==========\n";
     size_t resetFailures = runBodySizeResetTest();
+
+    std::cout << "\n========== HEADER SIZE LIMIT TESTS ==========\n";
+    size_t headerSizeFailures = runHeaderSizeLimitTests();
+
+    std::cout << "\n========== HEADER SIZE RESET TEST ==========\n";
+    size_t headerResetFailures = runHeaderSizeResetTest();
+
+    std::cout << "\n========== HEADER SIZE INCREMENTAL TESTS ==========\n";
+    size_t headerIncrementalFailures = runHeaderSizeIncrementalTests();
     
     size_t totalFailures =
-        headFailures + bodyFailures + pipelineFailures
-        + bodySizeFailures + resetFailures;
+    headFailures + bodyFailures + pipelineFailures
+    + bodySizeFailures + resetFailures
+    + headerSizeFailures + headerResetFailures + headerIncrementalFailures;
 
     std::cout << "\n========== SUMMARY ==========\n";
     std::cout << "Head failures:     " << headFailures << "\n";
@@ -799,6 +921,9 @@ int main(int argc, char **argv)
     std::cout << "Pipeline failures: " << pipelineFailures << "\n";
     std::cout << "Body size failures: " << bodySizeFailures << "\n";
     std::cout << "Reset failures:     " << resetFailures << "\n";
+    std::cout << "Header size failures: " << headerSizeFailures << "\n";
+    std::cout << "Header reset failures: " << headerResetFailures << "\n";
+    std::cout << "Header incremental failures: " << headerIncrementalFailures << "\n";
     std::cout << "Total failures:    " << totalFailures << "\n";
 
     return totalFailures == 0 ? 0 : 1;
