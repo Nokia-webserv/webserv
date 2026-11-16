@@ -19,9 +19,9 @@ A production or component build error prints BLOCKED and returns exit code 2;
 zero runtime cases have run in that situation. Failed runtime assertions return
 1; a completed passing run returns 0. There is a 30-second runtime watchdog.
 
-The current production draft has not reached the runtime gate yet. The test
-translation units themselves have been syntax-checked; this is not a claim
-that the upload scenarios have passed.
+This command tests the component only. For unit tests or uploads through a real
+server, see [the raw POST integration guide](../post_raw_integration/README.md).
+Use `--all` on the top-level wrapper to run all three layers.
 
 ## Scope: 45 scenarios
 

@@ -1,5 +1,5 @@
 #include "utils.hpp"
-#include <map>
+#include <sstream>
 
 // Changes all chars of a string to lowercase
 std::string strTolower(std::string str)
@@ -162,4 +162,10 @@ std::map<std::string, std::string> getMime() {
     fileFormat["aac"] = "audio/aac";
 
     return fileFormat;
+}
+
+std::string toString(size_t val) {
+    std::ostringstream stream;
+    stream << val;
+    return stream.str();
 }
