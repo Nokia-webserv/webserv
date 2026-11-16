@@ -10,7 +10,7 @@
 #include <signal.h>
 #include <cerrno>
 
-#define D_ERROR_MSG "CGI_ERROR" // specific error message sent from child (CGI) to parent (server)
+#define D_ERROR_MSG "Status: 500 Internal Server Error" // specific error message sent from child (CGI) to parent (server)
 
 /* This class represents each isntance of a CGI script in http request */
 class CGI {

@@ -149,8 +149,8 @@ void CGI::runScript()
         close(pipeWrite[1]);
         close(pipeWrite[0]);
 
-        //execve(scriptPath.c_str(), &argv[0], &envp[0]); // executes the CGI script and terminates child process
-
+        execve(scriptPath.c_str(), &argv[0], &envp[0]); // executes the CGI script and terminates child process
+        
         /* execve error */
         // execve terminates child process. reaching this line indicates execve failure
         // handling path is same as for dup error
@@ -181,7 +181,11 @@ void CGI::processOutput()
     // buildResponse();
         // responseReady = true;
     // cleanup cgi object: close fd, remove from cgi map
-    std::cout << "Processing CGI Output not implemented - handling as an error in subprocess\n";
+    // std::cout << "process Output not implemented\n";
+    // error_code = 500;
+    char buf[100];
+    read(pipeWrite[0], buf, 100);
+    std::cout << buf << "\n";
     error_code = 500;
 }
 
