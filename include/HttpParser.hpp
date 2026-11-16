@@ -6,6 +6,8 @@
 #include <algorithm>
 #include <sstream>
 
+#define DEFAULT_MAX_SIZE 10485760
+
 enum HttpRequestStatus
 {
     INCOMPLETE_HEAD = 0,

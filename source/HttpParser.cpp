@@ -13,8 +13,8 @@ HttpParser::HttpParser(std::string & recvBuffer)
     _chunkState (SIZE), 
     _chunkBytesRemaining(0), 
     _trailerBytesReceived(0),
-    _maxBodySize(10485760),
-    _maxHeaderSize(10485760)
+    _maxBodySize(DEFAULT_MAX_SIZE),
+    _maxHeaderSize(DEFAULT_MAX_SIZE)
 
 {}
 
