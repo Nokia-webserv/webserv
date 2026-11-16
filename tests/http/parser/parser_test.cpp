@@ -411,6 +411,10 @@ static size_t runHeadTests(const std::string &root)
         {
             delete session;
             session = new ParserSession();
+
+            session->parser.setMaxHeaderSize(1024);
+            session->parser.setMaxBodySize(2000);
+
             currentGroup = group;
         }
 
@@ -496,6 +500,7 @@ static size_t runBodyTests(const std::string &root)
         {
             delete session;
             session = new ParserSession();
+            session->parser.setMaxBodySize(2000);
             currentGroup = group;
         }
 
