@@ -46,7 +46,9 @@ def main(server_path):
             elapsed = time.monotonic() - started
             print(f"[DEBUG] Connection closed or send loop ended after {elapsed:.2f}s")
 
-            if elapsed < SERVER_TIMEOUT - 5:
+            tolerance = max(2, SERVER_TIMEOUT * 0.1)
+
+            if elapsed < SERVER_TIMEOUT - tolerance:
                 raise AssertionError(
                     f"Connection closed too early after {elapsed:.2f}s "
                     f"(expected approximately {SERVER_TIMEOUT}s)"

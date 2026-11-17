@@ -10,7 +10,7 @@ import time
 from pathlib import Path
 
 HOST = "127.0.0.1"
-SERVER_TIMEOUT = 30  # Webserv's configured stalled-write timeout (seconds)
+SERVER_TIMEOUT = int(os.environ.get("TEST_TIMEOUT", "30"))  # Webserv's configured stalled-write timeout (seconds)
 BIG_FILE_SIZE = 32 * 1024 * 1024
 
 
