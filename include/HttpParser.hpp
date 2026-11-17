@@ -5,6 +5,7 @@
 #include <iostream>
 #include <algorithm>
 #include <sstream>
+#include <vector>
 
 enum HttpRequestStatus
 {
@@ -127,5 +128,8 @@ class HttpParser {
         ChunkState _chunkState;
         size_t _chunkBytesRemaining;
         size_t _trailerBytesReceived;
+
+        // to normalize repeated slashes and "." ".." path traversal and reject unsupported paths
+        bool normalizeURI(const std::string& path, std::string& normalized) const;
 
 };

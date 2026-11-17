@@ -65,4 +65,7 @@ integration:
 timeout-test: $(NAME)
 	bash tests/timeout/run_tests.sh ./webserv tests/timeout/timeout_test.conf
 
-.PHONY: all clean fclean re build startup config accept parser integration timeout-test
+redirect-test: $(NAME)
+	bash tests/redirects/redirects.sh ./webserv tests/redirects/redirect_test.conf
+
+.PHONY: all clean fclean re build startup config accept parser integration timeout-test redirect-test
