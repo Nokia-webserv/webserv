@@ -5,6 +5,7 @@
 #include <iostream>
 #include <algorithm>
 #include <sstream>
+#include <vector>
 
 #define DEFAULT_MAX_SIZE 10485760
 
@@ -140,4 +141,7 @@ class HttpParser {
 
         // to hold the max header size
         long _maxHeaderSize;
+        // to normalize repeated slashes and "." ".." path traversal and reject unsupported paths
+        bool normalizeURI(const std::string& path, std::string& normalized) const;
+
 };
