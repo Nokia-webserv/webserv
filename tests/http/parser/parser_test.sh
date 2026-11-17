@@ -1,39 +1,86 @@
+
 #!/bin/sh
 set -eu
 
 SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
 cd "$SCRIPT_DIR"
 
-TRACE_SOURCE=$(mktemp --suffix=.cpp)
-RESULT_OUTPUT=$(mktemp)
-TRACE_OUTPUT=$(mktemp)
+# Portable temporary directory for macOS and Linux.
+TRACE_DIR=$(mktemp -d)
+TRACE_SOURCE="$TRACE_DIR/HttpParser.cpp"
+RESULT_OUTPUT="$TRACE_DIR/result.txt"
+TRACE_OUTPUT="$TRACE_DIR/trace.txt"
 
 cleanup()
 {
-	rm -f "$TRACE_SOURCE" "$RESULT_OUTPUT" "$TRACE_OUTPUT" parser_test
+    rm -rf "$TRACE_DIR"
+    rm -f parser_test uri_normalization_test
 }
 
 trap cleanup EXIT INT TERM
 
 # Activate only source lines explicitly marked as test tracing instructions.
 sed 's@^// TEST_TRACE @@' \
-	../../../source/HttpParser.cpp > "$TRACE_SOURCE"
+    ../../../source/HttpParser.cpp > "$TRACE_SOURCE"
 
-c++ -std=c++98 -Wall -Wextra \
-	-I../../../source -I../../../include \
-	parser_test.cpp \
-	"$TRACE_SOURCE" \
-	../../../source/HttpRequest.cpp \
-	../../../source/utils.cpp \
-	-o parser_test
+# Common parser dependencies.
+PARSER_SOURCES="
+$TRACE_SOURCE
+../../../source/HttpRequest.cpp
+../../../source/utils.cpp
+"
 
-if ./parser_test fixtures > "$RESULT_OUTPUT" 2> "$TRACE_OUTPUT"; then
-	cat "$RESULT_OUTPUT"
-	exit 0
+compile_test()
+{
+    c++ -std=c++98 -Wall -Wextra -Werror \
+        -I../../../source -I../../../include \
+        "$1" \
+        $PARSER_SOURCES \
+        -o "$2"
+}
+
+run_test()
+{
+    name="$1"
+    executable="$2"
+    shift 2
+
+    echo
+    echo "=== $name ==="
+
+    if "./$executable" "$@" > "$RESULT_OUTPUT" 2> "$TRACE_OUTPUT"; then
+        cat "$RESULT_OUTPUT"
+        return 0
+    fi
+
+    cat "$RESULT_OUTPUT"
+    echo
+    echo "Test diagnostics:"
+    cat "$TRACE_OUTPUT"
+    return 1
+}
+
+FAILED=0
+
+# 1. Existing HTTP parser tests
+compile_test parser_test.cpp parser_test
+
+if ! run_test "HTTP PARSER TESTS" parser_test fixtures; then
+    FAILED=1
 fi
 
-cat "$RESULT_OUTPUT"
+# 2. URI normalization tests
+compile_test uri_normalization.cpp uri_normalization_test
+
+if ! run_test "URI NORMALIZATION TESTS" uri_normalization_test; then
+    FAILED=1
+fi
+
 echo
-echo "Parser diagnostics (including test assertions):"
-cat "$TRACE_OUTPUT"
-exit 1
+if [ "$FAILED" -eq 0 ]; then
+    echo "[PASS] All HTTP parser tests passed"
+else
+    echo "[FAIL] HTTP parser tests failed"
+fi
+
+exit "$FAILED"
