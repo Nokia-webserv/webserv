@@ -6,7 +6,7 @@
 /*   By: atammur <atammur@student.42berlin.de>      +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/11/06 22:25:55 by damohame          #+#    #+#             */
-/*   Updated: 2026/11/13 19:06:31 by atammur          ###   ########.fr       */
+/*   Updated: 2026/11/17 01:57:29 by atammur          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -64,6 +64,9 @@ class Router
         void handleGet(const HttpRequest& request, HttpResponse& response, RouteDecision& result);
         void handlePost(const HttpRequest& request, HttpResponse& response, const LocationConfig& location);
         void handleDelete(const HttpRequest& request, HttpResponse& response, const LocationConfig& location);
+        
+        void handleRedirect(const HttpRequest& request, int statusCode, const std::string& targetUrl, HttpResponse& response);
+        std::string getRedirectCode(int code) const;
         
         void setResponseBody(HttpResponse& response, const std::string& path, int statusCode,
             const std::string& reason);

@@ -31,7 +31,8 @@ jobs:
         run: make integration
 
       - name: GET integration tests
-        env:
-          # Remove this flag once directory redirects are integrated.
-          SKIP_GET_REDIRECT_TESTS: "1"
         run: bash tests/methods/test_get.sh
+
+      - name: Run redirect tests
+        if: success() || failure()
+        run: make redirect-test

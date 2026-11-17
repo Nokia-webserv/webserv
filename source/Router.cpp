@@ -6,7 +6,7 @@
 /*   By: atammur <atammur@student.42berlin.de>      +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/11/06 22:50:16 by damohame          #+#    #+#             */
-/*   Updated: 2026/11/13 19:18:09 by atammur          ###   ########.fr       */
+/*   Updated: 2026/11/17 02:38:04 by atammur          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -200,12 +200,12 @@ RouteDecision Router::route(const HttpRequest& request, const Listener& listener
     // 4- check the redirect
     if (result.location->has_redirect)
     {
-        //result.type = RouteDecision::ROUTE_REDIRECT;
-        //result.errorCode = 0;
-        // next pr
-        // build the redirect response
-       // handleRedirect(request, *result.location, response);
-        //return result;
+        result.type = RouteDecision::ROUTE_REDIRECT;
+        result.errorCode = 0;
+
+        //build the redirect response
+        handleRedirect(request, result.location->redirect_code, result.location->redirect_url,response);
+        return result;
     }
     
     // 5- CGI 
@@ -423,6 +423,43 @@ void Router::handleError(const HttpRequest& request, const RouteDecision& result
     }
 }
 
+// redirect reason based on the code
+std::string Router::getRedirectCode(int code) const
+{
+    switch (code)
+    {
+        case 301: return "Moved Permanently";
+        case 302: return "Found";
+
+        // default in case of wrong error
+        default:  return "";
+    }
+}
+
+
+// build the Http redirect response
+void Router::handleRedirect(const HttpRequest& request, int statusCode, const std::string& targetUrl,HttpResponse& response)
+{
+    // set the version and redirect code
+    response.setVersion(request.getVersion());
+    response.setStatusCode(statusCode);
+    
+    
+    // set the reason phrase based on the redirect code
+    std::string reason;
+    reason = getRedirectCode(statusCode);
+    response.setReasonPhrase(reason);
+    
+    // set the redirect header response
+    response.setHeader("Location", targetUrl);
+    
+    std::ostringstream path;
+    // default path for redirect pages
+    path << "./www/redirects/" << statusCode << ".html";
+
+    setResponseBody(response, path.str(), statusCode, reason);
+}
+
 int Router::parserErrorToStatus(HttpRequestError error)
 {
     switch (error)
@@ -537,8 +574,11 @@ void Router::serveDir(const HttpRequest& request, HttpResponse& response, RouteD
     if (!requestPath.empty() && requestPath[requestPath.size() - 1] != '/') {
         //redirect to url with '/'
         result.type = RouteDecision::ROUTE_REDIRECT;
-        // TODO: restore after integrating handleRedirect; redirect tests are excluded for now.
-        // handleRedirect(request, 301, requestPath + "/", response);
+        //handle redirect with query or without
+        if (!request.getRawQuery().empty())
+            handleRedirect(request, 301, urlEncodePath(requestPath) + "/?" + request.getRawQuery(), response);
+        else
+            handleRedirect(request, 301, urlEncodePath(requestPath) + "/", response);
         return ;
     }
     

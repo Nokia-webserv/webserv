@@ -62,4 +62,7 @@ parser:
 integration:
 	bash tests/integration/run_tests.sh
 
-.PHONY: all clean fclean re build startup config accept parser integration
+redirect-test: $(NAME)
+	bash tests/redirects/redirects.sh ./webserv tests/redirects/redirect_test.conf
+
+.PHONY: all clean fclean re build startup config accept parser integration redirect-test

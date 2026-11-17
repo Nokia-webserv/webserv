@@ -49,14 +49,10 @@ mapping without changing server code. This is not a general symlink/security tes
 Permission tests are explicitly skipped for root. No directory ordering or exact
 HTML layout is assumed. Every HTTP request in the main suite is made by curl.
 
-## While handleRedirect is unfinished
+## Directory redirects
 
-```sh
-SKIP_GET_REDIRECT_TESTS=1 bash tests/methods/test_get.sh
-```
-
-This runs the 55 other scenarios and reports the three redirect cases as SKIP.
-Once handleRedirect is integrated, use the main command without the flag.
+All three directory-redirect checks are mandatory parts of the main command.
+The former SKIP_GET_REDIRECT_TESTS development flag no longer skips them.
 There are no automatic expected-failure allowances for redirects.
 
 ## Separate connection diagnostics
@@ -88,10 +84,10 @@ no production helpers or filesystem calls are mocked.
 ## Existing GitHub CI
 
 The .github/workflows/ci.yml runs the existing build, startup, config, TCP accept,
-HTTP parser and general integration suites, followed by a GET integration step.
-The GET step invokes tests/methods/test_get.sh once with SKIP_GET_REDIRECT_TESTS=1.
-It runs automatically on push and pull_request. Remove the flag once directory
-redirects are integrated. The runner builds its own temporary server.
+HTTP parser and general integration suites, followed by a GET integration step
+and the configured-redirect tests from main. The GET step invokes
+tests/methods/test_get.sh with all directory redirects enabled. It runs
+automatically on push and pull_request. The runner builds its own temporary server.
 
 Helper/component suites and the separate connection diagnostic are not invoked
 by this new step. The diagnostic still exposes the unfinished HTTP/1.0 closure.
@@ -112,9 +108,6 @@ bash tests/methods/get_file/test_get_file.sh
 bash tests/methods/get_dir/test_get_dir.sh
 ```
 
-While redirects are unfinished, prefix the directory component command with
-SKIP_GET_REDIRECT_TESTS=1 as well.
-
 For all helper/component tests plus the GET HTTP suite together:
 
 ```sh
@@ -122,5 +115,5 @@ bash tests/methods/run_tests.sh
 ```
 
 The combined runner is an optional diagnostic command. It is not needed when
-you only want to check GET through the server. The same temporary redirect flag
-can be applied to it during development.
+you only want to check GET through the server. Directory redirects are included
+in both the directory component and HTTP integration checks.
