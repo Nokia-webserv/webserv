@@ -33,6 +33,9 @@ jobs:
       - name: Timeout tests 
         run: make timeout-test
         
+      - name: GET integration tests
+        run: bash tests/methods/test_get.sh
+
       - name: Run redirect tests
         if: success() || failure()
         run: make redirect-test

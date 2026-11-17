@@ -12,3 +12,4 @@ struct IntLongOverflow
 IntLongOverflow strToIntLongOverflow(const std::string & type, const std::string & s_number);
 std::string strTolower(std::string str);
 void trimStr(std::string & value);
+std::string toString(size_t val);
