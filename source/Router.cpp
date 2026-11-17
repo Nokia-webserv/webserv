@@ -6,7 +6,7 @@
 /*   By: atammur <atammur@student.42berlin.de>      +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/11/06 22:50:16 by damohame          #+#    #+#             */
-/*   Updated: 2026/11/17 02:38:04 by atammur          ###   ########.fr       */
+/*   Updated: 2026/11/17 02:52:54 by atammur          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -560,7 +560,6 @@ void Router::serveFile(const HttpRequest& request, HttpResponse& response, Route
             std::map<std::string, std::string> headers;
             headers["Content-Type"] = getContentType(path);
             headers["Content-Length"] = toString(body.size());
-            //get vector of headers
             fillResponse(response, request.getVersion(), 200, headers, body);
             close(fd);
         }
@@ -598,7 +597,7 @@ void Router::serveDir(const HttpRequest& request, HttpResponse& response, RouteD
             handleFileError(errno, request, response, result);
             return ;
         }
-        //if we have index file
+        //if we have regular index file
         if (indexStatus == 0 && S_ISREG(fileInfo.st_mode)) {
             // just serve the file
             serveFile(request, response, result, indexPath);
@@ -751,8 +750,7 @@ std:: string Router::urlEncodePath(std::string path) {
 // result: ./www/pictures/holiday/cat.png
 
 // Resolves a VALIDATED(!) request URI against the matched
-// location root. URI normalization is handled by Router (issue #107)
-// can be used for DELETE; POST possibly partly due to upload_store directive
+// location root. URI normalization is handled by Router
 std::string Router::buildPath(const std::string& requestPath, const LocationConfig& location) {
     std::string path;
     std::string pathFromRequest;
@@ -791,7 +789,6 @@ void Router::handleFileError(int errorNum, const HttpRequest& request, HttpRespo
 // std::string _reasonPhrase;
 // std::map<std::string, std::string> _headers;
 // std::string _body;
-//router method?
 void Router::fillResponse(
     HttpResponse& response, 
     const std::string& version, 
@@ -807,7 +804,6 @@ void Router::fillResponse(
     response.setBody(body);
 }
 
-//router method
 std::string Router::getReasonPhrase(int statusCode) {
     std::map<int, std::string> reasons;
     
@@ -881,15 +877,6 @@ std::string Router::getContentType(const std::string& path) {
     
     return it->second;
 }
-
-
-
-
-
-
-
-
-
 
 void Router::handlePost(const HttpRequest& request, HttpResponse& response, const LocationConfig& location)
 {
