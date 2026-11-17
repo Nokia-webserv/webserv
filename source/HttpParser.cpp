@@ -315,6 +315,7 @@ bool HttpParser::_parseRequestLine()
     {
         _parsedRequest.setPath(temp);
         _parsedRequest.setQuery(pathAndQuery);
+        _parsedRequest.setRawQuery(pathAndQuery);
     }
     // if no '?' is present -> pathAndQuery remains unchanged, containing only path
     else

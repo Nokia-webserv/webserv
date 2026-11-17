@@ -6,7 +6,8 @@ HttpRequest::HttpRequest(): _headerSize(0)  {}
 HttpRequest::HttpRequest(const HttpRequest& other) 
 :   _method(other._method), 
     _path(other._path), 
-    _query(other._query), 
+    _query(other._query),
+    _rawQuery(other._rawQuery),
     _version(other._version), 
     _headers(other._headers), 
     _body(other._body),
@@ -18,6 +19,7 @@ HttpRequest& HttpRequest::operator=(const HttpRequest& other) {
         _method = other._method;
         _path = other._path;
         _query = other._query;
+        _rawQuery = other._rawQuery;
         _version = other._version;
         _headers = other._headers;
         _body = other._body;
@@ -32,6 +34,7 @@ void HttpRequest::clear()
     _method.clear();
     _path.clear();
     _query.clear();
+    _rawQuery.clear();
     _version.clear();
     _headers.clear();
     _body.clear();
@@ -47,6 +50,9 @@ std::string HttpRequest::getPath() const {
 }
 std::string HttpRequest::getQuery() const {
     return _query;
+}
+std::string HttpRequest::getRawQuery() const {
+    return _rawQuery;
 }
 std::string HttpRequest::getVersion() const {
     return _version;
@@ -77,6 +83,9 @@ void HttpRequest::setPath(const std::string& path) {
 }
 void HttpRequest::setQuery(const std::string& query) {
     _query = query;
+}
+void HttpRequest::setRawQuery(const std::string& rawQuery) {
+    _rawQuery = rawQuery;
 }
 void HttpRequest::setVersion(const std::string& version) {
     _version = version;
