@@ -6,7 +6,7 @@
 /*   By: damohame <damohame@student.42berlin.d>     +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/10/02 16:24:40 by damohame          #+#    #+#             */
-/*   Updated: 2026/11/12 00:24:52 by damohame         ###   ########.fr       */
+/*   Updated: 2026/11/17 22:49:12 by damohame         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -92,14 +92,15 @@ Listener *Server::findListenerByFd(int fd) const
 	return NULL;
 }
 
-int Server::findClientByCGIfd(int fd) const
+int Server::findClientByCGIfd(int searchedCGIfd) const
 {
-    // cycles through each client and each cgi object until cgi ids match
-    for (std::map<int, ClientConnection*>::const_iterator i = clients.begin(); i != clients.end(); ++i)
+    // cycles through each client and until cgi ids match
+    for (std::map<int, ClientConnection*>::const_iterator int_cc = clients.begin(); int_cc != clients.end(); ++int_cc)
     {
-        const std::map<int, CGI*>& cgiMap = i->second->cgiMap;
-        if (cgiMap.find(fd) != cgiMap.end())
-            return i->first; // client fd
+        const CGI* clientCGI = int_cc->second->cgi;
+
+        if (clientCGI && clientCGI->getFd() == searchedCGIfd)
+            return int_cc->first; // client fd
     }
     return -1;
 }
@@ -195,20 +196,20 @@ void Server::run()
             // skips the fd without an event actually happening
             if (poll_fds[i].revents == 0)
                 continue;
-            
+
             //check if the fd belong to listening socket
             Listener *listener = findListenerByFd(poll_fds[i].fd);
 
-            if (listener != NULL)
+            if (listener)
                 handleListenersEvents(listener, poll_fds[i].revents);
-            int client_fd = findClientByCGIfd(poll_fds[i].fd);
-            if (!listener && client_fd > -1)
-                handleCGIevents(poll_fds[i].fd ,poll_fds[i].revents, client_fd);
-            else
+            int client_fd;
+            if (!listener && (client_fd = findClientByCGIfd(poll_fds[i].fd)) > -1)
+                handleCGIevents(client_fd, poll_fds[i].revents);
+            else if (!listener)
             {
                 // if not listener, not CGI then client
                 // get the client with the right fd
-               handleClientEvents(poll_fds[i].fd, poll_fds[i].revents);
+                handleClientEvents(poll_fds[i].fd, poll_fds[i].revents);
             }
     
         }
@@ -228,31 +229,27 @@ void Server::handleListenersEvents(Listener *listener, short revents)
         acceptNewConnections(listener);
 }
 
-void Server::handleCGIevents(int cgi_fd, short revents, int client_fd)
+void Server::handleCGIevents(int client_fd, short revents)
 {
     /* Error handling */
 
     bool error = false;
     
-    // finds current client
+    // finds current client and CGI
     std::map<int, ClientConnection*>::iterator int_cc = clients.find(client_fd); 
     if (int_cc == clients.end())
         error = true;
     ClientConnection* client;
-    if (!error)
-        client = int_cc->second;
-
-    // finds current cgi
-    std::map<int, CGI*>::iterator int_cgi;
     CGI* cgi;
     if (!error)
     {
-        int_cgi = client->cgiMap.find(cgi_fd);  
-        if (int_cgi == client->cgiMap.end())
-            error = true;
-        else
-            cgi = int_cgi->second;
+        client = int_cc->second;
+        cgi = client->cgi;
     }
+
+    // if cgi triggered poll but there is no cgi -> smth is wrong
+    if (!cgi)
+        error = true;
     
     // processes any kind of error at this stage
     if (error || (revents & (POLLNVAL | POLLERR))) 
@@ -316,13 +313,16 @@ void Server::handleClientEvents(int fd, short revents)
                   // << " POLLERR=" << (bool)(revents & POLLERR)
                   // << std::endl;
         // DEBUG END
-        
+
         // socket + invalid fd errors
         if (revents & (POLLERR | POLLNVAL))
         {
             disconnectClient(fd);
             return;
         }
+        // pevents from processing further requests until CGI finishes
+        if (client->second->hasRunningCGI())
+            return;
         // client socket has data to be read
         if (revents & POLLIN)
         {            
@@ -370,6 +370,8 @@ void Server::handleClientEvents(int fd, short revents)
             return;
         }
     }
+    else
+        std::cout << "not found\n";
 }
 
 // Removes and cleans up a client connection by its fd.
@@ -387,7 +389,7 @@ void Server::disconnectClient(int fd)
     
     // DEBUG START HTTP_POLL_LOOP
     // std::cout << "[CLIENT] Disconnecting fd=" << fd
-              // << std::endl;
+    //      << std::endl;
     // DEBUG END
     
     delete client->second;
@@ -408,9 +410,30 @@ void Server::checkClientTimeout()
          it != clients.end(); ++it)
     {
         ClientConnection& client = *(it->second);
+               
+        // 1- check pending outgoing data
+        if (client.hasDataToSend())
+        {
+                time_t stalledSeconds = now - client.getServerLastWrite();
+                
+                if (stalledSeconds >= GLOBAL_CLIENT_TIMEOUT_SECONDS)
+                {
+                    //std::cout << "[TIMEOUT] Stalled write | fd=" << it->first
+                    //<< " | stalled=" << stalledSeconds << "s"
+                    //<< std::endl;
+                    
+                    timedOutClients.push_back(it->first);  
+                }
+                continue;
+        }
+        
+        // if already the server will close the response
+        // wait for POLLOUT to finish
+        if (client.shouldCloseAfterResponse())
+                continue;
+        // 2- inactive time calculation, add in the vector
         time_t inactiveSeconds = now - client.getClientLastActive();
-
-        // inactive time calculation, add in the vector
+        
         if (inactiveSeconds >= GLOBAL_CLIENT_TIMEOUT_SECONDS)
         {
             // TEST_INTEGRATION integrationLogEvent("timeout", it->first);
@@ -418,16 +441,7 @@ void Server::checkClientTimeout()
             /*std::cout << "Client FD: " << it->first << " timed out after " 
             << inactiveSeconds << " seconds" << std::endl;*/ 
 
-            // if already the server will close the response
-            // wait for POLLOUT to finish
-            if (client.shouldCloseAfterResponse())
-                continue;
 
-            // sendbuffer has data to be send
-            if (client.hasDataToSend())
-            {
-                continue;
-            }
             // prepare and sent the timeout error 
             if (client.hasIncompleteRequest())
             {
@@ -471,7 +485,7 @@ void Server::checkCGItimeout()
     for (int_cc = clients.begin(); int_cc != clients.end(); ++int_cc)
     {   
         cc = int_cc->second;
-        for (int_cgi = cc->cgiMap.begin(); int_cgi != cc->cgiMap.end(); ++int_cgi)
+        /* for (int_cgi = cc->cgiMap.begin(); int_cgi != cc->cgiMap.end(); ++int_cgi)
         {
             cgi = int_cgi->second;
             now = std::time(NULL);
@@ -479,7 +493,7 @@ void Server::checkCGItimeout()
             {
                 handleCGIevents(cgi->getFd(), POLLERR, cc->getFd());
             }
-        }
+        } */
     }
 }
 
@@ -545,10 +559,10 @@ void Server::buildPollFds()
 
         // 3 - CGI fds
         ClientConnection& currentClient = *(it->second);
-        std::map<int, CGI*>& cgiMap = currentClient.cgiMap; // each client tracks all its cgi scripts
-        for (std::map<int, CGI*>::iterator int_cgi = cgiMap.begin(); int_cgi != cgiMap.end(); ++int_cgi)
+        CGI* cgi = currentClient.cgi;
+        if (cgi)
         {
-            pfd.fd = int_cgi->first;
+            pfd.fd = cgi->getFd();
             pfd.events = 0 | POLLIN; // server waits for data to be read from child process
             pfd.revents = 0;
             poll_fds.push_back(pfd);
@@ -709,16 +723,18 @@ void Server::processHttpInput(ClientConnection &client)
             // create the http response that we will save in the response
             HttpResponse response;
             // call the route function
-            RouteDecision decision = router.route(client.getHttpRequest(), client.getListener(), response, client.cgiMap);
+            RouteDecision decision = router.route(client.getHttpRequest(), client.getListener(), response, client.cgi);
 
             // updated later
             (void) decision;
             // TEMPORARY: Test the routing decision
             //printRouteDecision(decision);
 
-            // adding the generated HTTP error response for sending.
+            // Queue the generated HTTP response for sending.
             if (decision.type == RouteDecision::ROUTE_ERROR
-                || decision.type == RouteDecision::ROUTE_REDIRECT)
+                || decision.type == RouteDecision::ROUTE_REDIRECT ||
+                (decision.type == RouteDecision::ROUTE_SERVE &&
+                client.getHttpRequest().getMethod() == "GET"))
             {
                 client.addDataToSend(response.serialize());
             }

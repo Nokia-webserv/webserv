@@ -1,14 +1,15 @@
 #include "CGI.hpp"
+#include "Router.hpp"
 #include <iostream>
 #include <ctime>
 #include <poll.h>
 
-CGI::CGI(const HttpRequest & request, HttpResponse & response, RouteDecision decision, const std::string& cgi_extension, std::map<int, CGI*>& cgiMap)
+CGI::CGI(const HttpRequest & request, HttpResponse & response, RouteDecision decision, const std::string& cgi_extension, CGI*& myPtrInMyClient)
 :   extension(cgi_extension),
     interpreterPath(decision.location->cgi_handlers.find(cgi_extension)->second),
-    clientsCGImap(cgiMap),
     request(request),
     response(response),
+    myPtrInMyClient(myPtrInMyClient), // NULL
     decision(decision),
     pid(-2),
     responseReady(false),
@@ -48,7 +49,8 @@ void CGI::resolveScriptPath(const HttpRequest & request, const LocationConfig & 
 
 void CGI::setArgv(const HttpRequest & request, const LocationConfig & location)
 {
-    resolveScriptPath(request, location);
+    scriptPath = Router::buildPath(request.getPath(), location);
+    std::cout << "Script path: " << scriptPath << "\n";
 
     argv.push_back(const_cast<char*>(interpreterPath.c_str()));
     argv.push_back(const_cast<char*>(interpreterPath.c_str()));
@@ -59,21 +61,17 @@ void CGI::setArgv(const HttpRequest & request, const LocationConfig & location)
 // prepares environmental arguments for execve (implemented as per current needs)
 void CGI::setEnvp(const HttpRequest & request/*, std::vector<std::string> envp_required*/) /*in case other cgi scripts will be supported*/
 {
-    std::string tempEnvp[3];
-
     // size_t s = envp_required.size();
     //for (size_t i = 0; i < s; i++) {
-    tempEnvp[0] = "\"REQUEST_METHOD=" + request.getMethod() + "\"";
-    tempEnvp[1] = "\"PATH=" + request.getPath() + "\"";
+    envp_str.push_back ("\"REQUEST_METHOD=" + request.getMethod() + "\"");
+    envp_str.push_back("\"PATH=" + request.getPath() + "\"");
     if (request.getHeaders().find("content-length") != request.getHeaders().end())
-        tempEnvp[2] = "\"CONTENT_LENGTH=" + request.getHeaders().find("content-length")->second + "\"";
-    else
-        tempEnvp[2] = "";
+        envp_str.push_back("\"CONTENT_LENGTH=" + request.getHeaders().find("content-length")->second + "\"");
     
-    envp.push_back(const_cast<char*>(tempEnvp[0].c_str()));
-    envp.push_back(const_cast<char*>(tempEnvp[1].c_str()));
-    if (!tempEnvp[2].empty())
-        envp.push_back(const_cast<char*>(tempEnvp[2].c_str()));
+    envp.push_back(envp_str[0].c_str());
+    envp.push_back(envp_str[1].c_str());
+    if (envp_str.size() == 3)
+        envp.push_back(envp_str[2].c_str());
     envp.push_back(NULL);
     //}
 }
@@ -106,12 +104,12 @@ void CGI::terminateChildProcess()
 void CGI::cleanUp(bool eraseFromMap) 
 {
     // allows correct destructor call from ClientConnection
-    if (eraseFromMap)
+    /* if (eraseFromMap)
     {
         std::map<int, CGI*>::iterator int_cgi = clientsCGImap.find(pipeWrite[0]);
         if (int_cgi != clientsCGImap.end())
             clientsCGImap.erase(int_cgi->first);
-    }
+    } */
 
     // closes all open pipe ends
     int* pipe_ends[4] = {&pipeRead[0], &pipeRead[1], &pipeWrite[0], &pipeWrite[1]};
@@ -197,8 +195,8 @@ void CGI::runScript()
     close(pipeWrite[1]);
     pipeWrite[1] = -1;
     this->pid = pid;
-    // saves the object in ClientConnection -> gets into into list of poll_fds
-    clientsCGImap[pipeWrite[0]] = this;
+    // if run successfully -> record in client -> add to poll
+    myPtrInMyClient = this;
 }
 
 // reads until EOF then builds response

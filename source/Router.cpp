@@ -6,7 +6,7 @@
 /*   By: damohame <damohame@student.42berlin.d>     +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/11/06 22:50:16 by damohame          #+#    #+#             */
-/*   Updated: 2026/11/12 00:40:02 by damohame         ###   ########.fr       */
+/*   Updated: 2026/11/17 23:56:58 by damohame         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -14,8 +14,16 @@
 #include "CGI.hpp"
 #include "HttpResponse.hpp"
 #include <cctype>
+#include <iomanip>
+#include <iostream>
 #include <sstream>
 #include <fstream>
+#include <sys/stat.h>
+#include <cerrno>
+#include <dirent.h>
+#include <fcntl.h>
+#include <unistd.h> 
+#include "utils.hpp"
 
 Router::Router()
 {}
@@ -149,6 +157,40 @@ const ServerConfig* Router::selectServer(const HttpRequest& request, const Liste
     return configs[0];
 }
 
+// checks whether the request body exeeds the max_body_size limit
+// the location limit ovverride the servr limit when configured
+bool Router::isBodySizeAllowed(const HttpRequest& request, const ServerConfig& server, const LocationConfig& location) const
+{
+    // get the server limit as a start
+    long maxBodySize = server.client_max_body_size;
+    
+    // check for the location specific configuration 
+    // if available
+    if (location.client_max_body_size >= 0)
+        maxBodySize = location.client_max_body_size;
+
+    
+    // Check whether the body fits within the effective limit.
+    return (maxBodySize >= 0 && request.getBody().size() <= static_cast<size_t>(maxBodySize));
+}
+
+//check if the request exceeds the allowed header size
+bool Router::isHeaderSizeAllowed(const HttpRequest& request, const ServerConfig& server, const LocationConfig& location) const
+{
+    // get the server limit as a start
+    long maxHeaderSize = server.client_max_header_size;
+    
+    // check for the location specific configuration 
+    // if available
+    if (location.client_max_header_size >= 0)
+        maxHeaderSize = location.client_max_header_size;
+
+    
+    // Check whether the header fits within the effective limit.
+    return (maxHeaderSize >= 0 && request.getHeaderSize() <= static_cast<size_t>(maxHeaderSize));
+}
+
+
 // 1- select the virtual server
 // 2 match the location
 // 3- if the method allowed
@@ -157,7 +199,7 @@ const ServerConfig* Router::selectServer(const HttpRequest& request, const Liste
 // 6- methods handler
 // - Httpresponse
 // - error handler
-RouteDecision Router::route(const HttpRequest& request, const Listener& listener, HttpResponse& response, std::map<int, CGI*>& cgiMap)
+RouteDecision Router::route(const HttpRequest& request, const Listener& listener, HttpResponse& response, CGI*& cgiRef)
 {
     RouteDecision result;
     result.errorCode = 0;
@@ -181,6 +223,24 @@ RouteDecision Router::route(const HttpRequest& request, const Listener& listener
         return result;
     }
 
+    // extra step--- check for limit size validation
+    if (!isHeaderSizeAllowed(request, *result.server, *result.location))
+    {
+        result.type = RouteDecision::ROUTE_ERROR;
+        result.errorCode = 431;
+        handleError(request, result, response);
+        return result;
+    }
+    
+    // extra step--- check for limit size validation
+    if (!isBodySizeAllowed(request, *result.server, *result.location))
+    {
+        result.type = RouteDecision::ROUTE_ERROR;
+        result.errorCode = 413;
+        handleError(request, result, response);
+        return result;
+    }
+
     // 3- check if method is allowed
     if (!isMethodAllowed(request.getMethod(), *result.location))
     {
@@ -193,12 +253,12 @@ RouteDecision Router::route(const HttpRequest& request, const Listener& listener
     // 4- check the redirect
     if (result.location->has_redirect)
     {
-        //result.type = RouteDecision::ROUTE_REDIRECT;
-        //result.errorCode = 0;
-        // next pr
-        // build the redirect response
-       // handleRedirect(request, *result.location, response);
-        //return result;
+        result.type = RouteDecision::ROUTE_REDIRECT;
+        result.errorCode = 0;
+
+        //build the redirect response
+        handleRedirect(request, result.location->redirect_code, result.location->redirect_url,response);
+        return result;
     }
     
     // 5- CGI 
@@ -208,7 +268,7 @@ RouteDecision Router::route(const HttpRequest& request, const Listener& listener
     std::string ext;
     if (hasCGIextension(request.getPath(), result.location->cgi_handlers, ext))
     {
-        handleCGI(request, response, result, ext, cgiMap);
+        handleCGI(request, response, result, ext, cgiRef);
         if (result.errorCode)
         {
             result.type = RouteDecision::ROUTE_ERROR;
@@ -216,11 +276,12 @@ RouteDecision Router::route(const HttpRequest& request, const Listener& listener
             return result;
         }
         result.type = RouteDecision::ROUTE_CGI;
+        return result;
     }
     
     // 6- method handler one request at a time
     if (request.getMethod() == "GET")
-        handleGet(request, response, *result.location);
+        handleGet(request, response, result);
     else if (request.getMethod() == "POST")
         handlePost(request, response, *result.location);
     else if (request.getMethod() == "DELETE")
@@ -231,7 +292,7 @@ RouteDecision Router::route(const HttpRequest& request, const Listener& listener
 
 std::string extractExtension(const std::string & path)
 {
-    size_t dotPos = path.find(".");
+    size_t dotPos = path.find_last_of(".");
     if (dotPos == std::string::npos)
         return "";
 
@@ -457,6 +518,43 @@ void Router::handleError(const HttpRequest& request, const RouteDecision& result
     }
 }
 
+// redirect reason based on the code
+std::string Router::getRedirectCode(int code) const
+{
+    switch (code)
+    {
+        case 301: return "Moved Permanently";
+        case 302: return "Found";
+
+        // default in case of wrong error
+        default:  return "";
+    }
+}
+
+
+// build the Http redirect response
+void Router::handleRedirect(const HttpRequest& request, int statusCode, const std::string& targetUrl,HttpResponse& response)
+{
+    // set the version and redirect code
+    response.setVersion(request.getVersion());
+    response.setStatusCode(statusCode);
+    
+    
+    // set the reason phrase based on the redirect code
+    std::string reason;
+    reason = getRedirectCode(statusCode);
+    response.setReasonPhrase(reason);
+    
+    // set the redirect header response
+    response.setHeader("Location", targetUrl);
+    
+    std::ostringstream path;
+    // default path for redirect pages
+    path << "./www/redirects/" << statusCode << ".html";
+
+    setResponseBody(response, path.str(), statusCode, reason);
+}
+
 int Router::parserErrorToStatus(HttpRequestError error)
 {
     switch (error)
@@ -501,14 +599,380 @@ void Router::handleParserError(const HttpRequest& request, const Listener &liste
     
 }
 
-
-void Router::handleGet(const HttpRequest& request, HttpResponse& response, const LocationConfig& location)
+void Router::handleGet(const HttpRequest& request, HttpResponse& response, RouteDecision& result)
 {
-    (void)request;
-    (void)response;
-    (void) location;
-    //to be implemented: Get handler
+    //  1.build path from URL and locationConfig
+    std::string path = buildPath(request.getPath(), *result.location);
+
+    //  2.check whats inside the path. we use sys/stat lib for that. 
+    // (stat() is specifically allowed in subject)
+    // S_ISREG (is regular file) and S_ISDIR are macros for st_mode from sys/stat.
+    struct stat info;
+    
+    //if cant get file info. handle file opening error
+    if (stat(path.c_str(), &info) == -1) {
+        handleFileError(errno, request, response, result);
+        return ;
+    }
+    //if file
+    else if (S_ISREG(info.st_mode))
+        serveFile(request, response, result, path);  
+    //if directory
+    else if (S_ISDIR(info.st_mode))
+        serveDir(request, response, result, path);
+    //if no file nor dir
+    else {
+        result.type = RouteDecision::ROUTE_ERROR;
+        result.errorCode = 403;
+        handleError(request, result, response);
+    }
 }
+
+void Router::serveFile(const HttpRequest& request, HttpResponse& response, RouteDecision& result, std::string& path) {
+    //read and fill response
+        int fd = open(path.c_str(), O_RDONLY);
+        
+        if (fd == -1) {
+            handleFileError(errno, request, response, result);
+            return ;
+        }
+        else
+        {
+            std::string body;
+            char buf[1000];
+            ssize_t bytesRead;
+            
+            while ((bytesRead = read(fd, buf, sizeof(buf))) > 0) {
+                body.append(buf, bytesRead);
+            }
+            if (bytesRead == -1) {
+                close(fd);
+                //after read() we are not allowed to use errno, so we pass generic -1.
+                handleFileError(-1, request, response, result);
+                return ;
+            }
+            //if successfully read, check file format and fill headers map to pass to response.
+            std::map<std::string, std::string> headers;
+            headers["Content-Type"] = getContentType(path);
+            headers["Content-Length"] = toString(body.size());
+            fillResponse(response, request.getVersion(), 200, headers, body);
+            close(fd);
+        }
+        return ;
+}
+
+void Router::serveDir(const HttpRequest& request, HttpResponse& response, RouteDecision& result, std::string& path) {
+    std::string requestPath = request.getPath();
+    
+    //if url doesnt end with '/'
+    if (!requestPath.empty() && requestPath[requestPath.size() - 1] != '/') {
+        //redirect to url with '/'
+        result.type = RouteDecision::ROUTE_REDIRECT;
+        //handle redirect with query or without
+        if (!request.getRawQuery().empty())
+            handleRedirect(request, 301, urlEncodePath(requestPath) + "/?" + request.getRawQuery(), response);
+        else
+            handleRedirect(request, 301, urlEncodePath(requestPath) + "/", response);
+        return ;
+    }
+    
+    //check index only if it is in config and is not empty
+    if (!result.location->index.empty()) {
+        std::string indexPath = path;
+        //create a new path to index file
+        if (indexPath[indexPath.size() - 1] != '/')
+            indexPath.append("/");
+        indexPath.append(result.location->index);
+        
+        //check index file
+        struct stat fileInfo;
+        
+        int indexStatus = stat(indexPath.c_str(), &fileInfo);
+        if (indexStatus == -1 && errno != ENOENT && errno != ENOTDIR) {
+            handleFileError(errno, request, response, result);
+            return ;
+        }
+        //if we have regular index file
+        if (indexStatus == 0 && S_ISREG(fileInfo.st_mode)) {
+            // just serve the file
+            serveFile(request, response, result, indexPath);
+            return ;
+        }
+        //if we have non regular index file
+        else if (indexStatus == 0 && !S_ISREG(fileInfo.st_mode)) {
+            result.type = RouteDecision::ROUTE_ERROR;
+            result.errorCode = 403;
+            handleError(request, result, response);
+            return ;
+        }
+    }
+    //if no index file is set up in config OR we couldnt find it
+    //if autoindex on -> generate files list
+    if (result.location->autoindex) {
+        try {
+            std::string body = generateFilesList(path, requestPath);
+            std::map<std::string, std::string> headers;
+            headers["Content-Type"] = "text/html";
+            headers["Content-Length"] = toString(body.size());
+            fillResponse(response, request.getVersion(), 200, headers, body);
+        }
+        catch (int errNum) {
+            handleFileError(errNum, request, response, result);
+        }
+    }
+    //if autoindex off -> handle error response 403
+    else {
+        result.type = RouteDecision::ROUTE_ERROR;
+        result.errorCode = 403;
+        handleError(request, result, response);
+    }
+}
+
+//our server needs to generate a html body with the list of dir entry for response.
+//here we use dirent.h - format of directory entries. 
+//opendir(), readdir() and closedir() are specifically allowed in subject.
+std::string Router::generateFilesList(std::string& dirPath, std::string& requestPath) {
+    std::ostringstream filesList;
+    filesList << "<html><body><ul>\n";
+    //open directory for reading entries names
+    DIR* dir = opendir(dirPath.c_str());
+    if (dir == NULL) {
+        throw errno;
+    }
+    
+    //add parent directory to html (like nginx)
+    if (requestPath != "/")
+        filesList << "<li><a href=\"../\">../</a></li>\n";
+        
+    //for each entry create html link like this <li><a href="/images/cat.jpg">cat.jpg</a></li>
+    struct dirent* entry;
+    while (true) {
+        errno = 0; //set errno to 0 according to readdir() manpage
+        entry = readdir(dir);
+        
+        if (entry == NULL) {
+            //check for errors
+            if (errno != 0) {
+                int errNum = errno; //protect errno from closedir()
+                closedir(dir);
+                throw errNum;
+            }
+            break;
+        }
+
+        //skip . and ..
+        std::string filename = entry->d_name;
+        if (filename == "." || filename == "..")
+            continue;
+
+        filesList   << "<li><a href=\""
+                    << escapeHtml(urlEncodePath(requestPath + filename))
+                    << "\">" 
+                    << escapeHtml(filename)
+                    << "</a></li>\n";
+    }
+    if (closedir(dir) == -1)
+        throw errno;
+    filesList << "</ul></body></html>";
+    return filesList.str();
+}
+
+// &	&amp;
+// <	&lt;
+// >	&gt;
+// "	&quot;
+// '	&#39;
+std:: string Router::escapeHtml(std::string input) {
+    std::string escaped;
+
+    for (size_t i = 0; i < input.size(); i++) {
+        switch (input[i]) {
+            case '&': 
+                escaped += "&amp;";
+                break;
+            case '<': 
+                escaped += "&lt;";
+                break;
+            case '>': 
+                escaped += "&gt;";
+                break;
+            case '\"': 
+                escaped += "&quot;";
+                break;
+            case '\'': 
+                escaped += "&#39;";
+                break;
+            default: 
+                escaped += input[i];
+        }
+    }
+    return escaped;
+}
+
+//we decode it in request parser, need to encode back for response
+std:: string Router::urlEncodePath(std::string path) {
+    std::string encoded;
+    std::string allowed = 
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+    "abcdefghijklmnopqrstuvwxyz"
+    "0123456789-._~/";
+    
+    //if normal chars - we copy them straight
+    for (size_t i = 0; i < path.size(); i++) {
+        if (allowed.find(path[i]) != std::string::npos) {
+            encoded += path[i];
+            continue;
+        }
+
+        //if need to encode - we encode back to hex
+        std::ostringstream ss;
+
+        ss << "%" 
+        << std::hex 
+        << std::uppercase 
+        << std::setfill('0') //fill with leading 0 if needed
+        << std::setw(2) //gotta be 2 digits
+        << static_cast<int>(static_cast<unsigned char>(path[i])); //unsigned char for UTF-8
+        encoded += ss.str();
+    }
+    return encoded;
+}
+
+// according to subject:
+// requestPath:   /images/holiday/cat.png
+// location.path: /images
+// location.root: ./www/pictures
+// result: ./www/pictures/holiday/cat.png
+
+// Resolves a VALIDATED(!) request URI against the matched
+// location root. URI normalization is handled by Router
+std::string Router::buildPath(const std::string& requestPath, const LocationConfig& location) {
+    std::string path;
+    std::string pathFromRequest;
+
+    path.append(location.root);
+    
+    //add slash to path if doesnt end with one
+    if (!path.empty() && path[path.size() - 1] != '/')
+        path.append("/");
+        
+    pathFromRequest = requestPath.substr(location.path.size());
+    //remove leading slash from request path if has one
+    if (!pathFromRequest.empty() && pathFromRequest[0] == '/')
+        pathFromRequest.erase(0, 1);
+    
+    path.append(pathFromRequest);
+    return path;
+}
+
+void Router::handleFileError(int errorNum, const HttpRequest& request, HttpResponse& response, RouteDecision& result) {
+    if (errorNum == ENOENT || errorNum == ENOTDIR)
+            result.errorCode = 404;
+    else if (errorNum == EACCES)
+        result.errorCode = 403;
+    else {
+        //log to server and prepare a response
+        std::cerr << "File operation failed. ErrorNum: " << errorNum << std::endl;
+        result.errorCode = 500;
+    }
+    result.type = RouteDecision::ROUTE_ERROR;
+    handleError(request, result, response);
+}
+
+// std::string _version;
+// int _statusCode;
+// std::string _reasonPhrase;
+// std::map<std::string, std::string> _headers;
+// std::string _body;
+void Router::fillResponse(
+    HttpResponse& response, 
+    const std::string& version, 
+    int statusCode, 
+    const std::map<std::string, std::string>& headers, 
+    const std::string& body) {
+    response.setVersion(version);
+    response.setStatusCode(statusCode);
+    response.setReasonPhrase(getReasonPhrase(statusCode));
+    for (std::map<std::string, std::string>::const_iterator it = headers.begin(); it != headers.end(); ++it) {
+        response.setHeader(it->first, it->second);
+    }
+    response.setBody(body);
+}
+
+std::string Router::getReasonPhrase(int statusCode) {
+    std::map<int, std::string> reasons;
+    
+    reasons[200] = "OK";
+    reasons[201] = "Created";
+    reasons[204] = "No Content";
+
+    std::map<int, std::string>::const_iterator it = reasons.find(statusCode);
+    
+    if (it != reasons.end())
+        return it->second;
+
+    return "";
+}
+
+std::string Router::getContentType(const std::string& path) {
+    //we use nginx MIME.types most valuable(imo) types as inspiration
+    std::map<std::string, std::string> fileFormat;
+
+    // text and scripts
+    fileFormat["html"] = "text/html";
+    fileFormat["htm"] = "text/html";
+    fileFormat["css"] = "text/css";
+    fileFormat["js"] = "text/javascript";
+    fileFormat["txt"] = "text/plain";
+    fileFormat["json"] = "application/json";
+
+    // images
+    fileFormat["png"] = "image/png";
+    fileFormat["jpg"] = "image/jpeg";
+    fileFormat["jpeg"] = "image/jpeg";
+    fileFormat["gif"] = "image/gif";
+    fileFormat["svg"] = "image/svg+xml";
+    fileFormat["webp"] = "image/webp";
+    fileFormat["ico"] = "image/x-icon";
+
+    // fonts
+    fileFormat["woff"] = "font/woff";
+    fileFormat["woff2"] = "font/woff2";
+    fileFormat["ttf"] = "font/ttf";
+    fileFormat["otf"] = "font/otf";
+
+    // video
+    fileFormat["mp4"] = "video/mp4";
+    fileFormat["webm"] = "video/webm";
+
+    // audio
+    fileFormat["mp3"] = "audio/mpeg";
+    fileFormat["wav"] = "audio/wav";
+    fileFormat["ogg"] = "audio/ogg";
+    fileFormat["m4a"] = "audio/mp4";
+    fileFormat["aac"] = "audio/aac";
+
+    //find the last '.'
+    std::string::size_type dot = path.find_last_of('.');
+    std::string::size_type slash = path.find_last_of('/');
+    
+    //if theres no '.' or its directory name - return generic file type (nginx uses it as default/ unknown type in nginx.conf)
+    if (dot == std::string::npos || (slash != std::string::npos && dot < slash))
+        return "application/octet-stream";
+    
+    //get the formatName
+    std::string formatName = path.substr(dot + 1);
+    formatName = strTolower(formatName);
+    
+    //find in format type table
+    std::map<std::string, std::string>::const_iterator it = fileFormat.find(formatName);
+    //return generic type if not found
+    if (it == fileFormat.end())
+        return "application/octet-stream";
+    
+    return it->second;
+}
+
 void Router::handlePost(const HttpRequest& request, HttpResponse& response, const LocationConfig& location)
 {
     (void)request;
@@ -524,12 +988,12 @@ void Router::handleDelete(const HttpRequest& request, HttpResponse& response, co
     // to be implemented: Delete handler
 }
 
-void Router::handleCGI(const HttpRequest& request, HttpResponse& response, RouteDecision& result, const std::string& extension,std::map<int, CGI*>& cgiMap)
+void Router::handleCGI(const HttpRequest& request, HttpResponse& response, RouteDecision& result, const std::string& extension, CGI*& cgiRef)
 {
     CGI* cgi;
     
     try {
-        cgi = new CGI(request, response, result, extension, cgiMap);
+        cgi = new CGI(request, response, result, extension, cgiRef);
     }
     catch (...) {
         result.errorCode = 500;

@@ -18,6 +18,8 @@ class ClientConnection {
         ClientConnection(int fd, sockaddr_in * addr,const Listener* listener);
         ~ClientConnection();
 
+        CGI* cgi; // ptr to CGI object
+
         int getFd() const;
         std::string getIp() const;
         int getPort() const;
@@ -27,9 +29,8 @@ class ClientConnection {
         const HttpRequest& getHttpRequest() const;
         const std::string& getRecvBuffer() const;
         time_t getClientLastActive() const;
-        // Return the listener associated with this connection.
-        const Listener& getListener() const;
-        std::map<int, CGI*> cgiMap; // contains all actively running CGI scripts per client
+        const Listener& getListener() const; // Return the listener associated with this connection.
+        time_t getServerLastWrite() const;
 
         HttpParsingResult callParser();
         bool readData();
@@ -40,14 +41,15 @@ class ClientConnection {
         void updateLastActive();
         void setPendingHttpInput(bool value);
         void setCloseAfterResponse();
+        void updateServerLastWrite();
 
         bool hasDataToSend() const;
         bool isReadClosed() const;
         bool shouldCloseAfterResponse() const;
         bool hasPendingHttpInput() const;
-        // get the value from the parser
-        bool hasIncompleteRequest() const;
-        
+        bool hasIncompleteRequest() const; // get the value from the parser
+        bool hasRunningCGI() const;
+
         // testing
         //void printReceivedData() const;
 
@@ -77,4 +79,17 @@ class ClientConnection {
         // the listener connected to the client
         // Used by Router to select the correct virtual server
         const Listener* listener;
+
+        //this function performs the first step to select the max_body_size
+        // called in the client constructor
+        // finds the largest allowed body size across all servers and locations
+        // associate with the listener, then sets this limit in the 
+        // http parser.
+        void defineMaxBodySize();
+
+        // same logic as the defineMaxBodySize
+        // but for header
+        void defineMaxHeaderSize();
+        // to track the last write time
+        time_t serverLastWrite;
 };

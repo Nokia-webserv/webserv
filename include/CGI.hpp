@@ -25,7 +25,7 @@ enum terminationStatus
 /* This class represents each isntance of a CGI script in http request */
 class CGI {
     public:
-        CGI(const HttpRequest& request, HttpResponse& response, RouteDecision decision, const std::string& cgi_extension, std::map<int, CGI*>& cgiMap);
+        CGI(const HttpRequest& request, HttpResponse& response, RouteDecision decision, const std::string& cgi_extension, CGI*& myPtrInMyClient);
         ~CGI();
         
         const std::string extension;
@@ -34,6 +34,18 @@ class CGI {
         const HttpRequest request;
         HttpResponse response;
         RouteDecision decision;
+        CGI*& myPtrInMyClient; // ref to client class member holding ptr to this object
+
+        int getFd() const;
+        const std::string& getScriptPath() const;
+        const std::string& getArgv() const;
+        const std::vector<const char*>& getEnvp() const;
+        const std::string& getBuffer() const;
+        bool isResponseReady() const;
+        
+
+        void runScript();
+        void processOutput();
         
         int getFd() const;
         int getErrorCode() const;
@@ -54,7 +66,8 @@ class CGI {
         int pid;
         std::string scriptPath; // e.g. www/scripts/script.py
         std::vector<char*> argv; // for execve()
-        std::vector<char*> envp; // for execve()
+        std::vector<std::string> envp_str; // for execve()
+        std::vector<const char*> envp; // for execve()
         std::string cgiOutputBuffer; // collects partial CGI output
         bool responseReady; // indicates complete http response
         int& error_code;

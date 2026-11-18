@@ -1,7 +1,7 @@
 NAME = webserv
 
 CXX = c++
-CXXFLAGS = -Wall -Wextra -Werror -std=c++98
+CXXFLAGS = -Wall -Wextra -Werror -std=c++98 -g
 SPECIAL_FLAGS ?=
 
 INCLUDES = -Iinclude
@@ -63,4 +63,10 @@ parser:
 integration:
 	bash tests/integration/run_tests.sh
 
-.PHONY: all clean fclean re build startup config accept parser integration
+timeout-test: $(NAME)
+	bash tests/timeout/run_tests.sh ./webserv tests/timeout/timeout_test.conf
+
+redirect-test: $(NAME)
+	bash tests/redirects/redirects.sh ./webserv tests/redirects/redirect_test.conf
+
+.PHONY: all clean fclean re build startup config accept parser integration timeout-test redirect-test

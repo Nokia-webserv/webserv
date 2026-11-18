@@ -47,7 +47,7 @@ class Server {
         
         void handleListenersEvents(Listener *listener, short revents);
         void handleClientEvents(int fd, short revents);
-        void handleCGIevents(int cgi_fd, short revents, int client_fd);
+        void handleCGIevents(int client_fd, short revents);
         void disconnectClient(int fd);
         void checkClientTimeout();
         void checkCGItimeout(); // for frozen CGI's

@@ -12,7 +12,9 @@ HttpParser::HttpParser(std::string & recvBuffer)
     _bodyBytesToExtract(0),
     _chunkState (SIZE), 
     _chunkBytesRemaining(0), 
-    _trailerBytesReceived(0)
+    _trailerBytesReceived(0),
+    _maxBodySize(DEFAULT_MAX_SIZE),
+    _maxHeaderSize(DEFAULT_MAX_SIZE)
 
 {}
 
@@ -180,7 +182,7 @@ HttpRequestStatus HttpParser::_checkHead()
                 break;
             }
         }
-        if (pos >= tempClientMaxHeaderSize)
+        if (_maxHeaderSize < 0 || pos >= static_cast<size_t>(_maxHeaderSize))
         {
             _status = ERROR;
             _error = HEADER_FIELDS_TOO_LARGE;
@@ -212,6 +214,7 @@ void HttpParser::_extractHead()
         // DEBUG END
 
     std::string head = _recvBuffer.substr(0, _scanPosition + 1);
+    _parsedRequest.setHeaderSize(head.size());
     _strExtractedRequest.append(head);
     _recvBuffer.erase(0, _scanPosition + 1);
     _scanPosition = 0;
@@ -312,6 +315,7 @@ bool HttpParser::_parseRequestLine()
     {
         _parsedRequest.setPath(temp);
         _parsedRequest.setQuery(pathAndQuery);
+        _parsedRequest.setRawQuery(pathAndQuery);
     }
     // if no '?' is present -> pathAndQuery remains unchanged, containing only path
     else
@@ -385,9 +389,18 @@ bool HttpParser::_decodeRequestLine()
     {
         _error = BAD_REQUEST;
         return false;
-    }    
-    _parsedRequest.setPath(decoded);
+    }
 
+    // adding normalization after decoding
+    std::string normalized;
+    if(!normalizeURI(decoded, normalized))
+    {
+        _error = BAD_REQUEST;
+        return false;
+    }
+    _parsedRequest.setPath(normalized);
+    //std::cout << "[URI] Original: " << decoded
+    //      << " | Normalized: " << normalized << std::endl;
     decoded.clear();
     if (!decodeStr(_parsedRequest.getQuery(), decoded))
     {
@@ -517,7 +530,7 @@ bool HttpParser::_headersPostValidation()
             return false;
         }
 
-        if (length.number > tempClientMaxBodySize)
+        if (length.number > _maxBodySize)
         {
             _error = CONTENT_TOO_LARGE;
             return false;
@@ -636,8 +649,11 @@ HttpRequestStatus HttpParser::_chunkBodySize()
     }
 
     // to reject exceeding maximum allowed size.
-    if (_strExtractedBody.size() > tempClientMaxBodySize ||
-        chunkSize > tempClientMaxBodySize - _strExtractedBody.size())
+    // casting to size_t
+    size_t maxBodySize = static_cast<size_t>(_maxBodySize);
+
+    if (_strExtractedBody.size() > maxBodySize ||
+        chunkSize > maxBodySize - _strExtractedBody.size())
     {
         _error = CONTENT_TOO_LARGE;
         return ERROR;
@@ -841,4 +857,99 @@ bool HttpParser::hasIncompleteRequest() const
 {
     return ((_status == INCOMPLETE_HEAD && !_recvBuffer.empty())
         || _status == INCOMPLETE_BODY);
+}
+
+
+// to set the max_body_size
+void HttpParser::setMaxBodySize(long size)
+{
+    _maxBodySize = size;
+}
+
+// set the max_header_size
+void HttpParser::setMaxHeaderSize(long size)
+{
+    _maxHeaderSize = size;
+}
+// validate the decoded URI path
+// and normalize the uri to match nginx style 
+bool HttpParser::normalizeURI(const std::string& path, std::string& normalized) const
+{
+
+    normalized.clear();
+    
+    // reject the a uri without a /  
+    if (path.empty() || path[0] != '/')
+        return false;
+    
+
+
+     // ex : "/images/cats/cat.png"
+     // -> "images" , "cats" , "cat.png"  
+
+     std::vector <std::string> tokens;
+     size_t start = 1;
+
+     // tokenize the path when "/" found
+    while (start < path.size())
+    {
+        size_t end = path.find('/', start);
+        if (end == std::string::npos)
+            end = path.size();
+
+        std::string token = path.substr(start, end - start);
+
+        // skip "//" - > empty ""
+        // skip /./
+        //  "/images/./cat.png" -> ["images", "cat.png"]
+        if (token.empty() || token == ".")
+        {
+            // do nth skip 
+        }
+        // .. means go back on directory
+        // might cause securtity issues
+        // need to be normalized
+        // "/images/../cat.png" - > ["images"] ["cat.png"]
+        else if (token == "..")
+        {
+            // Reject ".." if there is no parent segment to remove.
+            // /../images - >reject
+            if (tokens.empty())
+                return false;
+            // normalize , remove from path
+            tokens.pop_back();
+        }
+        // normal filename directory keep it
+        else
+        {
+            tokens.push_back(token);
+        }
+
+        // go to next token
+        start = end + 1;
+    }
+ 
+    // rebuilt the normalized path with the valid tokens
+    // ["images", "cat.png"] -> "/images/cat.png"
+    for (size_t i = 0; i < tokens.size(); i++)
+    {
+        normalized += "/";
+        normalized += tokens[i];
+    }
+    // If all tokens were removed, the normalized path is "/".
+    if (normalized.empty())
+        normalized = "/";
+
+    // adding a trailing slashes if the original URI has one
+    //  "/images///" -> "/images/"
+    //  "/images/."  -> "/images/"
+    //  "/a/b/.."    -> "/a/"
+    if (( path[path.size()- 1] == '/' ||
+        (path.size() >= 2 && path.compare(path.size() - 2, 2, "/.") == 0) ||
+        (path.size() >= 3 && path.compare(path.size() - 3, 3, "/..") == 0))
+        && normalized[normalized.size() - 1] != '/')
+        {
+            normalized += "/";   
+        }
+    return true;
 }

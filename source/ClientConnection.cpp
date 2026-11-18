@@ -1,7 +1,8 @@
 #include "ClientConnection.hpp"
 
 ClientConnection::ClientConnection(int fd, sockaddr_in *addr, const Listener* listener)
-:	clientSocket_fd(fd), 
+:	cgi(NULL),
+	clientSocket_fd(fd), 
 	addressInfo(addr),
 	writeOffset(0), 
 	clientLastActive(std::time(NULL)), 
@@ -10,9 +11,13 @@ ClientConnection::ClientConnection(int fd, sockaddr_in *addr, const Listener* li
 	pendingHttpInput(false),
 	httpParser(recvBuffer),
 	httpRequest(httpParser.getRequest()),
-    listener(listener)
-{}
-
+    listener(listener),
+	serverLastWrite(std::time(NULL))
+{
+	defineMaxBodySize();
+	defineMaxHeaderSize();
+}
+      
 ClientConnection::~ClientConnection()
 {
 	for (std::map<int, CGI*>::iterator int_cgi = cgiMap.begin(); int_cgi != cgiMap.end(); ++int_cgi)
@@ -90,10 +95,10 @@ bool ClientConnection::readData()
 		/*addDataToSend(std::string(buffer,
             	static_cast<std::string::size_type>(bytesReceived)));*/
 		// TEMPORARY: Queue 10 MB only for the first received data
-		/*if (recvBuffer.size() == static_cast<std::string::size_type>(bytesReceived))
-		{
-   			addDataToSend(std::string(10 * 1024 * 1024, 'X'));
-		}*/
+		//if (recvBuffer.size() == static_cast<std::string::size_type>(bytesReceived))
+		//{
+   		//	addDataToSend(std::string(20 * 1024 * 1024, 'X'));
+		//}
 		return (true);
 	}
 	// EOF detection -> wait for server 
@@ -148,6 +153,8 @@ bool ClientConnection::writeData()
             static_cast<std::string::size_type>(bytesSent);
 		// update the time of the client last active
         updateLastActive();
+		// updating the server last write
+		updateServerLastWrite();
         // all is sent
         if (writeOffset == sendBuffer.size())
         {
@@ -161,6 +168,15 @@ bool ClientConnection::writeData()
 
 void ClientConnection::addDataToSend(const std::string &data)
 {
+	// if there is new data
+	if (data.empty())
+		return;
+
+	// if no data update lastwrite on empty buffer
+	// to mark the start of the time for the server to send
+	if (!hasDataToSend())
+		updateServerLastWrite();
+
 	sendBuffer += data;
 }
 // return the lastactive for a client
@@ -275,3 +291,93 @@ bool ClientConnection::hasIncompleteRequest() const
 	return httpParser.hasIncompleteRequest();
 }
 
+// 1- get the listener's ServerConfigs
+// check server-level limits
+// check location-level ovverrides
+// set the httpsParser's max limit
+void ClientConnection::defineMaxBodySize()
+{
+	// get all virtual servers associate with the listener
+	const std::vector<const ServerConfig*>& configs = listener->getConfigs();
+
+	long maxBodySize = 0;
+	
+	// check every server
+	for (size_t i = 0; i < configs.size(); i++)
+	{
+		const ServerConfig* server = configs[i];
+
+		// server level
+		// if there is bigger value
+		// make it the new value
+		if (server->client_max_body_size >= 0 && server->client_max_body_size > maxBodySize)
+			maxBodySize = server->client_max_body_size;
+
+
+		// check every location
+		for (size_t j = 0; j < server->locations.size(); j++)
+		{
+			long locationMax = server->locations[j].client_max_body_size;
+
+			// update only if location has bigger value then the server
+			if (locationMax >= 0 && locationMax > maxBodySize)
+				maxBodySize = locationMax;
+		}
+	}
+
+	// set the parser's maximum body size
+	// the matching location's exact limit will be checked in step 2
+
+	httpParser.setMaxBodySize(maxBodySize);
+
+}
+
+
+void ClientConnection::defineMaxHeaderSize()
+{
+	// get all virtual servers associate with the listener
+	const std::vector<const ServerConfig*>& configs = listener->getConfigs();
+
+	long maxHeaderSize = 0;
+	
+	// check every server
+	for (size_t i = 0; i < configs.size(); i++)
+	{
+		const ServerConfig* server = configs[i];
+
+		// server level
+		if (server->client_max_header_size >= 0 && server->client_max_header_size > maxHeaderSize)
+			maxHeaderSize = server->client_max_header_size;
+
+		// check every location
+		for (size_t j = 0; j < server->locations.size(); j++)
+		{
+			long locationMax = server->locations[j].client_max_header_size;
+
+			// update only if location has bigger value then the server
+			if (locationMax >= 0 && locationMax > maxHeaderSize)
+				maxHeaderSize = locationMax;
+		}
+	}
+
+	// set the parser's maximum header size
+	// the matching location's exact limit will be checked in step 2
+	httpParser.setMaxHeaderSize(maxHeaderSize);
+}
+
+time_t ClientConnection::getServerLastWrite() const
+{
+	return serverLastWrite;
+}
+
+void ClientConnection::updateServerLastWrite()
+{
+	serverLastWrite = std::time(NULL);
+}
+
+bool ClientConnection::hasRunningCGI() const
+{
+	if (cgi)
+		return true;
+	return false;
+}
