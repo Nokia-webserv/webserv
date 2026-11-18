@@ -6,7 +6,7 @@
 /*   By: damohame <damohame@student.42berlin.d>     +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/11/06 22:50:16 by damohame          #+#    #+#             */
-/*   Updated: 2026/11/17 23:56:58 by damohame         ###   ########.fr       */
+/*   Updated: 2026/11/19 00:32:30 by damohame         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -23,6 +23,7 @@
 #include <fcntl.h>
 #include <unistd.h> 
 #include "utils.hpp"
+#include <cstdio> 
 
 Router::Router()
 {}
@@ -273,7 +274,7 @@ RouteDecision Router::route(const HttpRequest& request, const Listener& listener
     else if (request.getMethod() == "POST")
         handlePost(request, response, result);
     else if (request.getMethod() == "DELETE")
-        handleDelete(request, response, *result.location);
+        handleDelete(request, response, result);
 
     return result;
 }
@@ -1038,14 +1039,51 @@ std::string Router::getFileFormat(const std::string& type) {
 
 
 
-
-
-
-
-void Router::handleDelete(const HttpRequest& request, HttpResponse& response, const LocationConfig& location)
+void Router::handleDelete(const HttpRequest& request, HttpResponse& response, RouteDecision& result)
 {
-    (void)request;
-    (void)response;
-    (void) location;
-    // to be implemented: Delete handler
+    //  1.build path from URL and locationConfig
+    std::string path = buildPath(request.getPath(), *result.location);
+
+    //  2. if the target exists
+    // check whats inside the path. we use sys/stat lib for that. 
+    // (stat() is specifically allowed in subject)
+    // S_ISREG (is regular file) and S_ISDIR are macros for st_mode from sys/stat.
+    struct stat info;
+    
+    //if cant get file info. handle file opening error
+    if (stat(path.c_str(), &info) == -1) {
+        handleFileError(errno, request, response, result);
+        return ;
+    }
+    //if regular file , delete it
+    else if (S_ISREG(info.st_mode))
+    {
+        // deletion error
+        if (std::remove(path.c_str()) != 0)
+        {
+            handleFileError(errno, request, response, result);
+            return ;
+        }
+        // successsful deletion: 204 no content
+        std::map<std::string, std::string> headers;
+        headers["Content-Length"] = "0";
+        
+        fillResponse(response, request.getVersion(), 204, headers, "");
+        result.type = RouteDecision::ROUTE_SERVE;
+    }
+    
+    //if directory reject deletion
+    else if (S_ISDIR(info.st_mode)) 
+    {
+        result.type = RouteDecision::ROUTE_ERROR;
+        result.errorCode = 403;
+        handleError(request, result, response);
+    }
+    //if no file nor dir
+    else
+    {
+        result.type = RouteDecision::ROUTE_ERROR;
+        result.errorCode = 403;
+        handleError(request, result, response);
+    }
 }

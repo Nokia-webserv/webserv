@@ -6,7 +6,7 @@
 /*   By: damohame <damohame@student.42berlin.d>     +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/10/02 16:24:40 by damohame          #+#    #+#             */
-/*   Updated: 2026/11/17 22:49:12 by damohame         ###   ########.fr       */
+/*   Updated: 2026/11/18 22:57:19 by damohame         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -615,7 +615,9 @@ void Server::processHttpInput(ClientConnection &client)
                 (decision.type == RouteDecision::ROUTE_SERVE &&
                 client.getHttpRequest().getMethod() == "GET") ||
                 (decision.type == RouteDecision::ROUTE_SERVE &&
-                client.getHttpRequest().getMethod() == "POST"))
+                client.getHttpRequest().getMethod() == "POST")
+                || (decision.type == RouteDecision::ROUTE_SERVE &&
+                client.getHttpRequest().getMethod() == "DELETE"))
             {
                 client.addDataToSend(response.serialize());
             }
