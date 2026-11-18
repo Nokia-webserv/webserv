@@ -9,7 +9,6 @@ from common import wait_for_log_count
 HOST = "127.0.0.1"
 PORT = 8080
 
-CLIENT_COUNT = 5
 STARTUP_TIMEOUT = 10
 OBSERVATION_TIME = 2
 
@@ -28,7 +27,7 @@ def start_server(command):
     return server
 
 
-def connect_to_server(server):
+def wait_for_server(server):
     deadline = time.time() + STARTUP_TIMEOUT
 
     while time.time() < deadline:
@@ -38,23 +37,23 @@ def connect_to_server(server):
             )
 
         try:
-            client = socket.create_connection((HOST, PORT), timeout=1)
+            probe = socket.create_connection((HOST, PORT), timeout=1)
+            probe.close()
             print("[PASS] Config parsed and server is listening")
-            return client
+            return
         except OSError:
             time.sleep(0.2)
 
     raise RuntimeError("Server did not start")
 
 
-def test_multiple_clients(server):
+def test_clients(server, client_count):
     clients = []
 
     try:
-        print("[INFO] Opening", CLIENT_COUNT, "client connections")
+        print("[INFO] Opening", client_count, "client connections")
 
-        # Establish all connections before sending requests.
-        for i in range(CLIENT_COUNT):
+        for i in range(client_count):
             client = socket.create_connection((HOST, PORT), timeout=3)
             clients.append(client)
             print("[INFO] Client", i + 1, "connected")
@@ -66,7 +65,7 @@ def test_multiple_clients(server):
             print("[INFO] Client", i + 1, "sent request")
 
         print("[INFO] Waiting for server to process requests")
-        wait_for_log_count("request status=COMPLETE", CLIENT_COUNT, OBSERVATION_TIME)
+        wait_for_log_count("request status=COMPLETE", client_count, OBSERVATION_TIME)
 
         if server.poll() is not None:
             raise AssertionError(
@@ -83,19 +82,23 @@ def test_multiple_clients(server):
 
 def main():
     if len(sys.argv) != 3:
-        print("Usage: python3 a2_multiple_clients.py <server_executable> <config-file>")
+        print(
+            "Usage: python3 a2_multiple_clients.py "
+            "<server_executable> <config-file>"
+        )
         sys.exit(1)
 
     server = None
 
     try:
         server = start_server(sys.argv[1:])
+        wait_for_server(server)
 
-        # Wait until the server is listening.
-        probe = connect_to_server(server)
-        probe.close()
+        print("\n[INFO] Sub-case: 5 concurrent clients")
+        test_clients(server, 5)
 
-        test_multiple_clients(server)
+        print("\n[INFO] Sub-case: 10 concurrent clients")
+        test_clients(server, 10)
 
         print("\n[PASS] A2 - Multiple clients test passed")
 
