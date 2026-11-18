@@ -55,6 +55,9 @@ class ClientConnection {
         // get the value from the parser
         bool hasIncompleteRequest() const;
 
+        time_t getServerLastWrite() const;
+        void updateServerLastWrite();
+
     private:
         int clientSocket_fd;
         sockaddr_in * addressInfo;
@@ -95,4 +98,6 @@ class ClientConnection {
         // same logic as the defineMaxBodySize
         // but for header
         void defineMaxHeaderSize();
+        // to track the last write time
+        time_t serverLastWrite;
 };
