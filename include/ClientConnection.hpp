@@ -88,6 +88,16 @@ class ClientConnection {
         // Used by Router to select the correct virtual server
         const Listener* listener;
 
+        //this function performs the first step to select the max_body_size
+        // called in the client constructor
+        // finds the largest allowed body size across all servers and locations
+        // associate with the listener, then sets this limit in the 
+        // http parser.
+        void defineMaxBodySize();
+
+        // same logic as the defineMaxBodySize
+        // but for header
+        void defineMaxHeaderSize();
         // to track the last write time
         time_t serverLastWrite;
 };

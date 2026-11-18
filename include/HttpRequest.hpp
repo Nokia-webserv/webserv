@@ -14,7 +14,9 @@ class HttpRequest {
         std::string _version;
         std::map<std::string, std::string> _headers;
         std::string _body;
-        
+
+        size_t _headerSize;
+
     public:
         //OCF
         HttpRequest();
@@ -42,6 +44,9 @@ class HttpRequest {
         void setBody(const std::string& body);
 
         void clear(); // to reuse the object for the next request
+
+        void setHeaderSize(size_t size);
+        size_t getHeaderSize() const;
 };
 
 #endif

@@ -12,7 +12,9 @@ HttpParser::HttpParser(std::string & recvBuffer)
     _bodyBytesToExtract(0),
     _chunkState (SIZE), 
     _chunkBytesRemaining(0), 
-    _trailerBytesReceived(0)
+    _trailerBytesReceived(0),
+    _maxBodySize(DEFAULT_MAX_SIZE),
+    _maxHeaderSize(DEFAULT_MAX_SIZE)
 
 {}
 
@@ -180,7 +182,7 @@ HttpRequestStatus HttpParser::_checkHead()
                 break;
             }
         }
-        if (pos >= tempClientMaxHeaderSize)
+        if (_maxHeaderSize < 0 || pos >= static_cast<size_t>(_maxHeaderSize))
         {
             _status = ERROR;
             _error = HEADER_FIELDS_TOO_LARGE;
@@ -212,6 +214,7 @@ void HttpParser::_extractHead()
         // DEBUG END
 
     std::string head = _recvBuffer.substr(0, _scanPosition + 1);
+    _parsedRequest.setHeaderSize(head.size());
     _strExtractedRequest.append(head);
     _recvBuffer.erase(0, _scanPosition + 1);
     _scanPosition = 0;
@@ -527,7 +530,7 @@ bool HttpParser::_headersPostValidation()
             return false;
         }
 
-        if (length.number > tempClientMaxBodySize)
+        if (length.number > _maxBodySize)
         {
             _error = CONTENT_TOO_LARGE;
             return false;
@@ -646,8 +649,11 @@ HttpRequestStatus HttpParser::_chunkBodySize()
     }
 
     // to reject exceeding maximum allowed size.
-    if (_strExtractedBody.size() > tempClientMaxBodySize ||
-        chunkSize > tempClientMaxBodySize - _strExtractedBody.size())
+    // casting to size_t
+    size_t maxBodySize = static_cast<size_t>(_maxBodySize);
+
+    if (_strExtractedBody.size() > maxBodySize ||
+        chunkSize > maxBodySize - _strExtractedBody.size())
     {
         _error = CONTENT_TOO_LARGE;
         return ERROR;
@@ -853,6 +859,18 @@ bool HttpParser::hasIncompleteRequest() const
         || _status == INCOMPLETE_BODY);
 }
 
+
+// to set the max_body_size
+void HttpParser::setMaxBodySize(long size)
+{
+    _maxBodySize = size;
+}
+
+// set the max_header_size
+void HttpParser::setMaxHeaderSize(long size)
+{
+    _maxHeaderSize = size;
+}
 // validate the decoded URI path
 // and normalize the uri to match nginx style 
 bool HttpParser::normalizeURI(const std::string& path, std::string& normalized) const

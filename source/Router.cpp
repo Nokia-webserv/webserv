@@ -1,12 +1,12 @@
 /* ************************************************************************** */
 /*                                                                            */
 /*                                                        :::      ::::::::   */
-/*   router.cpp                                         :+:      :+:    :+:   */
+/*   Router.cpp                                         :+:      :+:    :+:   */
 /*                                                    +:+ +:+         +:+     */
-/*   By: atammur <atammur@student.42berlin.de>      +#+  +:+       +#+        */
+/*   By: damohame <damohame@student.42berlin.d>     +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/11/06 22:50:16 by damohame          #+#    #+#             */
-/*   Updated: 2026/11/17 02:52:54 by atammur          ###   ########.fr       */
+/*   Updated: 2026/11/17 23:56:58 by damohame         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -156,6 +156,40 @@ const ServerConfig* Router::selectServer(const HttpRequest& request, const Liste
     return configs[0];
 }
 
+// checks whether the request body exeeds the max_body_size limit
+// the location limit ovverride the servr limit when configured
+bool Router::isBodySizeAllowed(const HttpRequest& request, const ServerConfig& server, const LocationConfig& location) const
+{
+    // get the server limit as a start
+    long maxBodySize = server.client_max_body_size;
+    
+    // check for the location specific configuration 
+    // if available
+    if (location.client_max_body_size >= 0)
+        maxBodySize = location.client_max_body_size;
+
+    
+    // Check whether the body fits within the effective limit.
+    return (maxBodySize >= 0 && request.getBody().size() <= static_cast<size_t>(maxBodySize));
+}
+
+//check if the request exceeds the allowed header size
+bool Router::isHeaderSizeAllowed(const HttpRequest& request, const ServerConfig& server, const LocationConfig& location) const
+{
+    // get the server limit as a start
+    long maxHeaderSize = server.client_max_header_size;
+    
+    // check for the location specific configuration 
+    // if available
+    if (location.client_max_header_size >= 0)
+        maxHeaderSize = location.client_max_header_size;
+
+    
+    // Check whether the header fits within the effective limit.
+    return (maxHeaderSize >= 0 && request.getHeaderSize() <= static_cast<size_t>(maxHeaderSize));
+}
+
+
 // 1- select the virtual server
 // 2 match the location
 // 3- if the method allowed
@@ -184,6 +218,24 @@ RouteDecision Router::route(const HttpRequest& request, const Listener& listener
     {
         result.type = RouteDecision::ROUTE_ERROR;
         result.errorCode = 404;
+        handleError(request, result, response);
+        return result;
+    }
+
+    // extra step--- check for limit size validation
+    if (!isHeaderSizeAllowed(request, *result.server, *result.location))
+    {
+        result.type = RouteDecision::ROUTE_ERROR;
+        result.errorCode = 431;
+        handleError(request, result, response);
+        return result;
+    }
+    
+    // extra step--- check for limit size validation
+    if (!isBodySizeAllowed(request, *result.server, *result.location))
+    {
+        result.type = RouteDecision::ROUTE_ERROR;
+        result.errorCode = 413;
         handleError(request, result, response);
         return result;
     }
