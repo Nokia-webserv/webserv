@@ -69,6 +69,7 @@ static void checkDirectory(const std::string& name, const std::string& root,
         request.setVersion("HTTP/1.1");
         request.setPath(uri);
         request.setQuery(query);
+        request.setRawQuery(query); // Supplied by HttpParser in the real server.
         Router router;
         HttpResponse response;
         RouteDecision decision = router.route(request, listener, response);
@@ -187,19 +188,10 @@ int main(int argc, char** argv)
     checkDirectory("Index is a directory: 403", root, "/files/", "index-dir", true, 403);
     checkDirectory("Empty directory listing", root, "/files/empty-dir/", "", true, 200);
     checkDirectory("Root listing has no parent link", root, "/", "", true, 200, NULL, "/");
-    const char* skipRedirects = std::getenv("SKIP_GET_REDIRECT_TESTS");
-    if (skipRedirects != NULL && std::string(skipRedirects) == "1")
-    {
-        std::cout << "[SKIP] Two redirect checks: SKIP_GET_REDIRECT_TESTS=1\n";
-        skipped += 2;
-    }
-    else
-    {
-        checkDirectory("Directory URL gets a trailing-slash redirect", root, "/files", "", true, 301,
-                       NULL, "/files", "", "/files/");
-        checkDirectory("Trailing-slash redirect preserves query", root, "/files", "", true, 301,
-                       NULL, "/files", "sort=name", "/files/?sort=name");
-    }
+    checkDirectory("Directory URL gets a trailing-slash redirect", root, "/files", "", true, 301,
+                   NULL, "/files", "", "/files/");
+    checkDirectory("Trailing-slash redirect preserves query", root, "/files", "", true, 301,
+                   NULL, "/files", "sort=name", "/files/?sort=name");
 
     if (geteuid() == 0)
     {

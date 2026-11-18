@@ -12,7 +12,7 @@ PORT = 8080
 STARTUP_TIMEOUT = 10
 OBSERVATION_TIME = 2
 
-MAX_BODY_SIZE = 2000
+MAX_BODY_SIZE = 10 * 1024 * 1024
 BODY_SIZE = MAX_BODY_SIZE + 1
 
 BODY = b"A" * BODY_SIZE
@@ -66,7 +66,10 @@ def test_request_over_limit(server):
         print("[INFO] Actual body size:", BODY_SIZE, "bytes")
         print("[INFO] Sending oversized request")
 
-        client.sendall(REQUEST)
+        try:
+            client.sendall(REQUEST)
+        except OSError:
+            print("[INFO] Server closed the oversized request")
 
         print("[INFO] Request sent successfully")
 

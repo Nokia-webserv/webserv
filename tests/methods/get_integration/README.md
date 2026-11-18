@@ -9,16 +9,16 @@ bash tests/methods/test_get.sh
 
 The main suite has 58 cases, organized into file bytes, MIME, path mapping,
 directories, listing links, filesystem errors, connection reuse/delivery,
-HTTP version and redirects. While redirect handling is unfinished:
-
-```sh
-SKIP_GET_REDIRECT_TESTS=1 bash tests/methods/test_get.sh
-```
-
-This runs 55 cases and explicitly skips the three redirects. Permission cases
+HTTP version and redirects. All three directory redirects always run; the former
+SKIP_GET_REDIRECT_TESTS flag no longer skips them. Permission cases
 are skipped when run as root. Each test prints an ID, expectation and actual
 response metadata. A table summarizes each group. Failed bodies include size,
 first differing byte and SHA256 diagnostics.
+
+R-03 expects the redirect target directory to return 403: its fixture has no
+index and autoindex is off. It then requests child.txt through the encoded URL
+and requires 200 with the exact file bytes. A correct redirect does not imply
+that listing the target directory must be allowed.
 
 All acceptance requests use curl. Python prepares fixtures, manages the real
 server and verifies response headers/bodies. Temporary executables, data,

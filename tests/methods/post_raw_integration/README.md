@@ -46,7 +46,8 @@ The round-trip case reads the uploaded file using the real GET handler as well.
 The slow upload spans multiple receive events; injected short writes and write
 failures remain in the component suite rather than being faked in this server.
 Concurrency, chunked and slow-upload payloads stay below 2000 bytes so these
-checks are not masked by the current parser's temporary body limit.
+checks isolate delivery behavior; the raw-body group separately tests larger
+payloads against the configured server limit.
 
 Output is grouped with stable IDs, expected results, Before/Received/Saved data,
 green PASS, red FAIL and a final totals table. Root skips the permission case
@@ -73,8 +74,7 @@ suite. The unit/component checks intentionally overlap some MIME/body assertions
 to help locate failures; only integration proves the real network path works.
 The GitHub workflow runs the raw POST integration command on push and
 pull_request, after the existing GET integration step. Unit/component commands
-are not added to CI. Body-limit failures are not skipped or allowed to pass;
-they keep the workflow red until GH-104 / PR #124 is integrated.
+are not added to CI. Body-limit failures are not skipped or allowed to pass.
 
 ## Limits
 
@@ -86,11 +86,10 @@ filename extensions are this project's design, not a subject requirement that
 arbitrary uploads have particular filenames. Passing these tests does not claim
 the entire POST feature or server integration is complete for other body types.
 
-## Known integration gap
+## Configured body limits
 
-The current HttpParser uses tempClientMaxBodySize = 2000 rather than the selected
-server/location client_max_body_size. The suite deliberately exposes this:
-2001 bytes and 1 MiB should fit the configured 2 MiB server limit but receive 413;
-65 bytes should exceed the configured 64-byte location limit but are accepted.
-These are ordinary failing tests, not skipped cases or allowed failures. The
-tests do not change the production limit or bypass the real parser.
+GH-104 / PR #124 replaces the temporary 2000-byte parser limit with configured
+limits and enforces the selected server/location limit before dispatching POST.
+The suite requires 2001 bytes and 1 MiB to fit the configured 2 MiB server limit,
+and rejects 65 bytes under a 64-byte location limit with 413. These checks run
+through the real parser and router without overriding limits in production code.

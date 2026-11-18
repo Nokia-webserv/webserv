@@ -66,16 +66,30 @@ fi
 echo "[PASS] Server rebuild"
 
 for test in tests/integration/*.py; do
-    if [ "$(basename "$test")" = "common.py" ]; then
+    test_name="$(basename "$test")"
+
+    # Skip shared helper modules
+    if [[ "$test_name" == "common.py" ||
+          "$test_name" == "stalled_write_common.py" ]]; then
         continue
     fi
-    LOG_FILE="$(cd tests/integration/logs && pwd)/$(basename "$test" .py).server.log"
-    : > "$LOG_FILE"
-    run_test "INTEGRATION: $(basename "$test")" \
-        env WEBSERV_TEST_LOG="$LOG_FILE" \
-        python3 "$test" "$SERVER" "$CONFIG"
-done
 
+    LOG_FILE="$(cd tests/integration/logs && pwd)/${test_name%.py}.server.log"
+    : > "$LOG_FILE"
+
+    case "$test_name" in
+        c6_stalled_write_timeout_test.py|c7_stalled_write_incoming_activity_test.py)
+            run_test "INTEGRATION: $test_name" \
+                env WEBSERV_TEST_LOG="$LOG_FILE" \
+                python3 "$test" "$SERVER"
+            ;;
+        *)
+            run_test "INTEGRATION: $test_name" \
+                env WEBSERV_TEST_LOG="$LOG_FILE" \
+                python3 "$test" "$SERVER" "$CONFIG"
+            ;;
+    esac
+done
 echo
 echo "============================================================"
 echo "            INTEGRATION TEST REPORT"

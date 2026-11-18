@@ -1,12 +1,12 @@
 /* ************************************************************************** */
 /*                                                                            */
 /*                                                        :::      ::::::::   */
-/*   router.cpp                                         :+:      :+:    :+:   */
+/*   Router.cpp                                         :+:      :+:    :+:   */
 /*                                                    +:+ +:+         +:+     */
-/*   By: atammur <atammur@student.42berlin.de>      +#+  +:+       +#+        */
+/*   By: damohame <damohame@student.42berlin.d>     +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/11/06 22:50:16 by damohame          #+#    #+#             */
-/*   Updated: 2026/11/16 01:35:39 by atammur          ###   ########.fr       */
+/*   Updated: 2026/11/17 23:56:58 by damohame         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -156,6 +156,40 @@ const ServerConfig* Router::selectServer(const HttpRequest& request, const Liste
     return configs[0];
 }
 
+// checks whether the request body exeeds the max_body_size limit
+// the location limit ovverride the servr limit when configured
+bool Router::isBodySizeAllowed(const HttpRequest& request, const ServerConfig& server, const LocationConfig& location) const
+{
+    // get the server limit as a start
+    long maxBodySize = server.client_max_body_size;
+    
+    // check for the location specific configuration 
+    // if available
+    if (location.client_max_body_size >= 0)
+        maxBodySize = location.client_max_body_size;
+
+    
+    // Check whether the body fits within the effective limit.
+    return (maxBodySize >= 0 && request.getBody().size() <= static_cast<size_t>(maxBodySize));
+}
+
+//check if the request exceeds the allowed header size
+bool Router::isHeaderSizeAllowed(const HttpRequest& request, const ServerConfig& server, const LocationConfig& location) const
+{
+    // get the server limit as a start
+    long maxHeaderSize = server.client_max_header_size;
+    
+    // check for the location specific configuration 
+    // if available
+    if (location.client_max_header_size >= 0)
+        maxHeaderSize = location.client_max_header_size;
+
+    
+    // Check whether the header fits within the effective limit.
+    return (maxHeaderSize >= 0 && request.getHeaderSize() <= static_cast<size_t>(maxHeaderSize));
+}
+
+
 // 1- select the virtual server
 // 2 match the location
 // 3- if the method allowed
@@ -188,6 +222,24 @@ RouteDecision Router::route(const HttpRequest& request, const Listener& listener
         return result;
     }
 
+    // extra step--- check for limit size validation
+    if (!isHeaderSizeAllowed(request, *result.server, *result.location))
+    {
+        result.type = RouteDecision::ROUTE_ERROR;
+        result.errorCode = 431;
+        handleError(request, result, response);
+        return result;
+    }
+    
+    // extra step--- check for limit size validation
+    if (!isBodySizeAllowed(request, *result.server, *result.location))
+    {
+        result.type = RouteDecision::ROUTE_ERROR;
+        result.errorCode = 413;
+        handleError(request, result, response);
+        return result;
+    }
+
     // 3- check if method is allowed
     if (!isMethodAllowed(request.getMethod(), *result.location))
     {
@@ -200,12 +252,12 @@ RouteDecision Router::route(const HttpRequest& request, const Listener& listener
     // 4- check the redirect
     if (result.location->has_redirect)
     {
-        //result.type = RouteDecision::ROUTE_REDIRECT;
-        //result.errorCode = 0;
-        // next pr
-        // build the redirect response
-       // handleRedirect(request, *result.location, response);
-        //return result;
+        result.type = RouteDecision::ROUTE_REDIRECT;
+        result.errorCode = 0;
+
+        //build the redirect response
+        handleRedirect(request, result.location->redirect_code, result.location->redirect_url,response);
+        return result;
     }
     
     // 5- CGI 
@@ -423,6 +475,43 @@ void Router::handleError(const HttpRequest& request, const RouteDecision& result
     }
 }
 
+// redirect reason based on the code
+std::string Router::getRedirectCode(int code) const
+{
+    switch (code)
+    {
+        case 301: return "Moved Permanently";
+        case 302: return "Found";
+
+        // default in case of wrong error
+        default:  return "";
+    }
+}
+
+
+// build the Http redirect response
+void Router::handleRedirect(const HttpRequest& request, int statusCode, const std::string& targetUrl,HttpResponse& response)
+{
+    // set the version and redirect code
+    response.setVersion(request.getVersion());
+    response.setStatusCode(statusCode);
+    
+    
+    // set the reason phrase based on the redirect code
+    std::string reason;
+    reason = getRedirectCode(statusCode);
+    response.setReasonPhrase(reason);
+    
+    // set the redirect header response
+    response.setHeader("Location", targetUrl);
+    
+    std::ostringstream path;
+    // default path for redirect pages
+    path << "./www/redirects/" << statusCode << ".html";
+
+    setResponseBody(response, path.str(), statusCode, reason);
+}
+
 int Router::parserErrorToStatus(HttpRequestError error)
 {
     switch (error)
@@ -523,7 +612,6 @@ void Router::serveFile(const HttpRequest& request, HttpResponse& response, Route
             std::map<std::string, std::string> headers;
             headers["Content-Type"] = getContentType(path);
             headers["Content-Length"] = toString(body.size());
-            //get vector of headers
             fillResponse(response, request.getVersion(), 200, headers, body);
             close(fd);
         }
@@ -537,8 +625,11 @@ void Router::serveDir(const HttpRequest& request, HttpResponse& response, RouteD
     if (!requestPath.empty() && requestPath[requestPath.size() - 1] != '/') {
         //redirect to url with '/'
         result.type = RouteDecision::ROUTE_REDIRECT;
-        // TODO: restore after integrating handleRedirect; redirect tests are excluded for now.
-        // handleRedirect(request, 301, requestPath + "/", response);
+        //handle redirect with query or without
+        if (!request.getRawQuery().empty())
+            handleRedirect(request, 301, urlEncodePath(requestPath) + "/?" + request.getRawQuery(), response);
+        else
+            handleRedirect(request, 301, urlEncodePath(requestPath) + "/", response);
         return ;
     }
     
@@ -558,7 +649,7 @@ void Router::serveDir(const HttpRequest& request, HttpResponse& response, RouteD
             handleFileError(errno, request, response, result);
             return ;
         }
-        //if we have index file
+        //if we have regular index file
         if (indexStatus == 0 && S_ISREG(fileInfo.st_mode)) {
             // just serve the file
             serveFile(request, response, result, indexPath);
@@ -711,8 +802,7 @@ std:: string Router::urlEncodePath(std::string path) {
 // result: ./www/pictures/holiday/cat.png
 
 // Resolves a VALIDATED(!) request URI against the matched
-// location root. URI normalization is handled by Router (issue #107)
-// can be used for DELETE; POST possibly partly due to upload_store directive
+// location root. URI normalization is handled by Router
 std::string Router::buildPath(const std::string& requestPath, const LocationConfig& location) {
     std::string path;
     std::string pathFromRequest;
@@ -751,7 +841,6 @@ void Router::handleFileError(int errorNum, const HttpRequest& request, HttpRespo
 // std::string _reasonPhrase;
 // std::map<std::string, std::string> _headers;
 // std::string _body;
-//router method?
 void Router::fillResponse(
     HttpResponse& response, 
     const std::string& version, 
@@ -767,7 +856,6 @@ void Router::fillResponse(
     response.setBody(body);
 }
 
-//router method
 std::string Router::getReasonPhrase(int statusCode) {
     std::map<int, std::string> reasons;
     
@@ -841,11 +929,6 @@ std::string Router::getContentType(const std::string& path) {
     
     return it->second;
 }
-
-
-
-
-
 
 void Router::handlePost(const HttpRequest& request, HttpResponse& response, RouteDecision& result)
 {

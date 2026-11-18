@@ -5,6 +5,9 @@
 #include <iostream>
 #include <algorithm>
 #include <sstream>
+#include <vector>
+
+#define DEFAULT_MAX_SIZE 10485760
 
 enum HttpRequestStatus
 {
@@ -48,14 +51,19 @@ class HttpParser {
         // to initialize a reference to HttpRequest
         void setStatus(HttpRequestStatus status); // setter (for testing)
 
-        static const long tempClientMaxBodySize = 2000;
+        // removed the constant for body_max_size
         static const unsigned long tempMaxChunkSizeLine = 1024;
-        static const unsigned long tempClientMaxHeaderSize = 1024;
+        // remove the constant for header_size
         static const unsigned long tempMaxTrailerSize = 1024;
     
         // to know if the request in complete
         // used in checkTimeout()
         bool hasIncompleteRequest() const;
+
+        // MAX_body_size 
+        void setMaxBodySize(long size);
+
+        void setMaxHeaderSize(long size);
 
     private:
         HttpRequestStatus _checkHead(); // checks if head part is complete
@@ -127,5 +135,13 @@ class HttpParser {
         ChunkState _chunkState;
         size_t _chunkBytesRemaining;
         size_t _trailerBytesReceived;
+
+        // to hold the value of _maxBodySize
+        long _maxBodySize;
+
+        // to hold the max header size
+        long _maxHeaderSize;
+        // to normalize repeated slashes and "." ".." path traversal and reject unsupported paths
+        bool normalizeURI(const std::string& path, std::string& normalized) const;
 
 };
