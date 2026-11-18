@@ -6,7 +6,7 @@
 /*   By: damohame <damohame@student.42berlin.d>     +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/10/02 16:24:40 by damohame          #+#    #+#             */
-/*   Updated: 2026/11/12 00:24:52 by damohame         ###   ########.fr       */
+/*   Updated: 2026/11/17 22:49:12 by damohame         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -354,7 +354,7 @@ void Server::disconnectClient(int fd)
     
     // DEBUG START HTTP_POLL_LOOP
     // std::cout << "[CLIENT] Disconnecting fd=" << fd
-              // << std::endl;
+    //      << std::endl;
     // DEBUG END
     
     delete client->second;
@@ -375,9 +375,30 @@ void Server::checkClientTimeout()
          it != clients.end(); ++it)
     {
         ClientConnection& client = *(it->second);
+               
+        // 1- check pending outgoing data
+        if (client.hasDataToSend())
+        {
+                time_t stalledSeconds = now - client.getServerLastWrite();
+                
+                if (stalledSeconds >= GLOBAL_CLIENT_TIMEOUT_SECONDS)
+                {
+                    //std::cout << "[TIMEOUT] Stalled write | fd=" << it->first
+                    //<< " | stalled=" << stalledSeconds << "s"
+                    //<< std::endl;
+                    
+                    timedOutClients.push_back(it->first);  
+                }
+                continue;
+        }
+        
+        // if already the server will close the response
+        // wait for POLLOUT to finish
+        if (client.shouldCloseAfterResponse())
+                continue;
+        // 2- inactive time calculation, add in the vector
         time_t inactiveSeconds = now - client.getClientLastActive();
-
-        // inactive time calculation, add in the vector
+        
         if (inactiveSeconds >= GLOBAL_CLIENT_TIMEOUT_SECONDS)
         {
             // TEST_INTEGRATION integrationLogEvent("timeout", it->first);
@@ -385,16 +406,7 @@ void Server::checkClientTimeout()
             /*std::cout << "Client FD: " << it->first << " timed out after " 
             << inactiveSeconds << " seconds" << std::endl;*/ 
 
-            // if already the server will close the response
-            // wait for POLLOUT to finish
-            if (client.shouldCloseAfterResponse())
-                continue;
 
-            // sendbuffer has data to be send
-            if (client.hasDataToSend())
-            {
-                continue;
-            }
             // prepare and sent the timeout error 
             if (client.hasIncompleteRequest())
             {
@@ -660,9 +672,11 @@ void Server::processHttpInput(ClientConnection &client)
             // TEMPORARY: Test the routing decision
             //printRouteDecision(decision);
 
-            // adding the generated HTTP error response for sending.
+            // Queue the generated HTTP response for sending.
             if (decision.type == RouteDecision::ROUTE_ERROR
-                || decision.type == RouteDecision::ROUTE_REDIRECT)
+                || decision.type == RouteDecision::ROUTE_REDIRECT ||
+                (decision.type == RouteDecision::ROUTE_SERVE &&
+                client.getHttpRequest().getMethod() == "GET"))
             {
                 client.addDataToSend(response.serialize());
             }

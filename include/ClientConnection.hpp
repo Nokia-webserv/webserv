@@ -51,6 +51,9 @@ class ClientConnection {
         // testing
         //void printReceivedData() const;
 
+        time_t getServerLastWrite() const;
+        void updateServerLastWrite();
+
     private:
         int clientSocket_fd;
         sockaddr_in * addressInfo;
@@ -77,4 +80,7 @@ class ClientConnection {
         // the listener connected to the client
         // Used by Router to select the correct virtual server
         const Listener* listener;
+
+        // to track the last write time
+        time_t serverLastWrite;
 };

@@ -10,7 +10,8 @@ ClientConnection::ClientConnection(int fd, sockaddr_in *addr, const Listener* li
 	pendingHttpInput(false),
 	httpParser(recvBuffer),
 	httpRequest(httpParser.getRequest()),
-    listener(listener)
+    listener(listener),
+	serverLastWrite(std::time(NULL))
 {}
 
 ClientConnection::~ClientConnection()
@@ -89,10 +90,10 @@ bool ClientConnection::readData()
 		/*addDataToSend(std::string(buffer,
             	static_cast<std::string::size_type>(bytesReceived)));*/
 		// TEMPORARY: Queue 10 MB only for the first received data
-		/*if (recvBuffer.size() == static_cast<std::string::size_type>(bytesReceived))
-		{
-   			addDataToSend(std::string(10 * 1024 * 1024, 'X'));
-		}*/
+		//if (recvBuffer.size() == static_cast<std::string::size_type>(bytesReceived))
+		//{
+   		//	addDataToSend(std::string(20 * 1024 * 1024, 'X'));
+		//}
 		return (true);
 	}
 	// EOF detection -> wait for server 
@@ -147,6 +148,8 @@ bool ClientConnection::writeData()
             static_cast<std::string::size_type>(bytesSent);
 		// update the time of the client last active
         updateLastActive();
+		// updating the server last write
+		updateServerLastWrite();
         // all is sent
         if (writeOffset == sendBuffer.size())
         {
@@ -160,6 +163,15 @@ bool ClientConnection::writeData()
 
 void ClientConnection::addDataToSend(const std::string &data)
 {
+	// if there is new data
+	if (data.empty())
+		return;
+
+	// if no data update lastwrite on empty buffer
+	// to mark the start of the time for the server to send
+	if (!hasDataToSend())
+		updateServerLastWrite();
+
 	sendBuffer += data;
 }
 // return the lastactive for a client
@@ -274,3 +286,12 @@ bool ClientConnection::hasIncompleteRequest() const
 	return httpParser.hasIncompleteRequest();
 }
 
+time_t ClientConnection::getServerLastWrite() const
+{
+	return serverLastWrite;
+}
+
+void ClientConnection::updateServerLastWrite()
+{
+	serverLastWrite = std::time(NULL);
+}
