@@ -1,11 +1,12 @@
 #include "CGI.hpp"
+#include "Router.hpp"
 #include <iostream>
 
-CGI::CGI(const HttpRequest & request, HttpResponse & response, const LocationConfig & location, const std::string & cgi_extension, std::map<int, CGI*>& cgiMap)
+CGI::CGI(const HttpRequest & request, HttpResponse & response, const LocationConfig & location, const std::string & cgi_extension, CGI*& myPtrInMyClient)
 :   extension(cgi_extension),
     interpreterPath(location.cgi_handlers.find(cgi_extension)->second),
     response(response),
-    clientsCGImap(cgiMap),
+    myPtrInMyClient(myPtrInMyClient), // NULL
     cgi_fd(-1),
     responseReady(false)
 {
@@ -29,7 +30,7 @@ void CGI::resolveScriptPath(const HttpRequest & request, const LocationConfig & 
 
 void CGI::setArgv(const HttpRequest & request, const LocationConfig & location)
 {
-    resolveScriptPath(request, location);
+    scriptPath = Router::buildPath(request.getPath(), location);
     std::cout << "Script path: " << scriptPath << "\n";
 
     argv += interpreterPath + " " + interpreterPath + " " + scriptPath;
@@ -63,8 +64,9 @@ void CGI::runScript()
 {
     // create pipes, fork, etc, and run execve
     // save cgi_fd (= parent listening fd)
-    // record parent listening fd in cgiMap (to add it to poll)
     std::cout << "Running CGI script (not implemented)\n";
+    // if run successfully -> record in client -> add to poll
+    myPtrInMyClient = this;
 }
 
 // reads until EOF then builds response
@@ -80,4 +82,9 @@ void CGI::processOutput()
 bool CGI::isResponseReady() const
 {
     return responseReady;
+}
+
+int CGI::getFd() const
+{
+    return cgi_fd;
 }

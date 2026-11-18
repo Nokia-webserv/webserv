@@ -18,6 +18,8 @@ class ClientConnection {
         ClientConnection(int fd, sockaddr_in * addr,const Listener* listener);
         ~ClientConnection();
 
+        CGI* cgi; // ptr to CGI object
+
         int getFd() const;
         std::string getIp() const;
         int getPort() const;
@@ -27,9 +29,8 @@ class ClientConnection {
         const HttpRequest& getHttpRequest() const;
         const std::string& getRecvBuffer() const;
         time_t getClientLastActive() const;
-        // Return the listener associated with this connection.
-        const Listener& getListener() const;
-        std::map<int, CGI*> cgiMap; // contains all actively running CGI scripts per client
+        const Listener& getListener() const; // Return the listener associated with this connection.
+        time_t getServerLastWrite() const;
 
         HttpParsingResult callParser();
         bool readData();
@@ -40,19 +41,17 @@ class ClientConnection {
         void updateLastActive();
         void setPendingHttpInput(bool value);
         void setCloseAfterResponse();
+        void updateServerLastWrite();
 
         bool hasDataToSend() const;
         bool isReadClosed() const;
         bool shouldCloseAfterResponse() const;
         bool hasPendingHttpInput() const;
-        // get the value from the parser
-        bool hasIncompleteRequest() const;
-        
+        bool hasIncompleteRequest() const; // get the value from the parser
+        bool hasRunningCGI() const;
+
         // testing
         //void printReceivedData() const;
-
-        time_t getServerLastWrite() const;
-        void updateServerLastWrite();
 
     private:
         int clientSocket_fd;

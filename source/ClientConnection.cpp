@@ -1,7 +1,8 @@
 #include "ClientConnection.hpp"
 
 ClientConnection::ClientConnection(int fd, sockaddr_in *addr, const Listener* listener)
-:	clientSocket_fd(fd), 
+:	cgi(NULL),
+	clientSocket_fd(fd), 
 	addressInfo(addr),
 	writeOffset(0), 
 	clientLastActive(std::time(NULL)), 
@@ -294,4 +295,11 @@ time_t ClientConnection::getServerLastWrite() const
 void ClientConnection::updateServerLastWrite()
 {
 	serverLastWrite = std::time(NULL);
+}
+
+bool ClientConnection::hasRunningCGI() const
+{
+	if (cgi)
+		return true;
+	return false;
 }

@@ -8,17 +8,18 @@
 /* This class represents each isntance of a CGI script in http request */
 class CGI {
     public:
-        CGI(const HttpRequest& request, HttpResponse& response, const LocationConfig& location, const std::string& cgi_extension, std::map<int, CGI*>& cgiMap);
+        CGI(const HttpRequest& request, HttpResponse& response, const LocationConfig& location, const std::string& cgi_extension, CGI*& myPtrInMyClient);
         
         const std::string extension;
         const std::string interpreterPath; // e.g. /usr/bin/python3
+        int getFd() const;
         const std::string& getScriptPath() const;
         const std::string& getArgv() const;
         const std::vector<const char*>& getEnvp() const;
         const std::string& getBuffer() const;
         HttpResponse& response;
         bool isResponseReady() const;
-        std::map<int, CGI*>& clientsCGImap; // contains all actively running CGI scripts per client
+        CGI*& myPtrInMyClient; // ref to client class member holding ptr to this object
 
         void runScript();
         void processOutput();
