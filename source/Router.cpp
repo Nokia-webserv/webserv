@@ -232,7 +232,7 @@ RouteDecision Router::route(const HttpRequest& request, const Listener& listener
 
 std::string extractExtension(const std::string & path)
 {
-    size_t dotPos = path.find(".");
+    size_t dotPos = path.find_last_of(".");
     if (dotPos == std::string::npos)
         return "";
 
