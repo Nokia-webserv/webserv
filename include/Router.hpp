@@ -3,10 +3,10 @@
 /*                                                        :::      ::::::::   */
 /*   Router.hpp                                         :+:      :+:    :+:   */
 /*                                                    +:+ +:+         +:+     */
-/*   By: atammur <atammur@student.42berlin.de>      +#+  +:+       +#+        */
+/*   By: damohame <damohame@student.42berlin.d>     +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/11/06 22:25:55 by damohame          #+#    #+#             */
-/*   Updated: 2026/11/17 01:57:29 by atammur          ###   ########.fr       */
+/*   Updated: 2026/11/17 23:56:41 by damohame         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -78,6 +78,10 @@ class Router
             const std::string& reason);
         
         int parserErrorToStatus(HttpRequestError error);
+
+
+        bool isBodySizeAllowed(const HttpRequest& request, const ServerConfig& server, const LocationConfig& location) const;
+        bool isHeaderSizeAllowed(const HttpRequest& request, const ServerConfig& server, const LocationConfig& location) const;
 
         //common methods helpers
         void handleFileError(int errorNum, const HttpRequest& request, HttpResponse& response, RouteDecision& result);

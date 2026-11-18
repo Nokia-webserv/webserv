@@ -6,22 +6,24 @@ SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
 cd "$SCRIPT_DIR"
 
 # Portable temporary directory for macOS and Linux.
-TRACE_DIR=$(mktemp -d)
-TRACE_SOURCE="$TRACE_DIR/HttpParser.cpp"
-RESULT_OUTPUT="$TRACE_DIR/result.txt"
-TRACE_OUTPUT="$TRACE_DIR/trace.txt"
+TEMP_DIR=$(mktemp -d "${TMPDIR:-/tmp}/webserv_parser_XXXXXX")
+TRACE_SOURCE="$TEMP_DIR/HttpParser.cpp"
+RESULT_OUTPUT="$TEMP_DIR/result.txt"
+TRACE_OUTPUT="$TEMP_DIR/trace.txt"
 
 cleanup()
 {
-    rm -rf "$TRACE_DIR"
+    rm -rf "$TEMP_DIR"
     rm -f parser_test uri_normalization_test
 }
 
-trap cleanup EXIT INT TERM
+trap cleanup EXIT
+trap 'exit 1' INT TERM
 
 # Activate only source lines explicitly marked as test tracing instructions.
 sed 's@^// TEST_TRACE @@' \
     ../../../source/HttpParser.cpp > "$TRACE_SOURCE"
+
 
 # Common parser dependencies.
 PARSER_SOURCES="
