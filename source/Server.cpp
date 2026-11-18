@@ -98,7 +98,8 @@ int Server::findClientByCGIfd(int searchedCGIfd) const
     for (std::map<int, ClientConnection*>::const_iterator int_cc = clients.begin(); int_cc != clients.end(); ++int_cc)
     {
         const CGI* clientCGI = int_cc->second->cgi;
-        if (clientCGI->getFd() == searchedCGIfd)
+
+        if (clientCGI && clientCGI->getFd() == searchedCGIfd)
             return int_cc->first; // client fd
     }
     return -1;
@@ -195,16 +196,16 @@ void Server::run()
             // skips the fd without an event actually happening
             if (poll_fds[i].revents == 0)
                 continue;
-            
+
             //check if the fd belong to listening socket
             Listener *listener = findListenerByFd(poll_fds[i].fd);
 
-            if (listener != NULL)
+            if (listener)
                 handleListenersEvents(listener, poll_fds[i].revents);
             int client_fd;
             if (!listener && (client_fd = findClientByCGIfd(poll_fds[i].fd)) > -1)
-                handleCGIevents(client_fd ,poll_fds[i].revents);
-            else
+                handleCGIevents(client_fd, poll_fds[i].revents);
+            else if (!listener)
             {
                 // if not listener, not CGI then client
                 // get the client with the right fd
@@ -270,11 +271,6 @@ void Server::handleCGIevents(int client_fd, short revents)
 // POLLHUP ( Connection hangup)
 void Server::handleClientEvents(int fd, short revents)
 {
-    std::cout << clients.size() << "\n";
-    for (std::map<int, ClientConnection*>::iterator it = clients.begin(); it != clients.end(); ++it)
-    {
-        std::cout << it->first << "\n";
-    }std::cout << fd << "\n";
     std::map<int, ClientConnection*>::iterator client = clients.find(fd);
     if (client != clients.end())
     {
@@ -575,7 +571,7 @@ void Server::acceptNewConnections(Listener *listener)
 
         // store the new connection
         ClientConnection * newClient = new ClientConnection(clientSocket, clientAddress, listener);
-        clients[clientSocket] = newClient;std::cout << "added " << clientSocket << "\n";
+        clients[clientSocket] = newClient;
         // TEST_INTEGRATION integrationLogEvent("accept", clientSocket);
     }
 }

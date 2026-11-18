@@ -933,6 +933,7 @@ void Router::handleDelete(const HttpRequest& request, HttpResponse& response, co
 
 void Router::handleCGI(const HttpRequest& request, HttpResponse& response, const LocationConfig& location, const std::string& extension, CGI*& cgiRef)
 {
-    CGI cgi(request, response, location, extension, cgiRef);
-    cgi.runScript(); // creates pipes, forks process, runs the script
+    CGI* cgi = new CGI(request, response, location, extension, cgiRef);
+    
+    cgi->runScript(); // creates pipes, forks process, runs the script
 }

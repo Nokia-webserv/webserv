@@ -29,6 +29,7 @@ class CGI {
         int cgi_fd; // parent pipe reading end
         std::string scriptPath; // e.g. www/scripts/script.py
         std::string argv; // for execve()
+        std::vector<std::string> envp_str; // for execve()
         std::vector<const char*> envp; // for execve()
         std::string cgiOutputBuffer; // collects partial CGI output
         bool responseReady; // indicates complete http response

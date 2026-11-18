@@ -40,21 +40,17 @@ void CGI::setArgv(const HttpRequest & request, const LocationConfig & location)
 // prepares environmental arguments for execve (implemented as per current needs)
 void CGI::setEnvp(const HttpRequest & request/*, std::vector<std::string> envp_required*/) /*in case other cgi scripts will be supported*/
 {
-    std::string tempEnvp[3];
-
     // size_t s = envp_required.size();
     //for (size_t i = 0; i < s; i++) {
-    tempEnvp[0] = "\"REQUEST_METHOD=" + request.getMethod() + "\"";
-    tempEnvp[1] = "\"PATH=" + request.getPath() + "\"";
+    envp_str.push_back ("\"REQUEST_METHOD=" + request.getMethod() + "\"");
+    envp_str.push_back("\"PATH=" + request.getPath() + "\"");
     if (request.getHeaders().find("content-length") != request.getHeaders().end())
-        tempEnvp[2] = "\"CONTENT_LENGTH=" + request.getHeaders().find("content-length")->second + "\"";
-    else
-        tempEnvp[2] = "";
+        envp_str.push_back("\"CONTENT_LENGTH=" + request.getHeaders().find("content-length")->second + "\"");
     
-    envp.push_back(tempEnvp[0].c_str());
-    envp.push_back(tempEnvp[1].c_str());
-    if (!tempEnvp[2].empty())
-        envp.push_back(tempEnvp[2].c_str());
+    envp.push_back(envp_str[0].c_str());
+    envp.push_back(envp_str[1].c_str());
+    if (envp_str.size() == 3)
+        envp.push_back(envp_str[2].c_str());
     envp.push_back(NULL);
     //}
     std::cout << "envp: " << envp[0] << " " << envp[1]; if (envp[2]) std::cout << " " << envp[2]; std::cout << "\n";
