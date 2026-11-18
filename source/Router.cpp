@@ -217,6 +217,7 @@ RouteDecision Router::route(const HttpRequest& request, const Listener& listener
     {
         handleCGI(request, response, *result.location, ext, cgiMap);
         result.type = RouteDecision::ROUTE_CGI;
+        return result;
     }
     
     // 6- method handler one request at a time
