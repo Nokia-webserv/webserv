@@ -214,3 +214,6 @@ tr -d '\r' < "$TMP_DIR/headers" |
     || fail "/older: expected 404 Not Found"
 
 pass "Location boundary protection /older"
+
+echo
+echo "[RESULT] All 6 redirect integration checks PASSED"
