@@ -6,7 +6,7 @@
 /*   By: atammur <atammur@student.42berlin.de>      +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/11/06 22:50:16 by damohame          #+#    #+#             */
-/*   Updated: 2026/11/19 03:40:57 by atammur          ###   ########.fr       */
+/*   Updated: 2026/11/19 20:07:21 by atammur          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -950,7 +950,7 @@ void Router::handleMultipart(const HttpRequest& request, HttpResponse& response,
     std::string boundary;
     std::map<std::string, std::string>::const_iterator it = request.getHeaders().find("content-type");
     if (it == request.getHeaders().end()) {
-        handleBoundaryParserError(request, response, result);
+        handleMultipartError(request, response, result);
         return ;
     }
     //find exact boundary
@@ -961,14 +961,14 @@ void Router::handleMultipart(const HttpRequest& request, HttpResponse& response,
     std::string contentType = it->second;
     std::string::size_type boundaryBegin = contentType.find(";");
     if (boundaryBegin == std::string::npos) {
-        handleBoundaryParserError(request, response, result);
+        handleMultipartError(request, response, result);
         return ;
     }
     //make sure we find boundary, not for example otherboundary.
     while (true) {
         boundaryBegin = strTolower(contentType).find("boundary=", boundaryBegin);
         if (boundaryBegin == std::string::npos) {
-            handleBoundaryParserError(request, response, result);
+            handleMultipartError(request, response, result);
             return ;
         }
         if (contentType[boundaryBegin - 1] == ' ' || contentType[boundaryBegin - 1] == ';' || contentType[boundaryBegin - 1] == '\t') {
@@ -986,34 +986,98 @@ void Router::handleMultipart(const HttpRequest& request, HttpResponse& response,
     boundary = contentType.substr(boundaryBegin + std::string("boundary=").size(), boundaryEnd - (boundaryBegin + std::string("boundary=").size()));
     trimStr(boundary);
     if (boundary.empty()) {
-        handleBoundaryParserError(request, response, result);
+        handleMultipartError(request, response, result);
         return ;
     }
     // boundary=abc123 and boundary="abc123" are also both correct. we need to handle ""
     if (boundary[0] == '"') {
         if (boundary[boundary.size() - 1] != '"') {
-            handleBoundaryParserError(request, response, result);
+            handleMultipartError(request, response, result);
             return ;
         }
         boundary = boundary.substr(1, boundary.size() - 2);
     }
     if (boundary.empty()) {
-        handleBoundaryParserError(request, response, result);
+        handleMultipartError(request, response, result);
         return ;
     }
     
-    // Находит очередную часть multipart.
+    // find multipart parts
+    
+    // First boundary:
+    // --abc123\r\n
 
-    // Читает её заголовки и проверяет наличие filename.
+    // Boundary between parts:
+    // \r\n--abc123\r\n
 
-    // Если это файловая часть — извлекает её содержимое и сохраняет.
+    // Final boundary:
+    // \r\n--abc123--
+    
+    std::string multipartBody = request.getBody();
+    std::string delimiter = "\r\n--" + boundary;
 
-    // Переходит к следующей части, пока не встретит завершающий --abc123--.
+    //check if first delimiter is in the beginning of body
+    std::string firstDelimiter = "--" + boundary + "\r\n";
+    if (multipartBody.compare(0, firstDelimiter.size(), firstDelimiter) != 0) {
+        handleMultipartError(request, response, result);
+        return;
+    }
+    //find index after first delimiter
+    std::string::size_type currentPos = firstDelimiter.size();
+    std::string::size_type delimiterPos = currentPos;
+    
+    while(true) {
+        //find delimiter
+        delimiterPos = multipartBody.find(delimiter, currentPos);
+            //if cant find, it means it doesnt end with last delimiter
+            if (delimiterPos == std::string::npos) {
+                handleMultipartError(request, response, result);
+                return;
+            }
+            std::string part = multipartBody.substr(currentPos, delimiterPos - currentPos);
+            //check if its middle of end of multipart
+            std::string::size_type suffixIndex = delimiterPos + delimiter.size();
+            std::string suffix = multipartBody.substr(suffixIndex, 2);
+            //if middle delimiter
+            if (suffix == "\r\n") {
+                //for testing:
+                std::cout << part << std::endl;
+                //handlePart(part);
+            }
+            //else if last delimiter
+            else if (suffix == "--") {
+                //for testing:
+                std::cout << part << std::endl;
+                //handlePart(part);
+                break ;
+            }
+            //else its wrong suffix
+            else {
+                handleMultipartError(request, response, result);
+                return;
+            }
+        //move indexes forward
+        currentPos = delimiterPos + delimiter.size() + 2;
+    }
+    //handle junk after last delimiter
+    // \r\n--abc123--\r\nsomethingelse is valid
+    // \r\n--abc123--somethingelse is invalid
+    std::string ending = multipartBody.substr(delimiterPos + 2, 2);
+    if (ending != "\r\n") {
+        handleMultipartError(request, response, result);
+        return;
+    }
+
+    //handlePart():
+    // read headers and check if theres filename
+    //get filename format
+    // get file content and save
+
 
 }
 
-void Router::handleBoundaryParserError(const HttpRequest& request, HttpResponse& response, RouteDecision& result) {
-    result.type = RouteDecision::ROUTE_ERROR;;
+void Router::handleMultipartError(const HttpRequest& request, HttpResponse& response, RouteDecision& result) {
+    result.type = RouteDecision::ROUTE_ERROR;
     result.errorCode = 400;
     handleError(request, result, response);
 }

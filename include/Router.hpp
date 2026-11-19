@@ -6,7 +6,7 @@
 /*   By: atammur <atammur@student.42berlin.de>      +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/11/06 22:25:55 by damohame          #+#    #+#             */
-/*   Updated: 2026/11/19 03:09:02 by atammur          ###   ########.fr       */
+/*   Updated: 2026/11/19 19:58:38 by atammur          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -92,5 +92,5 @@ class Router
         //POST method helpers
         std::string getFileFormat(const std::string& type);
         void handleMultipart(const HttpRequest& request, HttpResponse& response, RouteDecision& result);
-        void handleBoundaryParserError(const HttpRequest& request, HttpResponse& response, RouteDecision& result);
+        void handleMultipartError(const HttpRequest& request, HttpResponse& response, RouteDecision& result);
 };

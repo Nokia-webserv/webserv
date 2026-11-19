@@ -10,9 +10,28 @@ python3 tests/methods/test_multipart_boundary.py
 Before, Expected, After and colored PASS/FAIL. The temporary build observes the
 local boundary variable and returns before the next multipart stage. Production
 files, body parsing, uploads and CI are unchanged. The test uses the comment
-`// Находит очередную часть multipart.` as the boundary-stage stopping point.
+`// find multipart parts` (or its original Russian wording) as the stopping point.
 Parameter-name case and whitespace expectations follow
 [RFC 9110, section 5.6.6](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.6).
+
+## Multipart parts only
+
+```sh
+python3 tests/methods/test_multipart_parts.py
+```
+
+19 component cases call the real handleMultipart and compare its emitted parts
+byte-for-byte, including order, empty file content, NUL and CRLF. They also check
+missing/truncated delimiters and 400 responses. The test captures each existing
+`std::cout << part << std::endl` output separately; it does not replace the
+splitting algorithm. The temporary header grants test access to the private
+method. Router.cpp is compiled unchanged. No server, handlePart, file saving,
+success response, Git changes or CI changes are involved. Keep the debug output
+until handlePart provides another observation point. Preamble handling, transport
+padding and validation of individual part headers are outside this small suite.
+For malformed input after earlier complete parts, the suite requires 400 but
+does not prescribe rollback of earlier parts. Closing-line checks follow
+[RFC 2046, section 5.1.1](https://www.rfc-editor.org/rfc/rfc2046.html#section-5.1.1).
 
 ## Raw POST upload
 

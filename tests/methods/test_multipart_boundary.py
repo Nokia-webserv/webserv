@@ -97,9 +97,13 @@ def main():
     header = (root / "include/Router.hpp").read_text()
     # Observe the local variable after validation, then stop before body parsing.
     # This changes only a temporary build copy, never the production algorithm.
-    marker = "    // Находит очередную часть multipart."
     start = source.index("void Router::handleMultipart(")
-    position = source.index(marker, start)
+    markers = ("    // find multipart parts", "    // Находит очередную часть multipart.")
+    positions = [source.find(marker, start) for marker in markers]
+    positions = [position for position in positions if position != -1]
+    if not positions:
+        sys.exit("[BLOCKED] Cannot find the end of the boundary-extraction stage.")
+    position = min(positions)
     source = (source[:position] + "    captureBoundaryForTest(boundary);\n    return;\n"
               + source[position:])
     header, count = re.subn(r"\bclass\s+Router\s*\{",
