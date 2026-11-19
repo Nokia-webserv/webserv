@@ -1,12 +1,12 @@
 /* ************************************************************************** */
 /*                                                                            */
 /*                                                        :::      ::::::::   */
-/*   router.cpp                                         :+:      :+:    :+:   */
+/*   Router.cpp                                         :+:      :+:    :+:   */
 /*                                                    +:+ +:+         +:+     */
 /*   By: atammur <atammur@student.42berlin.de>      +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/11/06 22:50:16 by damohame          #+#    #+#             */
-/*   Updated: 2026/11/16 01:35:39 by atammur          ###   ########.fr       */
+/*   Updated: 2026/11/19 03:40:57 by atammur          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -865,7 +865,7 @@ void Router::handlePost(const HttpRequest& request, HttpResponse& response, Rout
         contentType = it->second;
         //if it is multipart/form-data, handle multipart upload separately
         if (contentType.find("multipart/form-data") == 0) {
-            //handleMultipart(); TODO
+            handleMultipart(request, response, result);
             return ;
         }
         format = getFileFormat(contentType);
@@ -931,6 +931,99 @@ void Router::handlePost(const HttpRequest& request, HttpResponse& response, Rout
     //get vector of headers
     fillResponse(response, request.getVersion(), 201, headers, body);
 }
+
+// POST /upload HTTP/1.1
+// Content-Type: multipart/form-data; boundary=abc123
+
+// --abc123
+// Content-Disposition: form-data; name="title"
+
+// My cat
+// --abc123
+// Content-Disposition: form-data; name="file"; filename="cat.png"
+// Content-Type: image/png
+
+// <bytes of cat.png>
+// --abc123--
+void Router::handleMultipart(const HttpRequest& request, HttpResponse& response, RouteDecision& result) {
+    // Получает boundary из общего HTTP-заголовка.
+    std::string boundary;
+    std::map<std::string, std::string>::const_iterator it = request.getHeaders().find("content-type");
+    if (it == request.getHeaders().end()) {
+        handleBoundaryParserError(request, response, result);
+        return ;
+    }
+    //find exact boundary
+
+    //both are correct. we need to find ';' first and then find boundary beginning
+    // multipart/form-data; boundary=abc123
+    // multipart/form-data;boundary=abc123
+    std::string contentType = it->second;
+    std::string::size_type boundaryBegin = contentType.find(";");
+    if (boundaryBegin == std::string::npos) {
+        handleBoundaryParserError(request, response, result);
+        return ;
+    }
+    //make sure we find boundary, not for example otherboundary.
+    while (true) {
+        boundaryBegin = strTolower(contentType).find("boundary=", boundaryBegin);
+        if (boundaryBegin == std::string::npos) {
+            handleBoundaryParserError(request, response, result);
+            return ;
+        }
+        if (contentType[boundaryBegin - 1] == ' ' || contentType[boundaryBegin - 1] == ';' || contentType[boundaryBegin - 1] == '\t') {
+            break ;
+        }
+        boundaryBegin += 1;
+    }
+
+    //find last ';' of boundary
+    std::string::size_type boundaryEnd = contentType.find(";", boundaryBegin);
+    //if multipart/form-data;boundary=abc123 ends without ';', we take end of line as length
+    if (boundaryEnd == std::string::npos) {
+        boundaryEnd = contentType.size();
+    }
+    boundary = contentType.substr(boundaryBegin + std::string("boundary=").size(), boundaryEnd - (boundaryBegin + std::string("boundary=").size()));
+    trimStr(boundary);
+    if (boundary.empty()) {
+        handleBoundaryParserError(request, response, result);
+        return ;
+    }
+    // boundary=abc123 and boundary="abc123" are also both correct. we need to handle ""
+    if (boundary[0] == '"') {
+        if (boundary[boundary.size() - 1] != '"') {
+            handleBoundaryParserError(request, response, result);
+            return ;
+        }
+        boundary = boundary.substr(1, boundary.size() - 2);
+    }
+    if (boundary.empty()) {
+        handleBoundaryParserError(request, response, result);
+        return ;
+    }
+    
+    // Находит очередную часть multipart.
+
+    // Читает её заголовки и проверяет наличие filename.
+
+    // Если это файловая часть — извлекает её содержимое и сохраняет.
+
+    // Переходит к следующей части, пока не встретит завершающий --abc123--.
+
+}
+
+void Router::handleBoundaryParserError(const HttpRequest& request, HttpResponse& response, RouteDecision& result) {
+    result.type = RouteDecision::ROUTE_ERROR;;
+    result.errorCode = 400;
+    handleError(request, result, response);
+}
+
+
+
+
+
+
+
 
 std::string Router::getFileFormat(const std::string& type) {
     std::string mediaType = type;

@@ -1,5 +1,19 @@
 # Method tests
 
+## Multipart boundary only
+
+```sh
+python3 tests/methods/test_multipart_boundary.py
+```
+
+12 component cases check only boundary extraction and its 400 errors. They print
+Before, Expected, After and colored PASS/FAIL. The temporary build observes the
+local boundary variable and returns before the next multipart stage. Production
+files, body parsing, uploads and CI are unchanged. The test uses the comment
+`// Находит очередную часть multipart.` as the boundary-stage stopping point.
+Parameter-name case and whitespace expectations follow
+[RFC 9110, section 5.6.6](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.6).
+
 ## Raw POST upload
 
 To check raw POST through the actual server using curl:
