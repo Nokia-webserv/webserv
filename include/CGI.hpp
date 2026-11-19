@@ -46,7 +46,7 @@ class CGI {
         std::string scriptPath; // e.g. www/scripts/script.py
         std::vector<char*> argv; // for execve()
         std::vector<std::string> envp_str; // for execve()
-        std::vector<const char*> envp; // for execve()
+        std::vector<char*> envp; // for execve()
         std::string cgiOutputBuffer; // collects partial CGI output
         bool responseReady; // indicates http response completion
         int& error_code;

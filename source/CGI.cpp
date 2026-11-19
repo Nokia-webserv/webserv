@@ -61,10 +61,10 @@ void CGI::setEnvp(const HttpRequest & request/*, std::vector<std::string> envp_r
     if (request.getHeaders().find("content-length") != request.getHeaders().end())
         envp_str.push_back("\"CONTENT_LENGTH=" + request.getHeaders().find("content-length")->second + "\"");
     
-    envp.push_back(envp_str[0].c_str());
-    envp.push_back(envp_str[1].c_str());
+    envp.push_back(const_cast<char*>(envp_str[0].c_str()));
+    envp.push_back(const_cast<char*>(envp_str[1].c_str()));
     if (envp_str.size() == 3)
-        envp.push_back(envp_str[2].c_str());
+        envp.push_back(const_cast<char*>(envp_str[2].c_str()));
     envp.push_back(NULL);
     //}
 }
