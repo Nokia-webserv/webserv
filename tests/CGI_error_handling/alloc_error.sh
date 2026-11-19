@@ -14,10 +14,22 @@ cp -p "$ROUTER" "$BACKUP"
 
 # Runs on any exit (normal, error, Ctrl+C): stop server, restore Router.cpp
 cleanup() {
-    [ -n "$SERVER_PID" ] && kill "$SERVER_PID" 2>/dev/null && wait "$SERVER_PID" 2>/dev/null
+    echo
+    echo "===== CLEANUP ====="
+
+    if [ -n "$SERVER_PID" ]; then
+        kill "$SERVER_PID" 2>/dev/null
+        wait "$SERVER_PID" 2>/dev/null
+    fi
+
     cp "$BACKUP" "$ROUTER"
     rm -f "$BACKUP"
+
+    make fclean
+
     echo "Router.cpp restored."
+    echo "Build artifacts removed."
+    echo "==================="
 }
 trap cleanup EXIT INT TERM
 

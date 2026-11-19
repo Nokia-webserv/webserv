@@ -1,18 +1,31 @@
 #!/bin/bash
 # Test 2: imitate pipe error in source/CGI.cpp
+
 FILE="source/CGI.cpp"
 SERVER_CMD="${SERVER_CMD:-./webserv test1.conf}"
 BACKUP="$(mktemp)"
 SERVER_PID=""
 
-[ -f "$FILE" ] || { echo "File not found: $FILE" >&2; exit 1; }
+[ -f "$FILE" ] || { echo "File not found: $FILE" >&2; rm -f "$BACKUP"; exit 1; }
 cp -p "$FILE" "$BACKUP"
 
 cleanup() {
-    [ -n "$SERVER_PID" ] && kill "$SERVER_PID" 2>/dev/null && wait "$SERVER_PID" 2>/dev/null
+    echo
+    echo "===== CLEANUP ====="
+
+    if [ -n "$SERVER_PID" ]; then
+        kill "$SERVER_PID" 2>/dev/null
+        wait "$SERVER_PID" 2>/dev/null
+    fi
+
     cp "$BACKUP" "$FILE"
     rm -f "$BACKUP"
+
+    make fclean
+
     echo "$FILE restored."
+    echo "Build artifacts removed."
+    echo "==================="
 }
 trap cleanup EXIT INT TERM
 

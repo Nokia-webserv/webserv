@@ -249,7 +249,7 @@ void Server::handleCGIevents(int client_fd, short revents)
     if (revents & (POLLNVAL | POLLERR)) 
         cgi->decision.errorCode = 500;
     
-    /* Valid event processing */
+    /* Valid handling */
 
     // processes CGI output
     if (!cgi->getErrorCode() && (revents & (POLLIN | POLLHUP)))
@@ -257,39 +257,18 @@ void Server::handleCGIevents(int client_fd, short revents)
     
     // handles errors
     if (cgi->getErrorCode())
-    {
-
-
-        // cgi->terminateChildProcess();
-        // terminationStatus tStatus = cgi->getTerminationStatus();
-        // // prevents object destruction before full process termination
-        // if (tStatus == stillRunning || tStatus == interrupted || tStatus == otherError)
-        //     return;
-
-        /* Test 4: termination error (retry) */
-        // the following block will replace the block above
-        /* static int count = 0;
-        if (!count)
-        {
-            std::cout << "=== TEST: Termination retry ===\n";
-            std::cout << "Attempt 1\n";
-            count++;
-            return;
-        }
-        std::cout << "Attempt 2\n"; */
-        
+    {   
         // builds error response
         Router router;
         router.handleError(cgi->request, cgi->decision, cgi->response);
         cgi->setResponseReady();
     }
 
-    // places response into the queue & cleans up the object
+    // places response into the queue & deletes the object
     if (cgi->isResponseReady())
     {
         client->addDataToSend(cgi->response.serialize());
         cgi->reapProcess();
-        //cgi->cleanUp();?
         delete cgi;
     }
 }
@@ -475,7 +454,7 @@ void Server::checkCGItimeout()
     CGI* cgi;
     time_t now;
 
-    // cycles through each client and checks thei CGI
+    // cycles through each client and checks their CGI
     for (int_cc = clients.begin(); int_cc != clients.end(); ++int_cc)
     {   
         cgi = int_cc->second->cgi;
@@ -484,28 +463,33 @@ void Server::checkCGItimeout()
         now = std::time(NULL);
         if (now - cgi->getStartTime() > GLOBAL_CLIENT_TIMEOUT_SECONDS)
         {
+            std::cout << "Terminating timedout CGI\n";
             handleCGIevents(int_cc->second->getFd(), POLLERR); // handles as error
         }
     }
 }
 
+// attempts to kill pending processes up to x times
 void Server::checkPendingPIDs()
 {
+    const int attemptsToKill = 10; // configures amount of termination attempts
     int status;
     std::vector<int> killed;
 
     for (std::map<int, int>::iterator pid_killTries = pendingPIDs.begin(); pid_killTries != pendingPIDs.end(); ++pid_killTries)
     {
-        if (pid_killTries->second < 3)
+        std::cout << "Killing pending PID " << pid_killTries->first << "\n";
+        if (pid_killTries->second < attemptsToKill)
         {
             kill(pid_killTries->first, SIGKILL);
-            if (waitpid(pid_killTries->first, &status, WNOHANG) == pid_killTries->first)
+            if (waitpid(pid_killTries->first, &status, WNOHANG) == pid_killTries->first) // result needs to equal pid
             {
+                std::cout << pid_killTries->first << " successfully terminated\n";
                 killed.push_back(pid_killTries->first);
                 continue;
             }
             pid_killTries->second++;
-            if (pid_killTries->second == 3)
+            if (pid_killTries->second == attemptsToKill)
             {
                 std::cerr << "Failure to correctly terminate child process. PID: " << pid_killTries->first << "\n";
                 killed.push_back(pid_killTries->first);

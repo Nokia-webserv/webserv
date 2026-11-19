@@ -23,18 +23,19 @@ CGI::CGI(const HttpRequest & request, HttpResponse & response, RouteDecision dec
     pipeWrite[0] = -1, pipeWrite[1] = -1;
     setArgv(request, *decision.location);
     setEnvp(request);
+    std::cout << "Building CGI object\n";
 }
 
 CGI::~CGI()
 {
+    std::cout << "Destructing CGI object\n";
     if (pid != -2 && !termination_status)
     {
         kill(pid, SIGKILL);
         if (reapProcess())
             pendingPIDs.erase(pid);
     }
-    /* if (pid != -2 && termination_status != terminated)
-        std::cerr << "Failure to correctly terminate child process. PID: " << pid << "\n"; */
+
     cleanUp();
 }
 
@@ -68,48 +69,20 @@ void CGI::setEnvp(const HttpRequest & request/*, std::vector<std::string> envp_r
     //}
 }
 
-void CGI::terminateChildProcess()
-{
-    // sends immediate termination signal (doesn't guarrantee termination)
-    std::cout<<kill(pid, SIGKILL)<<" kill\n";
-    
-    /* int result = waitpid(pid, &status, WNOHANG);
-    std::cout << result << " waitpid\n";
-    if (result != pid)
-        pendingPIDs[pid] = 0; */
-    // {
-    //     /* process termination error */
-    //     if (result == -1)
-    //     {
-    //         switch (errno)
-    //         {
-    //             case EINTR: termination_status = interrupted; return;
-    //             case ECHILD: termination_status = reapedAlready; return;
-    //             default: termination_status = otherError; return;
-    //         }
-    //     }
-    //     termination_status = stillRunning;
-    //     sleep(5);
-    //     result = waitpid(pid, &status, WNOHANG);
-    //     std::cout << result << " waitpid\n";
-    //     return;
-    // }
-    // termination_status = terminated;
-}
-
-// checks subprocess status, reapes zombie process (terminated but awawiting parent's read) in non-blocking mode
+// cleans up a finished child process so the operating system can release the resources it was still holding
 bool CGI::reapProcess()
 {
+    std::cout << "Reaping child process\n";
     int status;
-    // checks subprocess status, reapes zombie process (terminated but awawiting parent's read), non-blocking mode
-    int result = waitpid(pid, &status, WNOHANG);
-    // records unreaped pid in the server
+    // checks subprocess status, reapes zombie process (terminated but awawiting parent's read)
+    int result = waitpid(pid, &status, WNOHANG); // non-blocking mode
     if (result == pid)
         termination_status = true;
     else
     {
         termination_status = false;
-        pendingPIDs.insert(std::make_pair(pid, 0));
+        // records unreaped pid in the server
+        pendingPIDs.insert(std::make_pair(pid, 0)); // ignores duplicates
     }
     return termination_status;
 }
@@ -129,6 +102,7 @@ void CGI::cleanUp()
 
     // erases from the client
     myPtrInMyClient = NULL;
+    std::cout << "Cleaning up CGI object\n";
 }
 
 void CGI::runScript()
@@ -170,16 +144,6 @@ void CGI::runScript()
             while (true)
                 poll(NULL, 0, -1); 
         }
-
-        /* Test 3: error in child proces */
-        // the following block will replace the block above
-        /* std::cout << "=== TEST: Imitating error in subprocess ===\n";
-        std::string buf1 = D_ERROR_MSG;
-        write(pipeWrite[1], buf1.c_str(), buf1.size());
-        while (true)
-            poll(NULL, 0, -1);
-        std::cout << "Must not reach here\n";  */
-
         close(pipeRead[0]); // after dup no pipe end is needed
         close(pipeRead[1]);
         close(pipeWrite[1]);
@@ -203,8 +167,9 @@ void CGI::runScript()
     close(pipeWrite[1]);
     pipeWrite[1] = -1;
     this->pid = pid;
-    // records in client -> adds to poll
+    // records itslef in client -> adds to poll
     myPtrInMyClient = this;
+    std::cout << "Process forked successfully. PID:" << pid << "\n";
 }
 
 // reads until EOF then builds response
@@ -216,7 +181,7 @@ void CGI::processOutput()
     // buildResponse();
         // responseReady = true;
     // cleanup cgi object: close fd, remove from cgi map
-    std::cout << "process Output not implemented\n";
+    std::cout << "Processing CGI Output not implemented - handling as an error in subprocess\n";
     error_code = 500;
 }
 
@@ -234,11 +199,6 @@ time_t CGI::getStartTime() const
 {
     return startTime;
 }
-
-// terminationStatus CGI::getTerminationStatus() const
-// {
-//     return termination_status;
-// }
 
 int CGI::getErrorCode() const
 {
