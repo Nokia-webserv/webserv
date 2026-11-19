@@ -110,6 +110,8 @@ int main() {
     valid(cases, "Inline boundary text is payload", std::vector<std::string>(1, filePart("before--abc123after")));
     valid(cases, "Preserve internal blank lines", std::vector<std::string>(1, filePart("one\r\n\r\ntwo")));
     valid(cases, "Boundary value is case-sensitive", two, "AbC123");
+    valid(cases, "Closing offset with a one-character boundary", two, "b");
+    valid(cases, "Closing offset with a 70-character boundary", two, std::string(70, 'A'));
     cases.push_back(Case("Quoted boundary header", "abc123", two, makeBody("abc123", two), false, true));
     std::string withoutCRLF = makeBody("abc123", one);
     withoutCRLF.erase(withoutCRLF.size() - 2);
@@ -128,8 +130,16 @@ int main() {
                          "--abc123\r\n" + text + "\r\n--abc123\r\n" + file, true));
     cases.push_back(Case("Junk attached to closing delimiter", "abc123", none,
                          "--abc123\r\n" + text + "\r\n--abc123--junk", true));
+    const std::string closing = withoutCRLF;
+    cases.push_back(Case("One junk byte after closing delimiter", "abc123", none, closing + "X", true));
+    cases.push_back(Case("Lone CR after closing delimiter", "abc123", none, closing + "\r", true));
+    cases.push_back(Case("Lone LF after closing delimiter", "abc123", none, closing + "\n", true));
+    cases.push_back(Case("CR followed by junk is not CRLF", "abc123", none, closing + "\rX", true));
+    cases.push_back(Case("NUL after closing delimiter is not end of body", "abc123", none,
+                         closing + std::string("\0junk", 5), true));
 
     unsigned passed = 0, failed = 0;
+    unsigned validPassed = 0, validFailed = 0, invalidPassed = 0, invalidFailed = 0;
     for (size_t i = 0; i < cases.size(); ++i) {
         const Case& test = cases[i];
         HttpRequest request;
@@ -157,20 +167,28 @@ int main() {
             actual == test.parts && result.type == RouteDecision::ROUTE_SERVE && result.errorCode == 0
             && response.serialize() == initialResponse);
         if (ok) ++passed; else ++failed;
+        if (test.bad) { if (ok) ++invalidPassed; else ++invalidFailed; }
+        else { if (ok) ++validPassed; else ++validFailed; }
         std::cout << (ok ? "\033[32m[PASS]\033[0m " : "\033[31m[FAIL]\033[0m ") << test.name
                   << "\n    Before: boundary=" << test.boundary << "; body bytes=" << test.body.size()
+                  << "\n    Body tail: " << display(test.body.substr(test.body.size() > 48 ? test.body.size() - 48 : 0))
                   << "\n    Expected: ";
         if (test.bad) std::cout << "HTTP 400";
         else std::cout << test.parts.size() << " exact part(s), in order";
-        std::cout << "\n    After: " << (threw ? "exception" : rejected ? "HTTP 400" : "accepted")
-                  << "; extracted parts=" << actual.size() << '\n';
+        std::cout << "\n    After: ";
+        if (threw) std::cout << "exception";
+        else if (result.type == RouteDecision::ROUTE_ERROR) std::cout << "HTTP " << result.errorCode;
+        else std::cout << "accepted";
+        std::cout << "; extracted parts=" << actual.size() << '\n';
         for (size_t j = 0; j < actual.size(); ++j)
             std::cout << "    Part " << j + 1 << " (" << actual[j].size() << " bytes): " << display(actual[j]) << '\n';
         if (!ok && !test.bad)
             for (size_t j = 0; j < test.parts.size(); ++j)
                 std::cout << "    Expected part " << j + 1 << ": " << display(test.parts[j]) << '\n';
     }
-    std::cout << "\nPassed: " << passed << ", failed: " << failed << '\n';
+    std::cout << "\nValid bodies: passed=" << validPassed << ", failed=" << validFailed
+              << "\nMalformed bodies: passed=" << invalidPassed << ", failed=" << invalidFailed
+              << "\nPassed: " << passed << ", failed: " << failed << '\n';
     return failed ? 1 : 0;
 }
 '''

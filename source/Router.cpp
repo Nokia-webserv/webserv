@@ -6,7 +6,7 @@
 /*   By: atammur <atammur@student.42berlin.de>      +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/11/06 22:50:16 by damohame          #+#    #+#             */
-/*   Updated: 2026/11/19 20:07:21 by atammur          ###   ########.fr       */
+/*   Updated: 2026/11/19 20:27:52 by atammur          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -1062,8 +1062,8 @@ void Router::handleMultipart(const HttpRequest& request, HttpResponse& response,
     //handle junk after last delimiter
     // \r\n--abc123--\r\nsomethingelse is valid
     // \r\n--abc123--somethingelse is invalid
-    std::string ending = multipartBody.substr(delimiterPos + 2, 2);
-    if (ending != "\r\n") {
+    std::string ending = multipartBody.substr(delimiterPos + delimiter.size() + 2, 2);
+    if (!ending.empty() && ending != "\r\n") {
         handleMultipartError(request, response, result);
         return;
     }

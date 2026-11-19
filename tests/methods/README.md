@@ -20,7 +20,7 @@ Parameter-name case and whitespace expectations follow
 python3 tests/methods/test_multipart_parts.py
 ```
 
-19 component cases call the real handleMultipart and compare its emitted parts
+26 component cases call the real handleMultipart and compare its emitted parts
 byte-for-byte, including order, empty file content, NUL and CRLF. They also check
 missing/truncated delimiters and 400 responses. The test captures each existing
 `std::cout << part << std::endl` output separately; it does not replace the
@@ -30,7 +30,13 @@ success response, Git changes or CI changes are involved. Keep the debug output
 until handlePart provides another observation point. Preamble handling, transport
 padding and validation of individual part headers are outside this small suite.
 For malformed input after earlier complete parts, the suite requires 400 but
-does not prescribe rollback of earlier parts. Closing-line checks follow
+does not prescribe rollback of earlier parts. Ending checks include no final
+CRLF, CRLF plus epilogue, immediate junk, a single junk byte, lone CR/LF,
+CR followed by junk, a NUL byte and different boundary lengths. Output shows the
+escaped body tail and separate totals for valid and malformed bodies. A passing
+negative test alone does not prove valid multipart bodies are accepted.
+The boundary-only runner stops before splitting and does not test endings.
+Closing-line checks follow
 [RFC 2046, section 5.1.1](https://www.rfc-editor.org/rfc/rfc2046.html#section-5.1.1).
 
 ## Raw POST upload
