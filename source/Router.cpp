@@ -6,7 +6,7 @@
 /*   By: damohame <damohame@student.42berlin.d>     +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/11/06 22:50:16 by damohame          #+#    #+#             */
-/*   Updated: 2026/11/19 00:32:30 by damohame         ###   ########.fr       */
+/*   Updated: 2026/11/19 01:05:30 by damohame         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -43,24 +43,41 @@ Router::~Router()
 // path = "/images/cat.jpg";
 // we need to get the longest correct paths
 // not the exact path
+// Require a path-segment boundary to avoid partial matches.
+// For example, /img should not match /imgfoo.
+// ex: GET /images/cats/luna.jpg HTTP/1.1 
+// location block : /images/cats 
 const LocationConfig* Router::matchLocation(const std::string& path, const ServerConfig& server) const
 {
     // to get the best longest match
     const LocationConfig* best = NULL;
     size_t longest = 0;
     
+    // loop through all locations
     for (size_t i = 0; i <server.locations.size(); i++)
     {
         // temp to save the location config of the server(config file)
         const LocationConfig& location = server.locations[i];
         
+        if (location.path.empty())
+            continue;
+            
         // Check if the location path is a prefix of the request path
+        // path = "/images/cats/luna.jpg";
         if (path.compare(0, location.path.size(), location.path) == 0)
         {
-            if (location.path.size() > longest)
+            // calculate the prefix length
+            // /images -> 7
+            size_t prefixLen = location.path.size();
+            // a valid path-segment boundary
+            bool boundary = (path.size() == prefixLen) // /images == /images 
+                            || (path.size() > prefixLen && path[prefixLen] == '/') // /images/cat.jpg  request has /
+                            || (location.path[prefixLen -1] == '/');    //   /images/
+            
+            if (boundary && prefixLen > longest)
             {
                 best = &location;
-                longest = location.path.size();
+                longest = prefixLen;
             }
         }
     }
