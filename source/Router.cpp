@@ -223,6 +223,9 @@ RouteDecision Router::route(const HttpRequest& request, const Listener& listener
         return result;
     }
 
+    // std::cout << request.getMethod() << "\n";
+    // sleep(3);
+
     // extra step--- check for limit size validation
     if (!isHeaderSizeAllowed(request, *result.server, *result.location))
     {

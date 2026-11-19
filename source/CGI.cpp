@@ -4,6 +4,8 @@
 #include <ctime>
 #include <poll.h>
 
+extern char **environ;
+
 CGI::CGI(const HttpRequest & request, HttpResponse & response, RouteDecision decision, const std::string& cgi_extension, 
     CGI*& myPtrInMyClient, std::map<int, int>& pendingPIDs)
 :   extension(cgi_extension),
@@ -14,6 +16,7 @@ CGI::CGI(const HttpRequest & request, HttpResponse & response, RouteDecision dec
     myPtrInMyClient(myPtrInMyClient), // NULL
     pendingPIDs(pendingPIDs),
     pid(-2),
+    bytesSent(0),
     responseReady(false),
     error_code(this->decision.errorCode),
     termination_status(false),
@@ -21,6 +24,8 @@ CGI::CGI(const HttpRequest & request, HttpResponse & response, RouteDecision dec
 {
     pipeRead[0] = -1, pipeRead[1] = -1; 
     pipeWrite[0] = -1, pipeWrite[1] = -1;
+    cgiInputBuffer.clear();
+    cgiInputBuffer.append(request.getBody());
     setArgv(request, *decision.location);
     setEnvp(request);
     std::cout << "Building CGI object\n";
@@ -51,15 +56,27 @@ void CGI::setArgv(const HttpRequest & request, const LocationConfig & location)
     argv.push_back(NULL);
 }
 
+std::string getEnvPath()
+{
+    const std::string prefix = "PATH=";
+    for (size_t i = 0; environ[i]; ++i)
+    {
+        std::string entry(environ[i]);
+        if (entry.compare(0, prefix.size(), prefix) == 0)
+            return entry;
+    }
+    return "PATH=/usr/bin:/bin";
+}
+
 // prepares environmental arguments for execve (implemented as per current needs)
 void CGI::setEnvp(const HttpRequest & request/*, std::vector<std::string> envp_required*/) /*in case other cgi scripts will be supported*/
 {
     // size_t s = envp_required.size();
     //for (size_t i = 0; i < s; i++) {
-    envp_str.push_back ("\"REQUEST_METHOD=" + request.getMethod() + "\"");
-    envp_str.push_back("\"PATH=" + request.getPath() + "\"");
+    envp_str.push_back("REQUEST_METHOD=" + request.getMethod());
+    envp_str.push_back(getEnvPath());
     if (request.getHeaders().find("content-length") != request.getHeaders().end())
-        envp_str.push_back("\"CONTENT_LENGTH=" + request.getHeaders().find("content-length")->second + "\"");
+        envp_str.push_back("CONTENT_LENGTH=" + request.getHeaders().find("content-length")->second);
     
     envp.push_back(const_cast<char*>(envp_str[0].c_str()));
     envp.push_back(const_cast<char*>(envp_str[1].c_str()));
@@ -67,6 +84,9 @@ void CGI::setEnvp(const HttpRequest & request/*, std::vector<std::string> envp_r
         envp.push_back(const_cast<char*>(envp_str[2].c_str()));
     envp.push_back(NULL);
     //}
+
+    std::cout << envp[0] << "\n";
+    std::cout << envp[1] << "\n";
 }
 
 // cleans up a finished child process so the operating system can release the resources it was still holding
@@ -131,6 +151,7 @@ void CGI::runScript()
     }
 
     /* child's path */
+    
     else if (pid == 0) // child sees pid as 0
     {
         // redirects pipe fds to standard streams (CGI can use only stdin and stdout)
@@ -144,6 +165,7 @@ void CGI::runScript()
             while (true)
                 poll(NULL, 0, -1); 
         }
+        dup2(pipeWrite[1], STDERR_FILENO);
         close(pipeRead[0]); // after dup no pipe end is needed
         close(pipeRead[1]);
         close(pipeWrite[1]);
@@ -161,32 +183,103 @@ void CGI::runScript()
     }
     
     /* parent's path */
+    
     // closes unused pipe ends and overrides saved fds to avoid double close
     close(pipeRead[0]);
     pipeRead[0] = -1;
     close(pipeWrite[1]);
     pipeWrite[1] = -1;
+
+    // sets fds to non-blocking mode
+    for (int i = 0; i < 2; i++)
+    {
+        int fd = !i ? pipeWrite[0] : pipeRead[1];
+
+        if (fcntl(fd, F_SETFL, O_NONBLOCK) == -1) // set new set of flags + check success
+        {
+            // crafts error msg
+            std::ostringstream fd_ss;
+            fd_ss << fd;
+            std::string error_msg = "Non-blocking mode for fd #" + fd_ss.str() + " failed";
+            std::cerr << error_msg << std::endl;
+            // sets error code
+            error_code = 500;
+            return;
+        }
+    }
+   
     this->pid = pid;
     // records itslef in client -> adds to poll
     myPtrInMyClient = this;
+    
     std::cout << "Process forked successfully. PID:" << pid << "\n";
+    std::cout << interpreterPath << "\n";
+    //sleep(3);
+    
+    provideInput();
+}
+
+void CGI::provideInput()
+{
+    std::cout << "writing to CGI\n";
+    ssize_t bts = write(pipeRead[1], request.getBody().c_str(), request.getBody().size());
+    if (bts > 0)
+        bytesSent += bts;
+    if (bytesSent == cgiInputBuffer.size())
+        closeReading();
 }
 
 // reads until EOF then builds response
 void CGI::processOutput()
 {
+    std::cout << "processing output\n"; //sleep(3);
     // readOutput();
         // check for error, change error code, return
     // after EOF:
     // buildResponse();
         // responseReady = true;
-    // cleanup cgi object: close fd, remove from cgi map
-    // std::cout << "process Output not implemented\n";
+    int readbts = readOutput();
+    if (readbts == -1)
+    {
+        error_code = 500;
+        return;
+    }
+    else if (readbts > 0)
+        return;
+    
+    if (cgiOutputBuffer == D_ERROR_MSG)
+    {
+        error_code = 500;
+        return;
+    }
+
+    std::cout << "!\n" << cgiOutputBuffer << "\n";
+
+
+    // build response
+    setResponseReady();
+    // char buf[100];
+    // read(pipeWrite[0], buf, 100);
+    // std::cout << buf << "\n";
+    // std::cout << "Processing CGI Output not implemented - handling as an error in subprocess\n";
     // error_code = 500;
-    char buf[100];
-    read(pipeWrite[0], buf, 100);
-    std::cout << buf << "\n";
-    error_code = 500;
+}
+
+int CGI::readOutput()
+{
+    char	buffer[4096];
+	ssize_t	bytesReceived;
+
+	bytesReceived = read(pipeWrite[0], buffer, sizeof(buffer));
+	if (bytesReceived > 0)
+	{
+		cgiOutputBuffer.append(buffer, static_cast<std::string::size_type>(bytesReceived));
+		return (1);
+	}
+	// EOF detection
+    else if (bytesReceived == 0)
+        return 0;
+    return (-1);
 }
 
 bool CGI::isResponseReady() const
@@ -209,7 +302,24 @@ int CGI::getErrorCode() const
     return error_code;
 }
 
-int CGI::getFd() const
+int CGI::getFd(char end) const
 {
-    return pipeWrite[0]; // fd used in poll
+    return end == 'w' ? pipeWrite[0] : pipeRead[1];
+}
+
+bool CGI::isReadOpen() const
+{
+    int fd = pipeRead[1];
+    return fd == -1 ? false : true;
+}
+
+void CGI::closeReading()
+{
+    std::cout << "closing reading\n";
+    int fd = pipeRead[1];
+    if (fd != -1)
+    {
+        close(fd);
+        pipeRead[1] = -1;
+    }
 }

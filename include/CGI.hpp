@@ -27,17 +27,20 @@ class CGI {
         CGI*& myPtrInMyClient; // ref to client class member holding ptr to this object
         std::map<int, int>& pendingPIDs; // contains pids not correctly terminated during CGI destructions
         
-        int getFd() const;
+        int getFd(char end) const;
         int getErrorCode() const;
         time_t getStartTime() const;
         
         void setResponseReady(); // marks response ready for placing in send queue
         bool isResponseReady() const;
+        void closeReading();
+        bool isReadOpen() const;
         
         void runScript(); // runs CGI
         void processOutput(); // processes CGI result
         bool reapProcess(); // cleans up child process
         void cleanUp(); // cleans up the object (pipes, ptrs)
+        void provideInput();
 
     private:
         int pipeRead[2]; // pipe where CGI reads from
@@ -48,6 +51,8 @@ class CGI {
         std::vector<std::string> envp_str; // for execve()
         std::vector<char*> envp; // for execve()
         std::string cgiOutputBuffer; // collects partial CGI output
+        std::string cgiInputBuffer; // collects partial CGI output
+        size_t bytesSent;
         bool responseReady; // indicates http response completion
         int& error_code;
         bool termination_status; // indicates subprocess termination success
@@ -55,5 +60,5 @@ class CGI {
             
         void setArgv(const HttpRequest & request, const LocationConfig & location);
         void setEnvp(const HttpRequest & request);
-        void readOutput();
+        int readOutput();
 };

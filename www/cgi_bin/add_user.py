@@ -23,7 +23,8 @@ import sys
 from urllib.parse import parse_qs
  
 # Keep the DB outside the web root in production.
-DB_PATH = os.environ.get("USERS_DB")
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DB_PATH = os.environ.get("USERS_DB") or os.path.join(BASE_DIR, "..", "database", "users.db")
 MAX_BODY = 8 * 1024  # 8 KB is plenty for this form
  
 USERNAME_RE = re.compile(r"^[A-Za-z0-9_.-]{3,32}$")
