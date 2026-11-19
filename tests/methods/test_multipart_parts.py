@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check multipart splitting only, using the real handler's current part output."""
+"""Check multipart splitting by observing handlePart arguments, without logs."""
 
 import os
 from pathlib import Path
@@ -25,29 +25,10 @@ public:
     }
 };
 
-// Each std::endl in the draft flushes one complete part. Embedded CRLF/NUL
-// bytes do not flush the stream, so the original slices remain distinguishable.
-class PartBuffer : public std::stringbuf {
-public:
-    std::vector<std::string> parts;
-    virtual int sync() {
-        const std::string output = str();
-        if (!output.empty()) {
-            parts.push_back(output.substr(0, output.size() - 1)); // Remove endl's LF only.
-            str("");
-        }
-        return 0;
-    }
-};
-class CaptureParts {
-public:
-    PartBuffer buffer;
-private:
-    std::streambuf* previous;
-public:
-    CaptureParts() : previous(std::cout.rdbuf(&buffer)) {}
-    ~CaptureParts() { std::cout.rdbuf(previous); }
-};
+static std::vector<std::string> observedParts;
+void captureMultipartPartForTest(const std::string& part) {
+    observedParts.push_back(part);
+}
 
 struct Case {
     std::string name, boundary, body;
@@ -154,12 +135,10 @@ int main() {
         Router router;
         std::vector<std::string> actual;
         bool threw = false;
-        {
-            CaptureParts capture;
-            try { MultipartPartsTestPeer::run(router, request, response, result); }
-            catch (...) { threw = true; }
-            actual = capture.buffer.parts;
-        }
+        observedParts.clear();
+        try { MultipartPartsTestPeer::run(router, request, response, result); }
+        catch (...) { threw = true; }
+        actual = observedParts;
         const bool rejected = result.type == RouteDecision::ROUTE_ERROR && result.errorCode == 400
             && response.serialize().find("HTTP/1.1 400 Bad Request\r\n") == 0;
         const bool ok = !threw && (test.bad ? rejected :
@@ -198,7 +177,8 @@ def main():
     part_call = "handlePart(part, request, response, result);"
     if source.count(part_call) != 2:
         sys.exit("[BLOCKED] Cannot find both delegated handlePart calls to isolate splitting.")
-    source = source.replace(part_call, "; // Test only: observe the part without processing it.")
+    source = source.replace(part_call, "captureMultipartPartForTest(part);")
+    source = "#include <string>\nvoid captureMultipartPartForTest(const std::string&);\n" + source
     header, count = re.subn(
         r"\bclass\s+Router\s*\{", "class Router {\n    friend class MultipartPartsTestPeer;",
         (root / "include/Router.hpp").read_text(), count=1)

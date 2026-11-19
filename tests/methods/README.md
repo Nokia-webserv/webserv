@@ -20,7 +20,7 @@ The combined runner is not added to CI.
 bash tests/methods/test_multipart.sh
 ```
 
-35 cases exercise Router::route -> handlePost -> handleMultipart -> handlePart
+36 cases exercise Router::route -> handlePost -> handleMultipart -> handlePart
 -> saveFile, with real temporary files and exact byte comparisons. They check
 multiple files, ordinary fields, binary/empty/1 MiB bodies, extensions, boundary
 variants, closing delimiters, filename collisions, filesystem errors, short
@@ -59,14 +59,14 @@ Parameter-name case and whitespace expectations follow
 python3 tests/methods/test_multipart_parts.py
 ```
 
-26 component cases call the real handleMultipart and compare its emitted parts
+26 component cases call the real handleMultipart and compare its extracted parts
 byte-for-byte, including order, empty file content, NUL and CRLF. They also check
-missing/truncated delimiters and 400 responses. The test captures each existing
-`std::cout << part << std::endl` output separately; it does not replace the
-splitting algorithm. A temporary header grants private-method access, and a
-temporary source copy skips delegated handlePart calls. No server, handlePart, file saving,
-success response, Git changes or CI changes are involved. Keep the debug output
-until handlePart provides another observation point. Preamble handling, transport
+missing/truncated delimiters and 400 responses. In a temporary source copy,
+the two handlePart calls are replaced with a test capture function that records
+their exact part arguments; the splitting algorithm is unchanged. Debug output
+is not required. A temporary header grants private-method access. No server,
+handlePart processing, file saving, success-response checks, Git changes or CI
+changes are involved. Preamble handling, transport
 padding and validation of individual part headers are outside this small suite.
 For malformed input after earlier complete parts, the suite requires 400 but
 does not prescribe rollback of earlier parts. Ending checks include no final
@@ -87,12 +87,12 @@ python3 tests/methods/test_multipart_part.py
 15 component checks call handlePart directly with one complete part. They check
 the header/body split, file versus ordinary field, MIME/extension selection,
 empty and binary bodies, 400 errors and filename text outside Content-Disposition.
-The test compares the existing `format: ...body: ...` debug output byte-for-byte.
-The temporary header grants private-method access; a temporary source copy
-returns immediately before saveFile. No handleMultipart loop, boundary parsing, file saving,
+The test checks the exact extension and body bytes passed to saveFile, including
+the number of calls. It does not depend on debug output.
+The temporary header grants private-method access; in a temporary source copy,
+the saveFile call is replaced with a capture function. No handleMultipart loop, boundary parsing, file saving,
 network, final success response, workflow or Git operations are involved.
-Keep that debug output until the future saveFile call provides another way to
-observe the extracted format/body. This is not a full MIME-header validation
+This is not a full MIME-header validation
 suite; xfilename/X-Content-Disposition/X-Content-Type name distinctions, filename
 sanitization, empty-filename policy, duplicate headers, quoted parameter parsing
 and storage behavior are outside its scope.
@@ -167,14 +167,10 @@ mapping without changing server code. This is not a general symlink/security tes
 Permission tests are explicitly skipped for root. No directory ordering or exact
 HTML layout is assumed. Every HTTP request in the main suite is made by curl.
 
-## While handleRedirect is unfinished
+## Directory redirects
 
-```sh
-SKIP_GET_REDIRECT_TESTS=1 bash tests/methods/test_get.sh
-```
-
-This runs the 55 other scenarios and reports the three redirect cases as SKIP.
-Once handleRedirect is integrated, use the main command without the flag.
+All three directory-redirect checks are mandatory parts of the main command.
+The former SKIP_GET_REDIRECT_TESTS development flag no longer skips them.
 There are no automatic expected-failure allowances for redirects.
 
 ## Separate connection diagnostics
@@ -206,11 +202,10 @@ no production helpers or filesystem calls are mocked.
 ## Existing GitHub CI
 
 The .github/workflows/ci.yml runs the existing build, startup, config, TCP accept,
-HTTP parser and general integration suites, followed by GET and raw POST
-integration steps.
-The GET step invokes tests/methods/test_get.sh once with SKIP_GET_REDIRECT_TESTS=1.
-It runs automatically on push and pull_request. Remove the flag once directory
-redirects are integrated. The runner builds its own temporary server.
+HTTP parser, general integration and timeout suites, followed by GET, raw POST
+and configured-redirect integration steps. GET directory redirects are enabled.
+These run automatically on push and pull_request. The GET and POST runners each
+build their own temporary server.
 
 Helper/component suites and the separate connection diagnostic are not invoked
 by this new step. The diagnostic still exposes the unfinished HTTP/1.0 closure.
@@ -231,9 +226,6 @@ bash tests/methods/get_file/test_get_file.sh
 bash tests/methods/get_dir/test_get_dir.sh
 ```
 
-While redirects are unfinished, prefix the directory component command with
-SKIP_GET_REDIRECT_TESTS=1 as well.
-
 For all helper/component tests plus the GET HTTP suite together:
 
 ```sh
@@ -241,5 +233,5 @@ bash tests/methods/run_tests.sh
 ```
 
 The combined runner is an optional diagnostic command. It is not needed when
-you only want to check GET through the server. The same temporary redirect flag
-can be applied to it during development.
+you only want to check GET through the server. Directory redirects are included
+in both the directory component and HTTP integration checks.

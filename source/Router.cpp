@@ -6,7 +6,7 @@
 /*   By: atammur <atammur@student.42berlin.de>      +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/11/06 22:50:16 by damohame          #+#    #+#             */
-/*   Updated: 2026/11/19 21:59:48 by atammur          ###   ########.fr       */
+/*   Updated: 2026/11/19 22:36:08 by atammur          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -156,6 +156,40 @@ const ServerConfig* Router::selectServer(const HttpRequest& request, const Liste
     return configs[0];
 }
 
+// checks whether the request body exeeds the max_body_size limit
+// the location limit ovverride the servr limit when configured
+bool Router::isBodySizeAllowed(const HttpRequest& request, const ServerConfig& server, const LocationConfig& location) const
+{
+    // get the server limit as a start
+    long maxBodySize = server.client_max_body_size;
+    
+    // check for the location specific configuration 
+    // if available
+    if (location.client_max_body_size >= 0)
+        maxBodySize = location.client_max_body_size;
+
+    
+    // Check whether the body fits within the effective limit.
+    return (maxBodySize >= 0 && request.getBody().size() <= static_cast<size_t>(maxBodySize));
+}
+
+//check if the request exceeds the allowed header size
+bool Router::isHeaderSizeAllowed(const HttpRequest& request, const ServerConfig& server, const LocationConfig& location) const
+{
+    // get the server limit as a start
+    long maxHeaderSize = server.client_max_header_size;
+    
+    // check for the location specific configuration 
+    // if available
+    if (location.client_max_header_size >= 0)
+        maxHeaderSize = location.client_max_header_size;
+
+    
+    // Check whether the header fits within the effective limit.
+    return (maxHeaderSize >= 0 && request.getHeaderSize() <= static_cast<size_t>(maxHeaderSize));
+}
+
+
 // 1- select the virtual server
 // 2 match the location
 // 3- if the method allowed
@@ -188,6 +222,24 @@ RouteDecision Router::route(const HttpRequest& request, const Listener& listener
         return result;
     }
 
+    // extra step--- check for limit size validation
+    if (!isHeaderSizeAllowed(request, *result.server, *result.location))
+    {
+        result.type = RouteDecision::ROUTE_ERROR;
+        result.errorCode = 431;
+        handleError(request, result, response);
+        return result;
+    }
+    
+    // extra step--- check for limit size validation
+    if (!isBodySizeAllowed(request, *result.server, *result.location))
+    {
+        result.type = RouteDecision::ROUTE_ERROR;
+        result.errorCode = 413;
+        handleError(request, result, response);
+        return result;
+    }
+
     // 3- check if method is allowed
     if (!isMethodAllowed(request.getMethod(), *result.location))
     {
@@ -200,12 +252,12 @@ RouteDecision Router::route(const HttpRequest& request, const Listener& listener
     // 4- check the redirect
     if (result.location->has_redirect)
     {
-        //result.type = RouteDecision::ROUTE_REDIRECT;
-        //result.errorCode = 0;
-        // next pr
-        // build the redirect response
-       // handleRedirect(request, *result.location, response);
-        //return result;
+        result.type = RouteDecision::ROUTE_REDIRECT;
+        result.errorCode = 0;
+
+        //build the redirect response
+        handleRedirect(request, result.location->redirect_code, result.location->redirect_url,response);
+        return result;
     }
     
     // 5- CGI 
@@ -423,6 +475,43 @@ void Router::handleError(const HttpRequest& request, const RouteDecision& result
     }
 }
 
+// redirect reason based on the code
+std::string Router::getRedirectCode(int code) const
+{
+    switch (code)
+    {
+        case 301: return "Moved Permanently";
+        case 302: return "Found";
+
+        // default in case of wrong error
+        default:  return "";
+    }
+}
+
+
+// build the Http redirect response
+void Router::handleRedirect(const HttpRequest& request, int statusCode, const std::string& targetUrl,HttpResponse& response)
+{
+    // set the version and redirect code
+    response.setVersion(request.getVersion());
+    response.setStatusCode(statusCode);
+    
+    
+    // set the reason phrase based on the redirect code
+    std::string reason;
+    reason = getRedirectCode(statusCode);
+    response.setReasonPhrase(reason);
+    
+    // set the redirect header response
+    response.setHeader("Location", targetUrl);
+    
+    std::ostringstream path;
+    // default path for redirect pages
+    path << "./www/redirects/" << statusCode << ".html";
+
+    setResponseBody(response, path.str(), statusCode, reason);
+}
+
 int Router::parserErrorToStatus(HttpRequestError error)
 {
     switch (error)
@@ -523,7 +612,6 @@ void Router::serveFile(const HttpRequest& request, HttpResponse& response, Route
             std::map<std::string, std::string> headers;
             headers["Content-Type"] = getContentType(path);
             headers["Content-Length"] = toString(body.size());
-            //get vector of headers
             fillResponse(response, request.getVersion(), 200, headers, body);
             close(fd);
         }
@@ -537,8 +625,11 @@ void Router::serveDir(const HttpRequest& request, HttpResponse& response, RouteD
     if (!requestPath.empty() && requestPath[requestPath.size() - 1] != '/') {
         //redirect to url with '/'
         result.type = RouteDecision::ROUTE_REDIRECT;
-        // TODO: restore after integrating handleRedirect; redirect tests are excluded for now.
-        // handleRedirect(request, 301, requestPath + "/", response);
+        //handle redirect with query or without
+        if (!request.getRawQuery().empty())
+            handleRedirect(request, 301, urlEncodePath(requestPath) + "/?" + request.getRawQuery(), response);
+        else
+            handleRedirect(request, 301, urlEncodePath(requestPath) + "/", response);
         return ;
     }
     
@@ -558,7 +649,7 @@ void Router::serveDir(const HttpRequest& request, HttpResponse& response, RouteD
             handleFileError(errno, request, response, result);
             return ;
         }
-        //if we have index file
+        //if we have regular index file
         if (indexStatus == 0 && S_ISREG(fileInfo.st_mode)) {
             // just serve the file
             serveFile(request, response, result, indexPath);
@@ -711,8 +802,7 @@ std:: string Router::urlEncodePath(std::string path) {
 // result: ./www/pictures/holiday/cat.png
 
 // Resolves a VALIDATED(!) request URI against the matched
-// location root. URI normalization is handled by Router (issue #107)
-// can be used for DELETE; POST possibly partly due to upload_store directive
+// location root. URI normalization is handled by Router
 std::string Router::buildPath(const std::string& requestPath, const LocationConfig& location) {
     std::string path;
     std::string pathFromRequest;
@@ -751,7 +841,6 @@ void Router::handleFileError(int errorNum, const HttpRequest& request, HttpRespo
 // std::string _reasonPhrase;
 // std::map<std::string, std::string> _headers;
 // std::string _body;
-//router method?
 void Router::fillResponse(
     HttpResponse& response, 
     const std::string& version, 
@@ -767,7 +856,6 @@ void Router::fillResponse(
     response.setBody(body);
 }
 
-//router method
 std::string Router::getReasonPhrase(int statusCode) {
     std::map<int, std::string> reasons;
     
@@ -842,11 +930,6 @@ std::string Router::getContentType(const std::string& path) {
     return it->second;
 }
 
-
-
-
-
-
 void Router::handlePost(const HttpRequest& request, HttpResponse& response, RouteDecision& result)
 {
     // check whether upload_store is configured. return 403 if not
@@ -864,7 +947,7 @@ void Router::handlePost(const HttpRequest& request, HttpResponse& response, Rout
     if (it != request.getHeaders().end()) {
         contentType = it->second;
         //if it is multipart/form-data, handle multipart upload separately
-        if (contentType.find("multipart/form-data") == 0) {
+        if (strTolower(contentType).find("multipart/form-data") == 0) {
             handleMultipart(request, response, result);
             return ;
         }
@@ -882,9 +965,10 @@ void Router::handlePost(const HttpRequest& request, HttpResponse& response, Rout
     std::map<std::string, std::string> headers;
     headers["Content-Type"] = contentType;
     headers["Content-Length"] = toString(body.size());
-    //get vector of headers
     fillResponse(response, request.getVersion(), 201, headers, body);
 }
+
+//Multiform looks like that: 
 
 // POST /upload HTTP/1.1
 // Content-Type: multipart/form-data; boundary=abc123
@@ -980,41 +1064,38 @@ void Router::handleMultipart(const HttpRequest& request, HttpResponse& response,
     std::string::size_type currentPos = firstDelimiter.size();
     std::string::size_type delimiterPos = currentPos;
     
+    //go thru all parts
     while(true) {
         //find delimiter
         delimiterPos = multipartBody.find(delimiter, currentPos);
-            //if cant find, it means it doesnt end with last delimiter
-            if (delimiterPos == std::string::npos) {
-                handleMultipartError(request, response, result);
+        //if cant find, it means it doesnt end with last delimiter
+        if (delimiterPos == std::string::npos) {
+            handleMultipartError(request, response, result);
+            return;
+        }
+        std::string part = multipartBody.substr(currentPos, delimiterPos - currentPos);
+        //check if its middle of end of multipart
+        std::string::size_type suffixIndex = delimiterPos + delimiter.size();
+        std::string suffix = multipartBody.substr(suffixIndex, 2);
+        //if middle delimiter
+        if (suffix == "\r\n") {
+            handlePart(part, request, response, result);
+            if (result.type == RouteDecision::ROUTE_ERROR)
                 return;
-            }
-            std::string part = multipartBody.substr(currentPos, delimiterPos - currentPos);
-            //check if its middle of end of multipart
-            std::string::size_type suffixIndex = delimiterPos + delimiter.size();
-            std::string suffix = multipartBody.substr(suffixIndex, 2);
-            //if middle delimiter
-            if (suffix == "\r\n") {
-                //for testing:
-                std::cout << part << std::endl;
-                handlePart(part, request, response, result);
-                if (result.type == RouteDecision::ROUTE_ERROR)
-                    return;
-            }
-            //else if last delimiter
-            else if (suffix == "--") {
-                //for testing:
-                std::cout << part << std::endl;
-                handlePart(part, request, response, result);
-                if (result.type == RouteDecision::ROUTE_ERROR)
-                    return;
-                break ;
-            }
-            //else its wrong suffix
-            else {
-                handleMultipartError(request, response, result);
+        }
+        //else if last delimiter
+        else if (suffix == "--") {
+            handlePart(part, request, response, result);
+            if (result.type == RouteDecision::ROUTE_ERROR)
                 return;
-            }
-        //move indexes forward
+            break ;
+        }
+        //else its wrong suffix
+        else {
+            handleMultipartError(request, response, result);
+            return;
+        }
+        //move index forward
         currentPos = delimiterPos + delimiter.size() + 2;
     }
     //handle junk after last delimiter
@@ -1030,31 +1111,30 @@ void Router::handleMultipart(const HttpRequest& request, HttpResponse& response,
     std::map<std::string, std::string> headers;
     headers["Content-Length"] = "0";
     fillResponse(response, request.getVersion(), 201, headers, "");
-
 }
 
 // Content-Disposition: form-data; name="file"; filename="cat.png"\r\n
 // Content-Type: image/png\r\n
 // \r\n
 // <binary file content>
-void Router::handlePart(std::string part, const HttpRequest& request, HttpResponse& response, RouteDecision& result) {
+void Router::handlePart(const std::string& part, const HttpRequest& request, HttpResponse& response, RouteDecision& result) {
     //separate headers from part body
     std::string::size_type index = part.find("\r\n\r\n");
     if (index == std::string::npos) {
         handleMultipartError(request, response, result);
         return;
     }
-    std::string headers = part.substr(0, index - 0);
+    std::string headers = part.substr(0, index);
     std::string partBody = part.substr(index + 4);
     
-  
+    //make sure content-disposition is present
     std::string::size_type contentDispositionBegin = strTolower(headers).find("content-disposition");
     if (contentDispositionBegin == std::string::npos) {
         handleMultipartError(request, response, result);
         return;
     }
 
-    //check if part has file (it has filename)
+    //check if part has file (it has filename in content disposition header in that case)
     index = strTolower(headers).find("\r\n", contentDispositionBegin);
     std::string contentDisposition = headers.substr(contentDispositionBegin, index - contentDispositionBegin);
     if (strTolower(contentDisposition).find("filename=") == std::string::npos)
@@ -1064,7 +1144,7 @@ void Router::handlePart(std::string part, const HttpRequest& request, HttpRespon
     std::string format;
     std::string::size_type formatBegin = strTolower(headers).find("content-type");
     std::string::size_type formatEnd;
-    std::string contentType = "";
+    std::string contentType;
     if (formatBegin != std::string::npos) {
         //move begin after "content-type:"
         formatBegin += 13;
@@ -1075,8 +1155,7 @@ void Router::handlePart(std::string part, const HttpRequest& request, HttpRespon
         trimStr(contentType);
         format = getFileFormat(contentType);
     }
-    
-    std::cout << "format: " << format << "body: " << partBody << std::endl;
+
     // get file content and save
     saveFile(format, partBody, request, response, result);
 }
@@ -1087,7 +1166,7 @@ void Router::handleMultipartError(const HttpRequest& request, HttpResponse& resp
     handleError(request, result, response);
 }
 
-void Router::saveFile(std::string format, std::string body, const HttpRequest& request, HttpResponse& response, RouteDecision& result) {
+void Router::saveFile(const std::string& format, const std::string& body, const HttpRequest& request, HttpResponse& response, RouteDecision& result) {
     //  generate a unique filename. we do it for safety and to avoid file duplication/rewrite on server.
     //  we use simplest sequential counter ONLY due to limitations of allowed functions/libraries.
     //  retry with +1 if the filename already exists.
@@ -1095,7 +1174,7 @@ void Router::saveFile(std::string format, std::string body, const HttpRequest& r
     unsigned long counter = 0;
     int fd;
     while (true) {
-        //we limit to 100000 filenames in the current implementation.
+        //we limit filenames in the current implementation because of how file naming is implemented.
         if (counter > 100000) {
             result.errorCode = 500;
             result.type = RouteDecision::ROUTE_ERROR;
@@ -1140,16 +1219,6 @@ void Router::saveFile(std::string format, std::string body, const HttpRequest& r
     }
 }
 
-
-
-
-
-
-
-
-
-
-
 std::string Router::getFileFormat(const std::string& type) {
     std::string mediaType = type;
     // delete after ; Text/Plain; charset=utf-8
@@ -1169,13 +1238,6 @@ std::string Router::getFileFormat(const std::string& type) {
     }
     return "";
 }
-
-
-
-
-
-
-
 
 void Router::handleDelete(const HttpRequest& request, HttpResponse& response, const LocationConfig& location)
 {

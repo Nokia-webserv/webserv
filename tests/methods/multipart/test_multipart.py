@@ -85,6 +85,8 @@ def main():
     add("Quoted boundary", [file_part(text)], [(".txt", text)])
     cases[-1]["content_type"] = 'multipart/form-data; boundary="abc123"'
     add("Mixed-case boundary value", [file_part(text)], [(".txt", text)], boundary="AbC123")
+    add("Mixed-case multipart type preserves boundary case", [file_part(text)], [(".txt", text)], boundary="AbC123")
+    cases[-1]["content_type"] = "Multipart/Form-Data; Boundary=AbC123"
     add("No CRLF after closing delimiter", [file_part(text)], [(".txt", text)])
     cases[-1]["body"] = multipart([file_part(text)], ending=b"")
     add("Epilogue is not uploaded", [file_part(text)], [(".txt", text)])

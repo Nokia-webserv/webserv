@@ -6,7 +6,7 @@
 /*   By: atammur <atammur@student.42berlin.de>      +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/11/06 22:25:55 by damohame          #+#    #+#             */
-/*   Updated: 2026/11/19 21:51:38 by atammur          ###   ########.fr       */
+/*   Updated: 2026/11/19 22:36:17 by atammur          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -65,10 +65,17 @@ class Router
         void handlePost(const HttpRequest& request, HttpResponse& response, RouteDecision& result);
         void handleDelete(const HttpRequest& request, HttpResponse& response, const LocationConfig& location);
         
+        void handleRedirect(const HttpRequest& request, int statusCode, const std::string& targetUrl, HttpResponse& response);
+        std::string getRedirectCode(int code) const;
+        
         void setResponseBody(HttpResponse& response, const std::string& path, int statusCode,
             const std::string& reason);
         
         int parserErrorToStatus(HttpRequestError error);
+
+
+        bool isBodySizeAllowed(const HttpRequest& request, const ServerConfig& server, const LocationConfig& location) const;
+        bool isHeaderSizeAllowed(const HttpRequest& request, const ServerConfig& server, const LocationConfig& location) const;
 
         //common methods helpers
         std::string buildPath(const std::string& requestPath, const LocationConfig& location);
@@ -93,6 +100,6 @@ class Router
         std::string getFileFormat(const std::string& type);
         void handleMultipart(const HttpRequest& request, HttpResponse& response, RouteDecision& result);
         void handleMultipartError(const HttpRequest& request, HttpResponse& response, RouteDecision& result);
-        void handlePart(std::string part, const HttpRequest& request, HttpResponse& response, RouteDecision& result);
-        void saveFile(std::string format, std::string data, const HttpRequest& request, HttpResponse& response, RouteDecision& result);
+        void handlePart(const std::string& part, const HttpRequest& request, HttpResponse& response, RouteDecision& result);
+        void saveFile(const std::string& format, const std::string& data, const HttpRequest& request, HttpResponse& response, RouteDecision& result);
 };

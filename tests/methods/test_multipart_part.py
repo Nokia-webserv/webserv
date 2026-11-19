@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Component checks for handlePart, stopping at its current pre-save output."""
+"""Check handlePart by observing saveFile arguments, without logs or disk writes."""
 
 import os
 from pathlib import Path
@@ -24,15 +24,13 @@ public:
         router.handlePart(part, request, response, result);
     }
 };
-class CaptureOutput {
-public:
-    std::ostringstream stream;
-private:
-    std::streambuf* previous;
-public:
-    CaptureOutput() : previous(std::cout.rdbuf(stream.rdbuf())) {}
-    ~CaptureOutput() { std::cout.rdbuf(previous); }
-};
+static unsigned saveCalls = 0;
+static std::string savedFormat, savedBody;
+void captureMultipartFileForTest(const std::string& format, const std::string& body) {
+    ++saveCalls;
+    savedFormat = format;
+    savedBody = body;
+}
 
 enum Outcome { FILE_PART, FIELD_PART, BAD_PART };
 struct Case {
@@ -102,35 +100,35 @@ int main() {
         const std::string initialResponse = response.serialize();
         RouteDecision result;
         Router router;
-        std::string output;
+        saveCalls = 0;
+        savedFormat.clear();
+        savedBody.clear();
         bool threw = false;
-        {
-            CaptureOutput capture;
-            try { MultipartPartTestPeer::run(router, test.input, request, response, result); }
-            catch (...) { threw = true; }
-            output = capture.stream.str();
-        }
-        const std::string expectedOutput = test.expected == FILE_PART
-            ? "format: " + test.format + "body: " + test.body + "\n" : "";
+        try { MultipartPartTestPeer::run(router, test.input, request, response, result); }
+        catch (...) { threw = true; }
+        const bool savedCorrectly = test.expected == FILE_PART
+            ? saveCalls == 1 && savedFormat == test.format && savedBody == test.body
+            : saveCalls == 0;
         const bool error = result.type == RouteDecision::ROUTE_ERROR && result.errorCode == 400
             && response.serialize().find("HTTP/1.1 400 Bad Request\r\n") == 0;
-        const bool ok = !threw && output == expectedOutput && (test.expected == BAD_PART ? error :
+        const bool ok = !threw && savedCorrectly && (test.expected == BAD_PART ? error :
             result.type == RouteDecision::ROUTE_SERVE && result.errorCode == 0
             && response.serialize() == initialResponse);
         if (ok) ++passed; else ++failed;
         std::cout << (ok ? "\033[32m[PASS]\033[0m " : "\033[31m[FAIL]\033[0m ") << test.name
                   << "\n    Before: " << display(test.input) << "\n    Expected: ";
-        if (test.expected == BAD_PART) std::cout << "HTTP 400; no file output";
-        else if (test.expected == FIELD_PART) std::cout << "field skipped; no file output";
+        if (test.expected == BAD_PART) std::cout << "HTTP 400; saveFile not called";
+        else if (test.expected == FIELD_PART) std::cout << "field skipped; saveFile not called";
         else std::cout << "format=" << test.format << "; body bytes=" << test.body.size();
         std::cout << "\n    After: ";
         if (threw) std::cout << "exception";
         else if (result.type == RouteDecision::ROUTE_ERROR) std::cout << "HTTP " << result.errorCode;
-        else if (output.empty()) std::cout << "no file output";
-        else std::cout << display(output);
+        else if (saveCalls == 0) std::cout << "saveFile not called";
+        else std::cout << "saveFile calls=" << saveCalls << "; format=" << savedFormat
+                       << "; body bytes=" << savedBody.size() << "; body=" << display(savedBody);
         std::cout << '\n';
         if (!ok && test.expected == FILE_PART)
-            std::cout << "    Expected exact output: " << display(expectedOutput) << '\n';
+            std::cout << "    Expected exact body: " << display(test.body) << '\n';
     }
     std::cout << "\nPassed: " << passed << ", failed: " << failed << '\n';
     return failed ? 1 : 0;
@@ -144,7 +142,9 @@ def main():
     save_call = "    saveFile(format, partBody, request, response, result);"
     if source.count(save_call) != 1:
         sys.exit("[BLOCKED] Cannot find the handlePart saveFile call to isolate parsing.")
-    source = source.replace(save_call, "    return; // Test only: stop before saving.\n" + save_call, 1)
+    source = source.replace(save_call, "    captureMultipartFileForTest(format, partBody);", 1)
+    source = ("#include <string>\n"
+              "void captureMultipartFileForTest(const std::string&, const std::string&);\n" + source)
     header, count = re.subn(
         r"\bclass\s+Router\s*\{", "class Router {\n    friend class MultipartPartTestPeer;",
         (root / "include/Router.hpp").read_text(), count=1)

@@ -311,18 +311,24 @@ def main():
                      lambda: client.get("/files/plain.txt", body=data["files/plain.txt"], version="HTTP/1.0"))
 
                 group = "R DIRECTORY REDIRECTS"
-                redirect_skip = ("handleRedirect is not integrated; SKIP_GET_REDIRECT_TESTS=1"
-                                 if os.environ.get("SKIP_GET_REDIRECT_TESTS") == "1" else None)
-                for name, url, location in (
-                    ("Append trailing slash", "/indexed", "/indexed/"),
-                    ("Preserve query", "/indexed?sort=name", "/indexed/?sort=name"),
-                    ("Preserve path encoding", "/files/my%20dir", "/files/my%20dir/"),
+                for name, url, location, target_status in (
+                    ("Append trailing slash", "/indexed", "/indexed/", 200),
+                    ("Preserve query", "/indexed?sort=name", "/indexed/?sort=name", 200),
+                    ("Preserve path encoding", "/files/my%20dir", "/files/my%20dir/", 403),
                 ):
-                    def redirect(url=url, location=location):
+                    def redirect(url=url, location=location, target_status=target_status):
                         client.get(url, status=301, location=location)
-                        client.get(location)
-                    case(group, name, "HTTP/1.1 301; Location: " + location + "; target GET succeeds",
-                         redirect, skip=redirect_skip)
+                        client.get(location, status=target_status)
+                        if target_status == 403:
+                            # This fixture has no index and autoindex is off.
+                            # Its child must still be accessible through the encoded URL.
+                            client.get(location + "child.txt", body=data["files/my dir/child.txt"],
+                                       mime="text/plain")
+                    expected = "HTTP/1.1 301; Location: " + location + "; target HTTP " + str(target_status)
+                    if target_status == 403:
+                        expected += " (no index, autoindex off); child file HTTP 200 with exact bytes"
+                    case(group, name, expected,
+                         redirect)
         except Exception as error:
             report.case("S SETUP", "Fixture/server setup", "Runnable server and fixtures",
                         lambda error=error: (_ for _ in ()).throw(error))
