@@ -24,7 +24,7 @@
 #include "Router.hpp"
 
 #ifndef WEBSERV_CLIENT_TIMEOUT_SECONDS
-#define WEBSERV_CLIENT_TIMEOUT_SECONDS /* 30 */ 600000
+#define WEBSERV_CLIENT_TIMEOUT_SECONDS 30
 #endif
 
 class Server {
