@@ -199,7 +199,7 @@ bool Router::isHeaderSizeAllowed(const HttpRequest& request, const ServerConfig&
 // 6- methods handler
 // - Httpresponse
 // - error handler
-RouteDecision Router::route(const HttpRequest& request, const Listener& listener, HttpResponse& response, CGI*& cgiRef)
+RouteDecision Router::route(const HttpRequest& request, const Listener& listener, HttpResponse& response, CGI*& cgiRef, std::map<int, int>& pendingPIDs)
 {
     RouteDecision result;
     result.errorCode = 0;
@@ -268,7 +268,7 @@ RouteDecision Router::route(const HttpRequest& request, const Listener& listener
     std::string ext;
     if (hasCGIextension(request.getPath(), result.location->cgi_handlers, ext))
     {
-        handleCGI(request, response, result, ext, cgiRef);
+        handleCGI(request, response, result, ext, cgiRef, pendingPIDs);
         if (result.errorCode)
         {
             result.type = RouteDecision::ROUTE_ERROR;
@@ -988,12 +988,12 @@ void Router::handleDelete(const HttpRequest& request, HttpResponse& response, co
     // to be implemented: Delete handler
 }
 
-void Router::handleCGI(const HttpRequest& request, HttpResponse& response, RouteDecision& result, const std::string& extension, CGI*& cgiRef)
+void Router::handleCGI(const HttpRequest& request, HttpResponse& response, RouteDecision& result, const std::string& extension, CGI*& cgiRef, std::map<int, int>& pendingPIDs)
 {
     CGI* cgi;
     
     try {
-        cgi = new CGI(request, response, result, extension, cgiRef);
+        cgi = new CGI(request, response, result, extension, cgiRef, pendingPIDs);
     }
     catch (...) {
         result.errorCode = 500;

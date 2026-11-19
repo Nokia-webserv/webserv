@@ -24,7 +24,7 @@
 #include "Router.hpp"
 
 #ifndef WEBSERV_CLIENT_TIMEOUT_SECONDS
-#define WEBSERV_CLIENT_TIMEOUT_SECONDS 30
+#define WEBSERV_CLIENT_TIMEOUT_SECONDS /* 30 */ 600000
 #endif
 
 class Server {
@@ -51,6 +51,7 @@ class Server {
         void disconnectClient(int fd);
         void checkClientTimeout();
         void checkCGItimeout(); // for frozen CGI's
+        void checkPendingPIDs(); // for frozen CGI's
         void processHttpInput(ClientConnection &client);
         void processPendingHttpInput();
         int getPollEventTimeout();
@@ -73,6 +74,8 @@ class Server {
         void run();
         void acceptNewConnections(Listener *listener);
         void buildPollFds();
+
+        std::map<int, int> pendingPIDs;
 };
 
 #endif

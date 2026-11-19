@@ -15,10 +15,11 @@
 
 class ClientConnection {
     public:
-        ClientConnection(int fd, sockaddr_in * addr,const Listener* listener);
+        ClientConnection(int fd, sockaddr_in * addr,const Listener* listener, std::map<int, int>& pendingPIDs);
         ~ClientConnection();
 
         CGI* cgi; // ptr to CGI object
+        std::map<int, int>& pendingPIDs;
 
         int getFd() const;
         std::string getIp() const;

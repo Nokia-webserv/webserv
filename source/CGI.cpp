@@ -4,17 +4,19 @@
 #include <ctime>
 #include <poll.h>
 
-CGI::CGI(const HttpRequest & request, HttpResponse & response, RouteDecision decision, const std::string& cgi_extension, CGI*& myPtrInMyClient)
+CGI::CGI(const HttpRequest & request, HttpResponse & response, RouteDecision decision, const std::string& cgi_extension, 
+    CGI*& myPtrInMyClient, std::map<int, int>& pendingPIDs)
 :   extension(cgi_extension),
     interpreterPath(decision.location->cgi_handlers.find(cgi_extension)->second),
     request(request),
     response(response),
-    myPtrInMyClient(myPtrInMyClient), // NULL
     decision(decision),
+    myPtrInMyClient(myPtrInMyClient), // NULL
+    pendingPIDs(pendingPIDs),
     pid(-2),
     responseReady(false),
     error_code(this->decision.errorCode),
-    termination_status(none),
+    termination_status(false),
     startTime(std::time(NULL))
 {
     pipeRead[0] = -1, pipeRead[1] = -1; 
@@ -25,30 +27,20 @@ CGI::CGI(const HttpRequest & request, HttpResponse & response, RouteDecision dec
 
 CGI::~CGI()
 {
-    if (pid != -2 && termination_status != terminated)
-        terminateChildProcess();
-    if (pid != -2 && termination_status != terminated)
-        std::cerr << "Failure to correctly terminate child process. PID: " << pid << "\n";
-    cleanUp(false);
-}
-
-// resolves path according to configs
-void CGI::resolveScriptPath(const HttpRequest & request, const LocationConfig & location)
-{
-    scriptPath += location.root;
-    // ensures slash at the beginning
-    if (scriptPath.empty() || scriptPath[scriptPath.size()-1] != '/')
-        scriptPath += '/'; 
-    std::string tempPath = request.getPath();
-    // eliminates double-slash
-    if (tempPath.size() && tempPath[0] == '/')
-        scriptPath.append(tempPath.substr(1));
-    else 
-        scriptPath += tempPath;
+    if (pid != -2 && !termination_status)
+    {
+        kill(pid, SIGKILL);
+        if (reapProcess())
+            pendingPIDs.erase(pid);
+    }
+    /* if (pid != -2 && termination_status != terminated)
+        std::cerr << "Failure to correctly terminate child process. PID: " << pid << "\n"; */
+    cleanUp();
 }
 
 void CGI::setArgv(const HttpRequest & request, const LocationConfig & location)
 {
+    // resolves script path according to specific subject requirements
     scriptPath = Router::buildPath(request.getPath(), location);
     std::cout << "Script path: " << scriptPath << "\n";
 
@@ -79,38 +71,51 @@ void CGI::setEnvp(const HttpRequest & request/*, std::vector<std::string> envp_r
 void CGI::terminateChildProcess()
 {
     // sends immediate termination signal (doesn't guarrantee termination)
-    kill(pid, SIGKILL);
+    std::cout<<kill(pid, SIGKILL)<<" kill\n";
+    
+    /* int result = waitpid(pid, &status, WNOHANG);
+    std::cout << result << " waitpid\n";
+    if (result != pid)
+        pendingPIDs[pid] = 0; */
+    // {
+    //     /* process termination error */
+    //     if (result == -1)
+    //     {
+    //         switch (errno)
+    //         {
+    //             case EINTR: termination_status = interrupted; return;
+    //             case ECHILD: termination_status = reapedAlready; return;
+    //             default: termination_status = otherError; return;
+    //         }
+    //     }
+    //     termination_status = stillRunning;
+    //     sleep(5);
+    //     result = waitpid(pid, &status, WNOHANG);
+    //     std::cout << result << " waitpid\n";
+    //     return;
+    // }
+    // termination_status = terminated;
+}
+
+// checks subprocess status, reapes zombie process (terminated but awawiting parent's read) in non-blocking mode
+bool CGI::reapProcess()
+{
     int status;
     // checks subprocess status, reapes zombie process (terminated but awawiting parent's read), non-blocking mode
     int result = waitpid(pid, &status, WNOHANG);
-    if (result != pid)
+    // records unreaped pid in the server
+    if (result == pid)
+        termination_status = true;
+    else
     {
-        /* process termination error */
-        if (result == -1)
-        {
-            switch (errno)
-            {
-                case EINTR: termination_status = interrupted; return;
-                case ECHILD: termination_status = reapedAlready; return;
-                default: termination_status = otherError; return;
-            }
-        }
-        termination_status = stillRunning;
-        return;
+        termination_status = false;
+        pendingPIDs.insert(std::make_pair(pid, 0));
     }
-    termination_status = terminated;
+    return termination_status;
 }
 
-void CGI::cleanUp(bool eraseFromMap) 
+void CGI::cleanUp() 
 {
-    // allows correct destructor call from ClientConnection
-    /* if (eraseFromMap)
-    {
-        std::map<int, CGI*>::iterator int_cgi = clientsCGImap.find(pipeWrite[0]);
-        if (int_cgi != clientsCGImap.end())
-            clientsCGImap.erase(int_cgi->first);
-    } */
-
     // closes all open pipe ends
     int* pipe_ends[4] = {&pipeRead[0], &pipeRead[1], &pipeWrite[0], &pipeWrite[1]};
     for (int i = 0; i < 4; i++)
@@ -121,6 +126,9 @@ void CGI::cleanUp(bool eraseFromMap)
             *pipe_ends[i] = -1;
         }
     }
+
+    // erases from the client
+    myPtrInMyClient = NULL;
 }
 
 void CGI::runScript()
@@ -195,7 +203,7 @@ void CGI::runScript()
     close(pipeWrite[1]);
     pipeWrite[1] = -1;
     this->pid = pid;
-    // if run successfully -> record in client -> add to poll
+    // records in client -> adds to poll
     myPtrInMyClient = this;
 }
 
@@ -227,10 +235,10 @@ time_t CGI::getStartTime() const
     return startTime;
 }
 
-terminationStatus CGI::getTerminationStatus() const
-{
-    return termination_status;
-}
+// terminationStatus CGI::getTerminationStatus() const
+// {
+//     return termination_status;
+// }
 
 int CGI::getErrorCode() const
 {
@@ -239,5 +247,5 @@ int CGI::getErrorCode() const
 
 int CGI::getFd() const
 {
-    return pipeWrite[1]; // fd used in poll
+    return pipeWrite[0]; // fd used in poll
 }
