@@ -6,7 +6,7 @@
 /*   By: atammur <atammur@student.42berlin.de>      +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/11/06 22:50:16 by damohame          #+#    #+#             */
-/*   Updated: 2026/11/19 20:27:52 by atammur          ###   ########.fr       */
+/*   Updated: 2026/11/19 21:44:06 by atammur          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -1042,13 +1042,17 @@ void Router::handleMultipart(const HttpRequest& request, HttpResponse& response,
             if (suffix == "\r\n") {
                 //for testing:
                 std::cout << part << std::endl;
-                //handlePart(part);
+                handlePart(part, request, response, result);
+                if (result.type == RouteDecision::ROUTE_ERROR)
+                    return;
             }
             //else if last delimiter
             else if (suffix == "--") {
                 //for testing:
                 std::cout << part << std::endl;
-                //handlePart(part);
+                handlePart(part, request, response, result);
+                if (result.type == RouteDecision::ROUTE_ERROR)
+                    return;
                 break ;
             }
             //else its wrong suffix
@@ -1068,12 +1072,59 @@ void Router::handleMultipart(const HttpRequest& request, HttpResponse& response,
         return;
     }
 
-    //handlePart():
-    // read headers and check if theres filename
-    //get filename format
+    //pass response
+    std::map<std::string, std::string> headers;
+    headers["Content-Length"] = "0";
+    fillResponse(response, request.getVersion(), 201, headers, "");
+
+}
+
+// Content-Disposition: form-data; name="file"; filename="cat.png"\r\n
+// Content-Type: image/png\r\n
+// \r\n
+// <binary file content>
+void Router::handlePart(std::string part, const HttpRequest& request, HttpResponse& response, RouteDecision& result) {
+    //separate headers from part body
+    std::string::size_type index = part.find("\r\n\r\n");
+    if (index == std::string::npos) {
+        handleMultipartError(request, response, result);
+        return;
+    }
+    std::string headers = part.substr(0, index - 0);
+    std::string partBody = part.substr(index + 4);
+    
+  
+    std::string::size_type contentDispositionBegin = strTolower(headers).find("content-disposition");
+    if (contentDispositionBegin == std::string::npos) {
+        handleMultipartError(request, response, result);
+        return;
+    }
+
+    //check if part has file (it has filename)
+    index = strTolower(headers).find("\r\n", contentDispositionBegin);
+    std::string contentDisposition = headers.substr(contentDispositionBegin, index - contentDispositionBegin);
+    if (strTolower(contentDisposition).find("filename=") == std::string::npos)
+        return ;
+
+    //get file format
+    std::string format;
+    std::string::size_type formatBegin = strTolower(headers).find("content-type");
+    std::string::size_type formatEnd;
+    std::string contentType = "";
+    if (formatBegin != std::string::npos) {
+        //move begin after "content-type:"
+        formatBegin += 13;
+        formatEnd = strTolower(headers).find("\r\n", formatBegin);
+        if (formatEnd == std::string::npos)
+            formatEnd = headers.size();
+        contentType = headers.substr(formatBegin, formatEnd - formatBegin);
+        trimStr(contentType);
+        format = getFileFormat(contentType);
+    }
+    
+    std::cout << "format: " << format << "body: " << partBody << std::endl;
     // get file content and save
-
-
+    //saveFile(format, partBody);
 }
 
 void Router::handleMultipartError(const HttpRequest& request, HttpResponse& response, RouteDecision& result) {

@@ -39,6 +39,25 @@ The boundary-only runner stops before splitting and does not test endings.
 Closing-line checks follow
 [RFC 2046, section 5.1.1](https://www.rfc-editor.org/rfc/rfc2046.html#section-5.1.1).
 
+## One multipart part before saving
+
+```sh
+python3 tests/methods/test_multipart_part.py
+```
+
+15 component checks call handlePart directly with one complete part. They check
+the header/body split, file versus ordinary field, MIME/extension selection,
+empty and binary bodies, 400 errors and filename text outside Content-Disposition.
+The test compares the existing `format: ...body: ...` debug output byte-for-byte.
+Only a temporary header grants access to the private method; Router.cpp is
+compiled unchanged. No handleMultipart loop, boundary parsing, file saving,
+network, final success response, workflow or Git operations are involved.
+Keep that debug output until the future saveFile call provides another way to
+observe the extracted format/body. This is not a full MIME-header validation
+suite; xfilename/X-Content-Disposition/X-Content-Type name distinctions, filename
+sanitization, empty-filename policy, duplicate headers, quoted parameter parsing
+and storage behavior are outside its scope.
+
 ## Raw POST upload
 
 To check raw POST through the actual server using curl:
