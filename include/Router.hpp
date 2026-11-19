@@ -6,7 +6,7 @@
 /*   By: atammur <atammur@student.42berlin.de>      +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/11/06 22:25:55 by damohame          #+#    #+#             */
-/*   Updated: 2026/11/19 20:46:01 by atammur          ###   ########.fr       */
+/*   Updated: 2026/11/19 21:51:38 by atammur          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -94,4 +94,5 @@ class Router
         void handleMultipart(const HttpRequest& request, HttpResponse& response, RouteDecision& result);
         void handleMultipartError(const HttpRequest& request, HttpResponse& response, RouteDecision& result);
         void handlePart(std::string part, const HttpRequest& request, HttpResponse& response, RouteDecision& result);
+        void saveFile(std::string format, std::string data, const HttpRequest& request, HttpResponse& response, RouteDecision& result);
 };

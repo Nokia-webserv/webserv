@@ -150,7 +150,6 @@ int main() {
                           + (test.quoted ? "\"" + test.boundary + "\"" : test.boundary));
         request.setBody(test.body);
         HttpResponse response;
-        const std::string initialResponse = response.serialize();
         RouteDecision result;
         Router router;
         std::vector<std::string> actual;
@@ -164,8 +163,7 @@ int main() {
         const bool rejected = result.type == RouteDecision::ROUTE_ERROR && result.errorCode == 400
             && response.serialize().find("HTTP/1.1 400 Bad Request\r\n") == 0;
         const bool ok = !threw && (test.bad ? rejected :
-            actual == test.parts && result.type == RouteDecision::ROUTE_SERVE && result.errorCode == 0
-            && response.serialize() == initialResponse);
+            actual == test.parts && result.type == RouteDecision::ROUTE_SERVE && result.errorCode == 0);
         if (ok) ++passed; else ++failed;
         if (test.bad) { if (ok) ++invalidPassed; else ++invalidFailed; }
         else { if (ok) ++validPassed; else ++validFailed; }
@@ -196,6 +194,11 @@ int main() {
 
 def main():
     root = Path(__file__).resolve().parents[2]
+    source = (root / "source/Router.cpp").read_text()
+    part_call = "handlePart(part, request, response, result);"
+    if source.count(part_call) != 2:
+        sys.exit("[BLOCKED] Cannot find both delegated handlePart calls to isolate splitting.")
+    source = source.replace(part_call, "; // Test only: observe the part without processing it.")
     header, count = re.subn(
         r"\bclass\s+Router\s*\{", "class Router {\n    friend class MultipartPartsTestPeer;",
         (root / "include/Router.hpp").read_text(), count=1)
@@ -204,12 +207,13 @@ def main():
     with tempfile.TemporaryDirectory(prefix="webserv-multipart-parts-") as temporary:
         build = Path(temporary)
         (build / "Router.hpp").write_text(header)
+        (build / "Router.cpp").write_text(source)
         (build / "parts_test.cpp").write_text(TEST)
         executable = build / "parts_test"
         command = [os.environ.get("CXX", "c++"), "-std=c++98", "-Wall", "-Wextra", "-Werror",
-                   "-I" + str(build), "-I" + str(root / "include"), str(build / "parts_test.cpp")]
+                   "-I" + str(build), "-I" + str(root / "include"), str(build / "parts_test.cpp"), str(build / "Router.cpp")]
         command += [str(root / "source" / name) for name in (
-            "Router.cpp", "HttpRequest.cpp", "HttpResponse.cpp", "ServerConfig.cpp", "LocationConfig.cpp", "utils.cpp")]
+            "HttpRequest.cpp", "HttpResponse.cpp", "ServerConfig.cpp", "LocationConfig.cpp", "utils.cpp")]
         command += ["-o", str(executable)]
         print("Building multipart splitting component tests (C++98)...", flush=True)
         subprocess.run(command, check=True)

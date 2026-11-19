@@ -6,7 +6,7 @@
 /*   By: atammur <atammur@student.42berlin.de>      +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/11/06 22:50:16 by damohame          #+#    #+#             */
-/*   Updated: 2026/11/19 21:44:06 by atammur          ###   ########.fr       */
+/*   Updated: 2026/11/19 21:59:48 by atammur          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -872,58 +872,12 @@ void Router::handlePost(const HttpRequest& request, HttpResponse& response, Rout
     }
 
     // otherwise treat the request body as raw file data
-        
-    //  generate a unique filename. we do it for safety and to avoid file duplication/rewrite on server.
-    //  we use simplest sequential counter ONLY due to limitations of allowed functions/libraries.
-    //  retry with +1 if the filename already exists.
-    std::string filename = "upload_";
-    unsigned long counter = 0;
-    int fd;
-    while (true) {
-        if (counter > 100000) {
-            result.errorCode = 500;
-            result.type = RouteDecision::ROUTE_ERROR;
-            handleError(request, result, response);
-            return ;
-        }
-        std::ostringstream path;
-        // build the destination path using upload_store and the filename.
-        path << result.location->upload_store << "/" << filename << counter << format;
-        // try to create a new file
-        fd = open(path.str().c_str(), O_WRONLY | O_CREAT | O_EXCL, 0644);
-        if (fd >= 0)
-            break;
-        //  if the filename already exists, generate another one and retry
-        if (errno == EEXIST) {
-            ++counter;
-            continue;
-        }
-        handleFileError(errno, request, response, result); 
-        return ;
-    }
-
-    // write the request body to the file. make sure partial writes are handled
     std::string body = request.getBody();
-    size_t bytesWritten = 0;
-    while(bytesWritten < body.size()) {
-        ssize_t n = write(fd, body.data() + bytesWritten, body.size() - bytesWritten);
-        //    handle partial writes and write errors
-        if (n <= 0) {
-            close(fd);
-            //here we are also not allowed to use errno by subject.
-            handleFileError(-1, request, response, result);
-            return ;
-        }
-        bytesWritten += static_cast<size_t>(n);
-    }
-    
-    //  close the file
-    //handle error if occurs
-    if (close(fd) == -1) {
-        handleFileError(-1, request, response, result);
-        return ;
-    }
+    saveFile(format, body, request, response, result);
 
+    if (result.type == RouteDecision::ROUTE_ERROR)
+        return;
+    
     //  make headers and return 201 on successful upload
     std::map<std::string, std::string> headers;
     headers["Content-Type"] = contentType;
@@ -1124,7 +1078,7 @@ void Router::handlePart(std::string part, const HttpRequest& request, HttpRespon
     
     std::cout << "format: " << format << "body: " << partBody << std::endl;
     // get file content and save
-    //saveFile(format, partBody);
+    saveFile(format, partBody, request, response, result);
 }
 
 void Router::handleMultipartError(const HttpRequest& request, HttpResponse& response, RouteDecision& result) {
@@ -1132,6 +1086,62 @@ void Router::handleMultipartError(const HttpRequest& request, HttpResponse& resp
     result.errorCode = 400;
     handleError(request, result, response);
 }
+
+void Router::saveFile(std::string format, std::string body, const HttpRequest& request, HttpResponse& response, RouteDecision& result) {
+    //  generate a unique filename. we do it for safety and to avoid file duplication/rewrite on server.
+    //  we use simplest sequential counter ONLY due to limitations of allowed functions/libraries.
+    //  retry with +1 if the filename already exists.
+    std::string filename = "upload_";
+    unsigned long counter = 0;
+    int fd;
+    while (true) {
+        //we limit to 100000 filenames in the current implementation.
+        if (counter > 100000) {
+            result.errorCode = 500;
+            result.type = RouteDecision::ROUTE_ERROR;
+            handleError(request, result, response);
+            return ;
+        }
+        std::ostringstream path;
+        // build the destination path using upload_store and the filename.
+        path << result.location->upload_store << "/" << filename << counter << format;
+        // try to create a new file
+        fd = open(path.str().c_str(), O_WRONLY | O_CREAT | O_EXCL, 0644);
+        if (fd >= 0)
+            break;
+        //  if the filename already exists, generate another one and retry
+        if (errno == EEXIST) {
+            ++counter;
+            continue;
+        }
+        handleFileError(errno, request, response, result); 
+        return ;
+    }
+
+    // write the body data to the file. make sure partial writes are handled
+    size_t bytesWritten = 0;
+    while(bytesWritten < body.size()) {
+        ssize_t n = write(fd, body.data() + bytesWritten, body.size() - bytesWritten);
+        //    handle partial writes and write errors
+        if (n <= 0) {
+            close(fd);
+            //here we are also not allowed to use errno by subject.
+            handleFileError(-1, request, response, result);
+            return ;
+        }
+        bytesWritten += static_cast<size_t>(n);
+    }
+    
+    //  close the file
+    //handle error if occurs
+    if (close(fd) == -1) {
+        handleFileError(-1, request, response, result);
+        return ;
+    }
+}
+
+
+
 
 
 

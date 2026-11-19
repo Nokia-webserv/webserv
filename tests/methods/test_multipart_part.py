@@ -140,6 +140,11 @@ int main() {
 
 def main():
     root = Path(__file__).resolve().parents[2]
+    source = (root / "source/Router.cpp").read_text()
+    save_call = "    saveFile(format, partBody, request, response, result);"
+    if source.count(save_call) != 1:
+        sys.exit("[BLOCKED] Cannot find the handlePart saveFile call to isolate parsing.")
+    source = source.replace(save_call, "    return; // Test only: stop before saving.\n" + save_call, 1)
     header, count = re.subn(
         r"\bclass\s+Router\s*\{", "class Router {\n    friend class MultipartPartTestPeer;",
         (root / "include/Router.hpp").read_text(), count=1)
@@ -148,12 +153,13 @@ def main():
     with tempfile.TemporaryDirectory(prefix="webserv-multipart-part-") as temporary:
         build = Path(temporary)
         (build / "Router.hpp").write_text(header)
+        (build / "Router.cpp").write_text(source)
         (build / "part_test.cpp").write_text(TEST)
         executable = build / "part_test"
         command = [os.environ.get("CXX", "c++"), "-std=c++98", "-Wall", "-Wextra", "-Werror",
-                   "-I" + str(build), "-I" + str(root / "include"), str(build / "part_test.cpp")]
+                   "-I" + str(build), "-I" + str(root / "include"), str(build / "part_test.cpp"), str(build / "Router.cpp")]
         command += [str(root / "source" / name) for name in (
-            "Router.cpp", "HttpRequest.cpp", "HttpResponse.cpp", "ServerConfig.cpp", "LocationConfig.cpp", "utils.cpp")]
+            "HttpRequest.cpp", "HttpResponse.cpp", "ServerConfig.cpp", "LocationConfig.cpp", "utils.cpp")]
         command += ["-o", str(executable)]
         print("Building handlePart component tests, without saving files (C++98)...", flush=True)
         subprocess.run(command, check=True)

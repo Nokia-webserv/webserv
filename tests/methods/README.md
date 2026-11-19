@@ -1,5 +1,44 @@
 # Method tests
 
+## All POST tests
+
+```sh
+bash tests/methods/test_post.sh
+```
+
+Runs all seven POST suites: raw-upload unit/component/curl integration, multipart
+boundary/splitting/part parsing, and the complete multipart saving component.
+Each suite runs once. A failure does not prevent the remaining suites from
+running; the final command fails if any suite fails. Requires curl, Python 3,
+a C++ compiler and local TCP sockets. This does not run GET or general CI suites,
+and does not claim multipart network integration (that suite is component-only).
+The combined runner is not added to CI.
+
+## Complete multipart component
+
+```sh
+bash tests/methods/test_multipart.sh
+```
+
+35 cases exercise Router::route -> handlePost -> handleMultipart -> handlePart
+-> saveFile, with real temporary files and exact byte comparisons. They check
+multiple files, ordinary fields, binary/empty/1 MiB bodies, extensions, boundary
+variants, closing delimiters, filename collisions, filesystem errors, short
+writes and injected I/O failures. Responses and RouteDecision must agree;
+errors must not be replaced with 201. The test checks descriptor cleanup and
+that later parts are not processed after an error. Permission checks skip root.
+
+The actual Router.cpp is included unchanged in a temporary translation unit.
+The existing raw-upload open/write/close test wrappers normally perform real
+I/O and inject failures only in the dedicated cases. A Listener test double
+supplies configuration without sockets. Temporary files/binaries are removed
+afterward. No production code, CI or Git state is changed by the runner.
+This is component coverage, not HTTP parsing/network integration. The previously
+excluded xfilename/X-Content-Disposition/X-Content-Type variants remain outside
+the suite. Cleanup/rollback of earlier files after a later error is unspecified;
+the tests allow those earlier files to remain or be removed. Partial write
+errors may leave a prefix of the failed file.
+
 ## Multipart boundary only
 
 ```sh
@@ -24,8 +63,8 @@ python3 tests/methods/test_multipart_parts.py
 byte-for-byte, including order, empty file content, NUL and CRLF. They also check
 missing/truncated delimiters and 400 responses. The test captures each existing
 `std::cout << part << std::endl` output separately; it does not replace the
-splitting algorithm. The temporary header grants test access to the private
-method. Router.cpp is compiled unchanged. No server, handlePart, file saving,
+splitting algorithm. A temporary header grants private-method access, and a
+temporary source copy skips delegated handlePart calls. No server, handlePart, file saving,
 success response, Git changes or CI changes are involved. Keep the debug output
 until handlePart provides another observation point. Preamble handling, transport
 padding and validation of individual part headers are outside this small suite.
@@ -49,8 +88,8 @@ python3 tests/methods/test_multipart_part.py
 the header/body split, file versus ordinary field, MIME/extension selection,
 empty and binary bodies, 400 errors and filename text outside Content-Disposition.
 The test compares the existing `format: ...body: ...` debug output byte-for-byte.
-Only a temporary header grants access to the private method; Router.cpp is
-compiled unchanged. No handleMultipart loop, boundary parsing, file saving,
+The temporary header grants private-method access; a temporary source copy
+returns immediately before saveFile. No handleMultipart loop, boundary parsing, file saving,
 network, final success response, workflow or Git operations are involved.
 Keep that debug output until the future saveFile call provides another way to
 observe the extracted format/body. This is not a full MIME-header validation
