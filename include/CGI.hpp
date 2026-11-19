@@ -41,6 +41,7 @@ class CGI {
         bool reapProcess(); // cleans up child process
         void cleanUp(); // cleans up the object (pipes, ptrs)
         void provideInput();
+        bool buildResponse();
 
     private:
         int pipeRead[2]; // pipe where CGI reads from

@@ -49,6 +49,7 @@ void HttpResponse::setBody(const std::string& body) {
 // ...headers
 // \r\n
 // body
+#include <iostream>
 std::string HttpResponse::serialize() const {
     std::stringstream ss;
     ss << _version << " " << _statusCode << " " << _reasonPhrase << "\r\n";
@@ -56,9 +57,11 @@ std::string HttpResponse::serialize() const {
     //attach all headers
     for (std::map<std::string, std::string>::const_iterator it = _headers.begin(); it != _headers.end(); ++it)
     {
-    ss << it->first << ": " << it->second << "\r\n";
+        ss << it->first << ": " << it->second << "\r\n";
     }
     
-    ss << "\r\n" << _body;
+    
+
+    ss << "\r\n" << _body; std::cout << "response\n" << ss.str();
     return ss.str();
 }

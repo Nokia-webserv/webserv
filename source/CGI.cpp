@@ -233,11 +233,7 @@ void CGI::provideInput()
 void CGI::processOutput()
 {
     std::cout << "processing output\n"; //sleep(3);
-    // readOutput();
-        // check for error, change error code, return
-    // after EOF:
-    // buildResponse();
-        // responseReady = true;
+
     int readbts = readOutput();
     if (readbts == -1)
     {
@@ -255,14 +251,87 @@ void CGI::processOutput()
 
     std::cout << "!\n" << cgiOutputBuffer << "\n";
 
-
     // build response
+    if (!buildResponse())
+        error_code = 500;
+}
+
+bool buildFirstLine(std::string str, HttpRequest request, HttpResponse& response)
+{
+    std::cout << str << "fl str\n";
+    std::string reasonCode;
+
+    size_t pos = str.find(":");
+    if (!pos)
+        return false;
+    str.erase(0, pos + 1);
+    trimStr(str);std::cout << str << " trim\n";
+    pos = str.find(" ");
+    if (!pos)
+        return false;
+    reasonCode = str.substr(0, pos); std::cout << reasonCode << " codestr\n";
+    IntLongOverflow result = strToIntLongOverflow("int", reasonCode); std::cout << result.overflow << " orflw " << result.number << " num\n";
+    if (result.overflow != 1)
+        return false;
+    response.setStatusCode(result.number);
+
+    str.erase(0, pos + 1);std::cout << str << " aftererase\n";
+    if (str[str.size()-1] == '\n')
+        str.erase(str.size() - 2);
+    response.setReasonPhrase(str);std::cout << str << " phrase\n";
+
+    response.setVersion(request.getVersion());
+    std::cout << "first line built\n";
+    return true;
+}
+
+bool buildHeaders(std::string str, HttpResponse& response)
+{
+    std::string key;
+
+    size_t pos = str.find(":");
+    if (!pos)
+        return false;
+    key = str.substr(0, pos);std::cout << key << " key\n";
+
+    str.erase(0, pos + 1);
+    trimStr(str);
+    if (str[str.size()-1] == '\n')
+        str.erase(str.size() - 2);
+
+    response.setHeader(key, str); std::cout << str << " val\n";
+    std::cout << "header ok\n";
+    return true;
+}
+
+bool CGI::buildResponse()
+{
+    std::cout << "Building response\n";
+    std::string temp;
+    size_t pos = cgiOutputBuffer.find("\n");
+
+    for (size_t i = 0; pos != 1; ++i)
+    {
+        temp = cgiOutputBuffer.substr(0, pos + 1);
+        if (i == 0)
+        {
+            if (!buildFirstLine(temp, request, response))
+                return false;
+        }
+        else
+        {
+            if (!buildHeaders(temp, response))
+                return false;
+        }
+        cgiOutputBuffer.erase(0, pos + 1);
+        pos = cgiOutputBuffer.find("\n");
+        if (pos == std::string::npos)
+            return false;
+    }
+    response.setBody(cgiOutputBuffer.substr(1)); std::cout << cgiOutputBuffer << " body\n";
     setResponseReady();
-    // char buf[100];
-    // read(pipeWrite[0], buf, 100);
-    // std::cout << buf << "\n";
-    // std::cout << "Processing CGI Output not implemented - handling as an error in subprocess\n";
-    // error_code = 500;
+    std::cout << "Response built\n";
+    return true;
 }
 
 int CGI::readOutput()

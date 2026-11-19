@@ -137,9 +137,7 @@ bool ClientConnection::writeData()
     // no data to send
     if (!hasDataToSend())
 		return (true);
-	bytesSent = send(clientSocket_fd,
-        sendBuffer.c_str() + writeOffset,
-        sendBuffer.size() - writeOffset, 0);
+	bytesSent = send(clientSocket_fd, sendBuffer.c_str() + writeOffset, sendBuffer.size() - writeOffset, 0);
 	if (bytesSent > 0)
 	{
 		// TEMPORARY: Test partial writes
@@ -172,7 +170,7 @@ void ClientConnection::addDataToSend(const std::string &data)
 	// if there is new data
 	if (data.empty())
 		return;
-
+std::cout << "\nagain response \n" << data << "\n";
 	// if no data update lastwrite on empty buffer
 	// to mark the start of the time for the server to send
 	if (!hasDataToSend())
