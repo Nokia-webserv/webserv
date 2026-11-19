@@ -39,6 +39,9 @@ jobs:
       - name: Raw POST integration tests
         run: bash tests/methods/test_post_raw.sh --integration
 
+      - name: Run DELETE tests
+        run: bash tests/methods/delete/test_delete.sh
+
       - name: Run redirect tests
         if: success() || failure()
         run: make redirect-test
