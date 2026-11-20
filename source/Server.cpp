@@ -613,7 +613,9 @@ void Server::processHttpInput(ClientConnection &client)
             if (decision.type == RouteDecision::ROUTE_ERROR
                 || decision.type == RouteDecision::ROUTE_REDIRECT ||
                 (decision.type == RouteDecision::ROUTE_SERVE &&
-                client.getHttpRequest().getMethod() == "GET"))
+                client.getHttpRequest().getMethod() == "GET") ||
+                (decision.type == RouteDecision::ROUTE_SERVE &&
+                client.getHttpRequest().getMethod() == "POST"))
             {
                 client.addDataToSend(response.serialize());
             }

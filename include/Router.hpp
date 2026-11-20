@@ -3,10 +3,10 @@
 /*                                                        :::      ::::::::   */
 /*   Router.hpp                                         :+:      :+:    :+:   */
 /*                                                    +:+ +:+         +:+     */
-/*   By: damohame <damohame@student.42berlin.d>     +#+  +:+       +#+        */
+/*   By: atammur <atammur@student.42berlin.de>      +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/11/06 22:25:55 by damohame          #+#    #+#             */
-/*   Updated: 2026/11/17 23:56:41 by damohame         ###   ########.fr       */
+/*   Updated: 2026/11/19 22:36:17 by atammur          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -62,7 +62,7 @@ class Router
         void setAllowedMethodHeader(const LocationConfig& location, HttpResponse& response);
                 
         void handleGet(const HttpRequest& request, HttpResponse& response, RouteDecision& result);
-        void handlePost(const HttpRequest& request, HttpResponse& response, const LocationConfig& location);
+        void handlePost(const HttpRequest& request, HttpResponse& response, RouteDecision& result);
         void handleDelete(const HttpRequest& request, HttpResponse& response, const LocationConfig& location);
         
         void handleRedirect(const HttpRequest& request, int statusCode, const std::string& targetUrl, HttpResponse& response);
@@ -95,4 +95,11 @@ class Router
         std::string generateFilesList(std::string& dirPath, std::string& requestPath);
         std::string urlEncodePath(std::string path);
         std::string escapeHtml(std::string input);
+
+        //POST method helpers
+        std::string getFileFormat(const std::string& type);
+        void handleMultipart(const HttpRequest& request, HttpResponse& response, RouteDecision& result);
+        void handleMultipartError(const HttpRequest& request, HttpResponse& response, RouteDecision& result);
+        void handlePart(const std::string& part, const HttpRequest& request, HttpResponse& response, RouteDecision& result);
+        void saveFile(const std::string& format, const std::string& data, const HttpRequest& request, HttpResponse& response, RouteDecision& result);
 };

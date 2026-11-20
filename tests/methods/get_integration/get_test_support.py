@@ -152,7 +152,8 @@ class CurlClient:
         lines = raw[:-4].split(b"\r\n")
         version, code, reason = lines[0].decode("ascii").split(" ", 2)
         require(reason, "Empty reason phrase")
-        reasons = {200: "OK", 301: "Moved Permanently", 403: "Forbidden",
+        reasons = {200: "OK", 201: "Created", 301: "Moved Permanently", 403: "Forbidden",
+                   413: "Payload Too Large",
                    404: "Not Found", 405: "Method Not Allowed", 500: "Internal Server Error"}
         status = int(code)
         require(reason == reasons.get(status), "Unexpected HTTP reason phrase: " + reason)
