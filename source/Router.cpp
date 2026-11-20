@@ -11,6 +11,7 @@
 /* ************************************************************************** */
 
 #include "Router.hpp"
+#include "CGI.hpp"
 #include "HttpResponse.hpp"
 #include <cctype>
 #include <iomanip>
@@ -198,10 +199,10 @@ bool Router::isHeaderSizeAllowed(const HttpRequest& request, const ServerConfig&
 // 6- methods handler
 // - Httpresponse
 // - error handler
-RouteDecision Router::route(const HttpRequest& request, const Listener& listener, HttpResponse& response, CGI*& cgiRef)
+RouteDecision Router::route(const HttpRequest& request, const Listener& listener, HttpResponse& response, CGI*& cgiRef, std::map<int, int>& pendingPIDs)
 {
     RouteDecision result;
-
+    result.errorCode = 0;
     // 1- virtual server selection
     result.server = selectServer(request, listener);
     if (result.server == NULL)
@@ -267,7 +268,13 @@ RouteDecision Router::route(const HttpRequest& request, const Listener& listener
     std::string ext;
     if (hasCGIextension(request.getPath(), result.location->cgi_handlers, ext))
     {
-        handleCGI(request, response, *result.location, ext, cgiRef);
+        handleCGI(request, response, result, ext, cgiRef, pendingPIDs);
+        if (result.errorCode)
+        {
+            result.type = RouteDecision::ROUTE_ERROR;
+            handleError(request, result, response);
+            return result;
+        }
         result.type = RouteDecision::ROUTE_CGI;
         return result;
     }
@@ -304,13 +311,12 @@ bool inCGIextensionList(const std::map<std::string, std::string> & extensionList
 
 bool Router::hasCGIextension(const std::string & path, const std::map<std::string, std::string> & extensionList, std::string& ext) const
 {
-    std::string extension = extractExtension(path); std::cout << "Extension extracted: " << extension << "\n";
+    std::string extension = extractExtension(path);
     if (extension.empty())
         return false;
     
     if (!inCGIextensionList(extensionList, extension)) // searches extracted extension in cgi handlers (from location block in configs)
-    {    std::cout << "Not in the list\n"; return false;}
-    std::cout << "Extension found in the list\n";
+        return false;
     
     ext = extension;
     return true;
@@ -441,7 +447,6 @@ void Router::handleError(const HttpRequest& request, const RouteDecision& result
     // get the HTTP reason phrase based on the code sent
     std::string reason;
     reason = getErrorReason(result.errorCode);
-    
     // set the basic http info
     // example:
     // HTTP/1.1 404 Not Found
@@ -983,9 +988,28 @@ void Router::handleDelete(const HttpRequest& request, HttpResponse& response, co
     // to be implemented: Delete handler
 }
 
-void Router::handleCGI(const HttpRequest& request, HttpResponse& response, const LocationConfig& location, const std::string& extension, CGI*& cgiRef)
+void Router::handleCGI(const HttpRequest& request, HttpResponse& response, RouteDecision& result, const std::string& extension, CGI*& cgiRef, std::map<int, int>& pendingPIDs)
 {
-    CGI* cgi = new CGI(request, response, location, extension, cgiRef);
+    CGI* cgi;
     
+    try {
+        cgi = new CGI(request, response, result, extension, cgiRef, pendingPIDs);
+    }
+    catch (...) {
+        result.errorCode = 500;
+        return;
+    }
+    
+    // Test 1: allocation error
+    // the following block will replace the block above
+    /* std::cout << "=== TEST: Imitating allocation error ===\n";
+    result.errorCode = 500;
+    return; */
+
     cgi->runScript(); // creates pipes, forks process, runs the script
+    if (cgi->getErrorCode()) // handles pipe and fork errors
+    {
+        delete cgi;
+        result.errorCode = 500;
+    }
 }

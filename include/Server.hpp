@@ -50,6 +50,8 @@ class Server {
         void handleCGIevents(int client_fd, short revents);
         void disconnectClient(int fd);
         void checkClientTimeout();
+        void checkCGItimeout(); // for frozen CGI's
+        void checkPendingPIDs(); // for frozen CGI's
         void processHttpInput(ClientConnection &client);
         void processPendingHttpInput();
         int getPollEventTimeout();
@@ -72,6 +74,8 @@ class Server {
         void run();
         void acceptNewConnections(Listener *listener);
         void buildPollFds();
+
+        std::map<int, int> pendingPIDs;
 };
 
 #endif

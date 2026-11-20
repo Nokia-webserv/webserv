@@ -18,8 +18,8 @@
 #include "HttpResponse.hpp"
 #include "HttpParser.hpp"
 #include <string>
-#include "CGI.hpp"
-#include <map>
+
+class CGI;
 
 struct RouteDecision
 {
@@ -48,7 +48,7 @@ class Router
         Router();
         ~Router();
 
-        RouteDecision route(const HttpRequest& request, const Listener& listener, HttpResponse& response, CGI*& cgiRef);
+        RouteDecision route(const HttpRequest& request, const Listener& listener, HttpResponse& response, CGI*& cgiRef, std::map<int, int>& pendingPIDs);
         void handleParserError(const HttpRequest& request, const Listener &listener, HttpRequestError error, HttpResponse& response);
         void handleError(const HttpRequest& request, const RouteDecision& result, HttpResponse& response);
         const ServerConfig* selectServer(const HttpRequest& request, const Listener& listener) const;
@@ -66,7 +66,7 @@ class Router
 
         bool hasCGIextension(const std::string & path, const std::map<std::string, std::string> & extensionList, std::string & ext) const;
                 
-        void handleCGI(const HttpRequest& request, HttpResponse& response, const LocationConfig& location, const std::string& extension, CGI*& cgiRef);
+        void handleCGI(const HttpRequest& request, HttpResponse& response, RouteDecision& result, const std::string& extension, CGI*& cgiRef, std::map<int, int>& pendingPIDs);
         void handleGet(const HttpRequest& request, HttpResponse& response, RouteDecision& result);
         void handlePost(const HttpRequest& request, HttpResponse& response, const LocationConfig& location);
         void handleDelete(const HttpRequest& request, HttpResponse& response, const LocationConfig& location);

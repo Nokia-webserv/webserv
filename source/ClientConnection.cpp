@@ -1,7 +1,8 @@
 #include "ClientConnection.hpp"
 
-ClientConnection::ClientConnection(int fd, sockaddr_in *addr, const Listener* listener)
+ClientConnection::ClientConnection(int fd, sockaddr_in *addr, const Listener* listener, std::map<int, int>& pendingPIDs)
 :	cgi(NULL),
+	pendingPIDs(pendingPIDs),
 	clientSocket_fd(fd), 
 	addressInfo(addr),
 	writeOffset(0), 
@@ -20,8 +21,9 @@ ClientConnection::ClientConnection(int fd, sockaddr_in *addr, const Listener* li
       
 ClientConnection::~ClientConnection()
 {
-	delete	addressInfo;
-
+	delete cgi;
+	cgi = NULL;
+	delete addressInfo;
 	close(clientSocket_fd);
 }
 

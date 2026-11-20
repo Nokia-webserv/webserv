@@ -172,7 +172,6 @@ void Server::run()
 		// rebuild the poll struct on every loop
         // (contains listening sockets and connected client sockets)
 		buildPollFds();
-        
         if (poll_fds.empty())
             throw std::runtime_error("No file descriptors available for poll()");
 
@@ -214,6 +213,8 @@ void Server::run()
     
         }
         checkClientTimeout();
+        checkCGItimeout();
+        checkPendingPIDs();
 	}
 }
 
@@ -231,39 +232,45 @@ void Server::handleListenersEvents(Listener *listener, short revents)
 void Server::handleCGIevents(int client_fd, short revents)
 {
     /* Error handling */
-    bool error = false;
     
     // finds current client and CGI
     std::map<int, ClientConnection*>::iterator int_cc = clients.find(client_fd); 
     if (int_cc == clients.end())
-        error = true;
-    ClientConnection* client = NULL;
-    CGI* cgi = NULL;
-    if (!error)
-    {
-        client = int_cc->second;
-        cgi = client->cgi;
-    }
+        return;
+   
+    ClientConnection* client = int_cc->second;
+    CGI* cgi = client->cgi;
 
     // if cgi triggered poll but there is no cgi -> smth is wrong
     if (!cgi)
-        error = true;
+        return;
     
-    if (error || (revents & (POLLNVAL | POLLERR))) // processes any kind of error at this stage
-    {
-        // cgi.handleError()
-            // send error 500
-        // cgi.cleanup()
-            // close fd
-            // remove from cgi map
-    }
+    // processes any kind of error at this stage
+    if (revents & (POLLNVAL | POLLERR)) 
+        cgi->decision.errorCode = 500;
     
-    /* Valid event processing */
-    if (revents & (POLLIN | POLLHUP)) // if there is data to be read
-        cgi->processOutput(); // reads until EOF then builds response and cleans up
+    /* Valid handling */
 
-    if (cgi->isResponseReady()) // if response is built, adds it to sendBuffer
+    // processes CGI output
+    if (!cgi->getErrorCode() && (revents & (POLLIN | POLLHUP)))
+        cgi->processOutput();
+    
+    // handles errors
+    if (cgi->getErrorCode())
+    {   
+        // builds error response
+        Router router;
+        router.handleError(cgi->request, cgi->decision, cgi->response);
+        cgi->setResponseReady();
+    }
+
+    // places response into the queue & deletes the object
+    if (cgi->isResponseReady())
+    {
         client->addDataToSend(cgi->response.serialize());
+        cgi->reapProcess();
+        delete cgi;
+    }
 }
 
 // POLLERR (Socket error)
@@ -339,8 +346,6 @@ void Server::handleClientEvents(int fd, short revents)
             return;
         }
     }
-    else
-        std::cout << "not found\n";
 }
 
 // Removes and cleans up a client connection by its fd.
@@ -400,6 +405,9 @@ void Server::checkClientTimeout()
         // wait for POLLOUT to finish
         if (client.shouldCloseAfterResponse())
                 continue;
+        // if client is waiting for CGI response, he shouldn't be taken as inactive
+        if (client.hasRunningCGI())
+            continue;
         // 2- inactive time calculation, add in the vector
         time_t inactiveSeconds = now - client.getClientLastActive();
         
@@ -440,7 +448,62 @@ void Server::checkClientTimeout()
     }
     // disconnect all the timedout client from the server
     for (size_t i = 0; i < timedOutClients.size(); ++i)
-        disconnectClient(timedOutClients[i]);   
+        disconnectClient(timedOutClients[i]);
+}
+
+void Server::checkCGItimeout()
+{
+    std::map<int, ClientConnection*>::iterator int_cc;
+    CGI* cgi;
+    time_t now;
+
+    // cycles through each client and checks their CGI
+    for (int_cc = clients.begin(); int_cc != clients.end(); ++int_cc)
+    {   
+        cgi = int_cc->second->cgi;
+        if (!cgi)
+            continue;
+        now = std::time(NULL);
+        if (now - cgi->getStartTime() > GLOBAL_CLIENT_TIMEOUT_SECONDS)
+        {
+            std::cout << "Terminating timedout CGI\n";
+            handleCGIevents(int_cc->second->getFd(), POLLERR); // handles as error
+        }
+    }
+}
+
+// attempts to kill pending processes up to x times
+void Server::checkPendingPIDs()
+{
+    const int attemptsToKill = 10; // configures amount of termination attempts
+    int status;
+    std::vector<int> killed;
+
+    for (std::map<int, int>::iterator pid_killTries = pendingPIDs.begin(); pid_killTries != pendingPIDs.end(); ++pid_killTries)
+    {
+        std::cout << "Killing pending PID " << pid_killTries->first << "\n";
+        if (pid_killTries->second < attemptsToKill)
+        {
+            kill(pid_killTries->first, SIGKILL);
+            if (waitpid(pid_killTries->first, &status, WNOHANG) == pid_killTries->first) // result needs to equal pid
+            {
+                std::cout << pid_killTries->first << " successfully terminated\n";
+                killed.push_back(pid_killTries->first);
+                continue;
+            }
+            pid_killTries->second++;
+            if (pid_killTries->second == attemptsToKill)
+            {
+                std::cerr << "Failure to correctly terminate child process. PID: " << pid_killTries->first << "\n";
+                killed.push_back(pid_killTries->first);
+            }
+        }
+        
+    }
+
+    for (size_t i = 0; i < killed.size(); ++i)
+        pendingPIDs.erase(killed[i]);
+
 }
 
 // build the pollfd struct to match the poll events and builtin format
@@ -570,7 +633,7 @@ void Server::acceptNewConnections(Listener *listener)
         }
 
         // store the new connection
-        ClientConnection * newClient = new ClientConnection(clientSocket, clientAddress, listener);
+        ClientConnection * newClient = new ClientConnection(clientSocket, clientAddress, listener, pendingPIDs);
         clients[clientSocket] = newClient;
         // TEST_INTEGRATION integrationLogEvent("accept", clientSocket);
     }
@@ -669,7 +732,7 @@ void Server::processHttpInput(ClientConnection &client)
             // create the http response that we will save in the response
             HttpResponse response;
             // call the route function
-            RouteDecision decision = router.route(client.getHttpRequest(), client.getListener(), response, client.cgi);
+            RouteDecision decision = router.route(client.getHttpRequest(), client.getListener(), response, client.cgi, client.pendingPIDs);
 
             // updated later
             (void) decision;
@@ -688,7 +751,7 @@ void Server::processHttpInput(ClientConnection &client)
             // reset the parser for next request
             client.getParser().reset();
             ++processedRequests;
-            if(client.getRecvBuffer().empty())
+            if (client.getRecvBuffer().empty())
                 return;
             continue;
         }

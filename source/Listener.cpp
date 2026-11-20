@@ -12,6 +12,22 @@
 
 #include "Listener.hpp"
 
+static int create_listener(const std::string& host, int port);
+
+//  contructor will create (fd = -1) then creates listener_fd if valid
+Listener::Listener(const std::string &host, int port)
+:   listen_fd(-1), host(host), port(port) 
+{
+    listen_fd = create_listener(host,port);
+}
+
+Listener::~Listener()
+{
+    //in case we have an fd
+    if (listen_fd >= 0)
+        close(listen_fd);
+}
+
 // creates an IPv4 TCP listening socket and return a listening fd
 static int create_listener(const std::string& host, int port)
 {
@@ -106,20 +122,6 @@ static int create_listener(const std::string& host, int port)
     return fd;
 }
 
-//  contructor will create (fd = -1) then creates listener_fd if valid
-Listener::Listener(const std::string &host, int port)
-:   listen_fd(-1), host(host), port(port) 
-{
-    listen_fd = create_listener(host,port);
-}
-
-Listener::~Listener()
-{
-    //in case we have an fd
-    if (listen_fd >= 0)
-        close(listen_fd);
-}
-
 int Listener::getFd() const
 {
     return this->listen_fd;
@@ -143,7 +145,7 @@ bool Listener::matches(const std::string &host, int port) const
 
 void Listener::addConfig(const ServerConfig *config)
 {
-     configs.push_back(config);
+    configs.push_back(config);
 }
 
 const std::vector<const ServerConfig*>& Listener::getConfigs() const
