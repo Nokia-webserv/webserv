@@ -6,7 +6,7 @@ failed=0
 
 # Only GET-specific suites. General CI build/startup/config/parser/TCP tests
 # already have their own runners and must not be called again here.
-for suite in url_encode_path escape_html generate_files_list get_file get_dir get_integration; do
+for suite in url_encode_path escape_html generate_files_list get_file get_dir get_integration error_handler router; do
     echo
     echo "=== $suite ==="
     if ! bash "$SCRIPT_DIR/$suite/test_$suite.sh"; then

@@ -1,15 +1,12 @@
 #!/usr/bin/env python3
 
 import socket
-import subprocess
 import sys
-import time
-from common import wait_for_log_count
+from common import start_server_simple, stop_server, wait_for_log_count, wait_for_server_simple
 
 HOST = "127.0.0.1"
 PORT = 8080
 
-CLIENT_COUNT = 5
 STARTUP_TIMEOUT = 10
 OBSERVATION_TIME = 2
 
@@ -20,41 +17,13 @@ REQUEST = (
 )
 
 
-def start_server(command):
-    print("[INFO] Starting server:", " ".join(command))
-    print("[INFO] Using config:", command[-1])
-    server = subprocess.Popen(command)
-    print("[PASS] Server process started with config")
-    return server
-
-
-def connect_to_server(server):
-    deadline = time.time() + STARTUP_TIMEOUT
-
-    while time.time() < deadline:
-        if server.poll() is not None:
-            raise RuntimeError(
-                "Server exited with code " + str(server.returncode)
-            )
-
-        try:
-            client = socket.create_connection((HOST, PORT), timeout=1)
-            print("[PASS] Config parsed and server is listening")
-            return client
-        except OSError:
-            time.sleep(0.2)
-
-    raise RuntimeError("Server did not start")
-
-
-def test_multiple_clients(server):
+def test_clients(server, client_count):
     clients = []
 
     try:
-        print("[INFO] Opening", CLIENT_COUNT, "client connections")
+        print("[INFO] Opening", client_count, "client connections")
 
-        # Establish all connections before sending requests.
-        for i in range(CLIENT_COUNT):
+        for i in range(client_count):
             client = socket.create_connection((HOST, PORT), timeout=3)
             clients.append(client)
             print("[INFO] Client", i + 1, "connected")
@@ -66,7 +35,7 @@ def test_multiple_clients(server):
             print("[INFO] Client", i + 1, "sent request")
 
         print("[INFO] Waiting for server to process requests")
-        wait_for_log_count("request status=COMPLETE", CLIENT_COUNT, OBSERVATION_TIME)
+        wait_for_log_count("request status=COMPLETE", client_count, OBSERVATION_TIME)
 
         if server.poll() is not None:
             raise AssertionError(
@@ -83,19 +52,23 @@ def test_multiple_clients(server):
 
 def main():
     if len(sys.argv) != 3:
-        print("Usage: python3 a2_multiple_clients.py <server_executable> <config-file>")
+        print(
+            "Usage: python3 a2_multiple_clients.py "
+            "<server_executable> <config-file>"
+        )
         sys.exit(1)
 
     server = None
 
     try:
-        server = start_server(sys.argv[1:])
+        server = start_server_simple(sys.argv[1:])
+        wait_for_server_simple(server)
 
-        # Wait until the server is listening.
-        probe = connect_to_server(server)
-        probe.close()
+        print("\n[INFO] Sub-case: 5 concurrent clients")
+        test_clients(server, 5)
 
-        test_multiple_clients(server)
+        print("\n[INFO] Sub-case: 10 concurrent clients")
+        test_clients(server, 10)
 
         print("\n[PASS] A2 - Multiple clients test passed")
 
@@ -104,15 +77,7 @@ def main():
         sys.exit(1)
 
     finally:
-        if server and server.poll() is None:
-            print("[INFO] Stopping server")
-            server.terminate()
-
-            try:
-                server.wait(timeout=3)
-            except subprocess.TimeoutExpired:
-                server.kill()
-                server.wait()
+        stop_server(server)
 
         print("[INFO] Test finished")
 
