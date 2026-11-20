@@ -320,7 +320,7 @@ bool Router::hasCGIextension(const std::string & path, const std::map<std::strin
     
     if (!inCGIextensionList(extensionList, extension)) // searches extracted extension in cgi handlers (from location block in configs)
         return false;
-    
+
     ext = extension;
     return true;
 }

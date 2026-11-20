@@ -253,8 +253,8 @@ void CGI::runScript()
         dir = scriptPath.substr(0, scriptPath.find_last_of("/"));
         chdir(dir.c_str());
 
-        execve(file.c_str(), &argv[0], &envp[0]); // executes the CGI script and terminates child process
-        
+        execve(interpreterPath.c_str(), &argv[0], &envp[0]); // executes the CGI script and terminates child process
+   
         /* execve error */
         // execve terminates child process. reaching this line indicates execve failure
         // handling path is same as for dup error
@@ -325,7 +325,6 @@ void CGI::processOutput()
         error_code = 500;
         return;
     }
-
     // builds response
     if (!buildResponse())
         error_code = 500;
