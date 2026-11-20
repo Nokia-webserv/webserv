@@ -459,7 +459,7 @@ void Server::checkCGItimeout()
     {   
         cgi = int_cc->second->cgi;
         if (!cgi)
-            return;
+            continue;
         now = std::time(NULL);
         if (now - cgi->getStartTime() > GLOBAL_CLIENT_TIMEOUT_SECONDS)
         {
