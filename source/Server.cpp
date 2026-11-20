@@ -745,7 +745,7 @@ void Server::processHttpInput(ClientConnection &client)
             // create the http response that we will save in the response
             HttpResponse response;
             // call the route function
-            RouteDecision decision = router.route(client.getHttpRequest(), client.getListener(), response, client.cgi, client.pendingPIDs);
+            RouteDecision decision = router.route(client, response);
 
             // updated later
             (void) decision;

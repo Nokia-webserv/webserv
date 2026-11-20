@@ -16,7 +16,7 @@
 class CGI {
     public:
         CGI(const HttpRequest& request, HttpResponse& response, RouteDecision decision, const std::string& cgi_extension, 
-                CGI*& myPtrInMyClient, std::map<int, int>& pendingPIDs);
+                ClientConnection& client);
         ~CGI();
         
         const std::string extension;
@@ -25,6 +25,7 @@ class CGI {
         HttpResponse response;
         RouteDecision decision;
         CGI*& myPtrInMyClient; // ref to client class member holding ptr to this object
+        const ClientConnection& myClient;
         std::map<int, int>& pendingPIDs; // contains pids not correctly terminated during CGI destructions
         
         int getFd(char end) const;

@@ -3,18 +3,20 @@
 #include <iostream>
 #include <ctime>
 #include <poll.h>
+#include "ClientConnection.hpp"
 
 extern char **environ;
 
 CGI::CGI(const HttpRequest & request, HttpResponse & response, RouteDecision decision, const std::string& cgi_extension, 
-    CGI*& myPtrInMyClient, std::map<int, int>& pendingPIDs)
+    ClientConnection& client)
 :   extension(cgi_extension),
     interpreterPath(decision.location->cgi_handlers.find(cgi_extension)->second),
     request(request),
     response(response),
     decision(decision),
-    myPtrInMyClient(myPtrInMyClient), // NULL
-    pendingPIDs(pendingPIDs),
+    myPtrInMyClient(client.cgi), // NULL
+    myClient(client),
+    pendingPIDs(client.pendingPIDs),
     childPid(-2),
     bytesSent(0),
     responseReady(false),
@@ -136,8 +138,8 @@ void CGI::setEnvp(const HttpRequest & request, const ServerConfig& server)
     envp_str.push_back("SERVER_NAME=" + matchServerName(request.getHeaders(), server.server_names));
     envp_str.push_back("SERVER_PORT=" + toString(matchServerPort(request.getHeaders(), server.hostPorts)));
     envp_str.push_back("REQUEST_URI=" + request.getPath() + (request.getQuery().empty() ? "" : "?" + request.getQuery()));
-    envp_str.push_back("REMOTE_ADDR=127.0.0.1");
-    envp_str.push_back("REMOTE_PORT=0");   // use the real client port if you have it
+    envp_str.push_back("REMOTE_ADDR=" + myClient.getIp());
+    envp_str.push_back("REMOTE_PORT=" + myClient.getPort()); // use the real client port if you have it
     envp_str.push_back(getEnvPath());
 
     // 2. CONTENT_LENGTH / CONTENT_TYPE (no HTTP_ prefix)
@@ -298,6 +300,10 @@ void CGI::runScript()
             return;
         }
     }
+
+    // if no body to write -> closes immediately
+    if (cgiInputBuffer.empty())
+        closeReading();
 }
 
 // writes to CGI input
