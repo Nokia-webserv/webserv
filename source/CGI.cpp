@@ -298,8 +298,6 @@ void CGI::runScript()
     childPid = pid;
     // records itslef in client -> adds to poll
     myPtrInMyClient = this;
-    
-    provideInput();
 }
 
 // writes to CGI input
