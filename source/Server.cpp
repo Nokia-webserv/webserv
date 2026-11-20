@@ -405,6 +405,9 @@ void Server::checkClientTimeout()
         // wait for POLLOUT to finish
         if (client.shouldCloseAfterResponse())
                 continue;
+        // if client is waiting for CGI response, he shouldn't be taken as inactive
+        if (client.hasRunningCGI())
+            continue;
         // 2- inactive time calculation, add in the vector
         time_t inactiveSeconds = now - client.getClientLastActive();
         
@@ -445,7 +448,7 @@ void Server::checkClientTimeout()
     }
     // disconnect all the timedout client from the server
     for (size_t i = 0; i < timedOutClients.size(); ++i)
-        disconnectClient(timedOutClients[i]);   
+        disconnectClient(timedOutClients[i]);
 }
 
 void Server::checkCGItimeout()
