@@ -9,6 +9,7 @@
 #include <iostream>
 #include "HttpParser.hpp"
 #include "Listener.hpp"
+#include "CGI.hpp"
 
 // class for managing a TCP-connection
 
@@ -17,46 +18,40 @@ class ClientConnection {
         ClientConnection(int fd, sockaddr_in * addr,const Listener* listener);
         ~ClientConnection();
 
+        CGI* cgi; // ptr to CGI object
+
         int getFd() const;
         std::string getIp() const;
         int getPort() const;
         std::string getBuffer() const;
         HttpParser & getParser();
         HttpRequest & getRequest();
-
-        //void addRecvBuffer(std::string rawStr);
-        void clearBuffer();
-        HttpParsingResult callParser();
-
-        bool hasDataToSend();
-        bool readData();
-        bool writeData();
-        void addDataToSend(const std::string &data);
-
-        bool isReadClosed();
-        void setReadClosed();
-        time_t getClientLastActive() const;
-        void updateLastActive();
-        
-        // testing
-        //void printReceivedData() const;
         const HttpRequest& getHttpRequest() const;
         const std::string& getRecvBuffer() const;
-
-        bool shouldCloseAfterResponse();
-        void setCloseAfterResponse();
-
-        bool hasPendingHttpInput();
-        void setPendingHttpInput(bool value);
-
-        // Return the listener associated with this connection.
-        const Listener& getListener() const;
-
-        // get the value from the parser
-        bool hasIncompleteRequest() const;
-
+        time_t getClientLastActive() const;
+        const Listener& getListener() const; // Return the listener associated with this connection.
         time_t getServerLastWrite() const;
+
+        HttpParsingResult callParser();
+        bool readData();
+        bool writeData();
+        void clearBuffer();
+        void addDataToSend(const std::string &data);
+        void setReadClosed();
+        void updateLastActive();
+        void setPendingHttpInput(bool value);
+        void setCloseAfterResponse();
         void updateServerLastWrite();
+
+        bool hasDataToSend() const;
+        bool isReadClosed() const;
+        bool shouldCloseAfterResponse() const;
+        bool hasPendingHttpInput() const;
+        bool hasIncompleteRequest() const; // get the value from the parser
+        bool hasRunningCGI() const;
+
+        // testing
+        //void printReceivedData() const;
 
     private:
         int clientSocket_fd;
@@ -71,19 +66,16 @@ class ClientConnection {
         // server stop reading from client.
         // client might be waiting for response
         bool readClosed;
-
-        HttpParser httpParser;
-        HttpRequest & httpRequest; // refers to the parsed http request owned by parser for easier access
-
         // true when the server decide to close connection.
         // or after sending all queued response data
-        bool closedAfterResponse;
-
+        bool closeAfterResponse;
         //true when http input has a pending data in buffer
         //the server must continye parsing in later event-loop.
         // without waiting for another POLLIN event
         bool pendingHttpInput;
 
+        HttpParser httpParser;
+        HttpRequest & httpRequest; // refers to the parsed http request owned by parser for easier access
         // the listener connected to the client
         // Used by Router to select the correct virtual server
         const Listener* listener;
