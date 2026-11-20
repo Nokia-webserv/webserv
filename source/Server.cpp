@@ -237,8 +237,8 @@ void Server::handleCGIevents(int client_fd, short revents)
     std::map<int, ClientConnection*>::iterator int_cc = clients.find(client_fd); 
     if (int_cc == clients.end())
         error = true;
-    ClientConnection* client;
-    CGI* cgi;
+    ClientConnection* client = NULL;
+    CGI* cgi = NULL;
     if (!error)
     {
         client = int_cc->second;
@@ -620,7 +620,7 @@ void Server::processHttpInput(ClientConnection &client)
 
     // if the buffer contains multiple requests from that client and connection is open
     while (processedRequests < MAX_REQUESTS_PER_PASS 
-        && !client.shouldCloseAfterResponse())
+        && !client.shouldCloseAfterResponse() && !client.hasRunningCGI())
     {
         // run the parser and put the output in result
         HttpParsingResult result = client.callParser();
