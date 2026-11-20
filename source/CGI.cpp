@@ -139,7 +139,7 @@ void CGI::setEnvp(const HttpRequest & request, const ServerConfig& server)
     envp_str.push_back("SERVER_PORT=" + toString(matchServerPort(request.getHeaders(), server.hostPorts)));
     envp_str.push_back("REQUEST_URI=" + request.getPath() + (request.getQuery().empty() ? "" : "?" + request.getQuery()));
     envp_str.push_back("REMOTE_ADDR=" + myClient.getIp());
-    envp_str.push_back("REMOTE_PORT=" + toString(myClient.getPort())); // use the real client port if you have it
+    envp_str.push_back("REMOTE_PORT=" + toString(myClient.getPort()));
     envp_str.push_back(getEnvPath());
 
     // 2. CONTENT_LENGTH / CONTENT_TYPE (no HTTP_ prefix)
