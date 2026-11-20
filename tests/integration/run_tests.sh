@@ -88,6 +88,11 @@ for test in tests/integration/*.py; do
                 env WEBSERV_TEST_LOG="$LOG_FILE" \
                 python3 "$test" "$SERVER" "tests/integration/delete.conf"
             ;;
+        g2_method_not_allowed.py|g3_vhost_selection.py)
+            run_test "INTEGRATION: $test_name" \
+                env WEBSERV_TEST_LOG="$LOG_FILE" \
+                python3 "$test" "$SERVER" "tests/integration/g_routing.conf"
+            ;;
         *)
             run_test "INTEGRATION: $test_name" \
                 env WEBSERV_TEST_LOG="$LOG_FILE" \

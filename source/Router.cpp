@@ -6,7 +6,7 @@
 /*   By: damohame <damohame@student.42berlin.d>     +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/11/06 22:50:16 by damohame          #+#    #+#             */
-/*   Updated: 2026/11/19 01:44:04 by damohame         ###   ########.fr       */
+/*   Updated: 2026/11/20 15:18:09 by damohame         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -965,15 +965,226 @@ void Router::handlePost(const HttpRequest& request, HttpResponse& response, Rout
     if (it != request.getHeaders().end()) {
         contentType = it->second;
         //if it is multipart/form-data, handle multipart upload separately
-        if (contentType.find("multipart/form-data") == 0) {
-            //handleMultipart(); TODO
+        if (strTolower(contentType).find("multipart/form-data") == 0) {
+            handleMultipart(request, response, result);
             return ;
         }
         format = getFileFormat(contentType);
     }
 
     // otherwise treat the request body as raw file data
-        
+    std::string body = request.getBody();
+    saveFile(format, body, request, response, result);
+
+    if (result.type == RouteDecision::ROUTE_ERROR)
+        return;
+    
+    //  make headers and return 201 on successful upload
+    std::map<std::string, std::string> headers;
+    headers["Content-Type"] = contentType;
+    headers["Content-Length"] = toString(body.size());
+    fillResponse(response, request.getVersion(), 201, headers, body);
+}
+
+//Multiform looks like that: 
+
+// POST /upload HTTP/1.1
+// Content-Type: multipart/form-data; boundary=abc123
+
+// --abc123
+// Content-Disposition: form-data; name="title"
+
+// My cat
+// --abc123
+// Content-Disposition: form-data; name="file"; filename="cat.png"
+// Content-Type: image/png
+
+// <bytes of cat.png>
+// --abc123--
+void Router::handleMultipart(const HttpRequest& request, HttpResponse& response, RouteDecision& result) {
+    // Получает boundary из общего HTTP-заголовка.
+    std::string boundary;
+    std::map<std::string, std::string>::const_iterator it = request.getHeaders().find("content-type");
+    if (it == request.getHeaders().end()) {
+        handleMultipartError(request, response, result);
+        return ;
+    }
+    //find exact boundary
+
+    //both are correct. we need to find ';' first and then find boundary beginning
+    // multipart/form-data; boundary=abc123
+    // multipart/form-data;boundary=abc123
+    std::string contentType = it->second;
+    std::string::size_type boundaryBegin = contentType.find(";");
+    if (boundaryBegin == std::string::npos) {
+        handleMultipartError(request, response, result);
+        return ;
+    }
+    //make sure we find boundary, not for example otherboundary.
+    while (true) {
+        boundaryBegin = strTolower(contentType).find("boundary=", boundaryBegin);
+        if (boundaryBegin == std::string::npos) {
+            handleMultipartError(request, response, result);
+            return ;
+        }
+        if (contentType[boundaryBegin - 1] == ' ' || contentType[boundaryBegin - 1] == ';' || contentType[boundaryBegin - 1] == '\t') {
+            break ;
+        }
+        boundaryBegin += 1;
+    }
+
+    //find last ';' of boundary
+    std::string::size_type boundaryEnd = contentType.find(";", boundaryBegin);
+    //if multipart/form-data;boundary=abc123 ends without ';', we take end of line as length
+    if (boundaryEnd == std::string::npos) {
+        boundaryEnd = contentType.size();
+    }
+    boundary = contentType.substr(boundaryBegin + std::string("boundary=").size(), boundaryEnd - (boundaryBegin + std::string("boundary=").size()));
+    trimStr(boundary);
+    if (boundary.empty()) {
+        handleMultipartError(request, response, result);
+        return ;
+    }
+    // boundary=abc123 and boundary="abc123" are also both correct. we need to handle ""
+    if (boundary[0] == '"') {
+        if (boundary[boundary.size() - 1] != '"') {
+            handleMultipartError(request, response, result);
+            return ;
+        }
+        boundary = boundary.substr(1, boundary.size() - 2);
+    }
+    if (boundary.empty()) {
+        handleMultipartError(request, response, result);
+        return ;
+    }
+    
+    // find multipart parts
+    
+    // First boundary:
+    // --abc123\r\n
+
+    // Boundary between parts:
+    // \r\n--abc123\r\n
+
+    // Final boundary:
+    // \r\n--abc123--
+    
+    std::string multipartBody = request.getBody();
+    std::string delimiter = "\r\n--" + boundary;
+
+    //check if first delimiter is in the beginning of body
+    std::string firstDelimiter = "--" + boundary + "\r\n";
+    if (multipartBody.compare(0, firstDelimiter.size(), firstDelimiter) != 0) {
+        handleMultipartError(request, response, result);
+        return;
+    }
+    //find index after first delimiter
+    std::string::size_type currentPos = firstDelimiter.size();
+    std::string::size_type delimiterPos = currentPos;
+    
+    //go thru all parts
+    while(true) {
+        //find delimiter
+        delimiterPos = multipartBody.find(delimiter, currentPos);
+        //if cant find, it means it doesnt end with last delimiter
+        if (delimiterPos == std::string::npos) {
+            handleMultipartError(request, response, result);
+            return;
+        }
+        std::string part = multipartBody.substr(currentPos, delimiterPos - currentPos);
+        //check if its middle of end of multipart
+        std::string::size_type suffixIndex = delimiterPos + delimiter.size();
+        std::string suffix = multipartBody.substr(suffixIndex, 2);
+        //if middle delimiter
+        if (suffix == "\r\n") {
+            handlePart(part, request, response, result);
+            if (result.type == RouteDecision::ROUTE_ERROR)
+                return;
+        }
+        //else if last delimiter
+        else if (suffix == "--") {
+            handlePart(part, request, response, result);
+            if (result.type == RouteDecision::ROUTE_ERROR)
+                return;
+            break ;
+        }
+        //else its wrong suffix
+        else {
+            handleMultipartError(request, response, result);
+            return;
+        }
+        //move index forward
+        currentPos = delimiterPos + delimiter.size() + 2;
+    }
+    //handle junk after last delimiter
+    // \r\n--abc123--\r\nsomethingelse is valid
+    // \r\n--abc123--somethingelse is invalid
+    std::string ending = multipartBody.substr(delimiterPos + delimiter.size() + 2, 2);
+    if (!ending.empty() && ending != "\r\n") {
+        handleMultipartError(request, response, result);
+        return;
+    }
+
+    //pass response
+    std::map<std::string, std::string> headers;
+    headers["Content-Length"] = "0";
+    fillResponse(response, request.getVersion(), 201, headers, "");
+}
+
+// Content-Disposition: form-data; name="file"; filename="cat.png"\r\n
+// Content-Type: image/png\r\n
+// \r\n
+// <binary file content>
+void Router::handlePart(const std::string& part, const HttpRequest& request, HttpResponse& response, RouteDecision& result) {
+    //separate headers from part body
+    std::string::size_type index = part.find("\r\n\r\n");
+    if (index == std::string::npos) {
+        handleMultipartError(request, response, result);
+        return;
+    }
+    std::string headers = part.substr(0, index);
+    std::string partBody = part.substr(index + 4);
+    
+    //make sure content-disposition is present
+    std::string::size_type contentDispositionBegin = strTolower(headers).find("content-disposition");
+    if (contentDispositionBegin == std::string::npos) {
+        handleMultipartError(request, response, result);
+        return;
+    }
+
+    //check if part has file (it has filename in content disposition header in that case)
+    index = strTolower(headers).find("\r\n", contentDispositionBegin);
+    std::string contentDisposition = headers.substr(contentDispositionBegin, index - contentDispositionBegin);
+    if (strTolower(contentDisposition).find("filename=") == std::string::npos)
+        return ;
+
+    //get file format
+    std::string format;
+    std::string::size_type formatBegin = strTolower(headers).find("content-type");
+    std::string::size_type formatEnd;
+    std::string contentType;
+    if (formatBegin != std::string::npos) {
+        //move begin after "content-type:"
+        formatBegin += 13;
+        formatEnd = strTolower(headers).find("\r\n", formatBegin);
+        if (formatEnd == std::string::npos)
+            formatEnd = headers.size();
+        contentType = headers.substr(formatBegin, formatEnd - formatBegin);
+        trimStr(contentType);
+        format = getFileFormat(contentType);
+    }
+
+    // get file content and save
+    saveFile(format, partBody, request, response, result);
+}
+
+void Router::handleMultipartError(const HttpRequest& request, HttpResponse& response, RouteDecision& result) {
+    result.type = RouteDecision::ROUTE_ERROR;
+    result.errorCode = 400;
+    handleError(request, result, response);
+}
+
+void Router::saveFile(const std::string& format, const std::string& body, const HttpRequest& request, HttpResponse& response, RouteDecision& result) {
     //  generate a unique filename. we do it for safety and to avoid file duplication/rewrite on server.
     //  we use simplest sequential counter ONLY due to limitations of allowed functions/libraries.
     //  retry with +1 if the filename already exists.
@@ -981,6 +1192,7 @@ void Router::handlePost(const HttpRequest& request, HttpResponse& response, Rout
     unsigned long counter = 0;
     int fd;
     while (true) {
+        //we limit filenames in the current implementation because of how file naming is implemented.
         if (counter > 100000) {
             result.errorCode = 500;
             result.type = RouteDecision::ROUTE_ERROR;
@@ -1003,8 +1215,7 @@ void Router::handlePost(const HttpRequest& request, HttpResponse& response, Rout
         return ;
     }
 
-    // write the request body to the file. make sure partial writes are handled
-    std::string body = request.getBody();
+    // write the body data to the file. make sure partial writes are handled
     size_t bytesWritten = 0;
     while(bytesWritten < body.size()) {
         ssize_t n = write(fd, body.data() + bytesWritten, body.size() - bytesWritten);
@@ -1024,13 +1235,6 @@ void Router::handlePost(const HttpRequest& request, HttpResponse& response, Rout
         handleFileError(-1, request, response, result);
         return ;
     }
-
-    //  make headers and return 201 on successful upload
-    std::map<std::string, std::string> headers;
-    headers["Content-Type"] = contentType;
-    headers["Content-Length"] = toString(body.size());
-    //get vector of headers
-    fillResponse(response, request.getVersion(), 201, headers, body);
 }
 
 std::string Router::getFileFormat(const std::string& type) {
@@ -1052,8 +1256,6 @@ std::string Router::getFileFormat(const std::string& type) {
     }
     return "";
 }
-
-
 
 
 void Router::handleDelete(const HttpRequest& request, HttpResponse& response, RouteDecision& result)

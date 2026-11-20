@@ -6,7 +6,7 @@
 /*   By: damohame <damohame@student.42berlin.d>     +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/11/06 22:25:55 by damohame          #+#    #+#             */
-/*   Updated: 2026/11/19 00:29:53 by damohame         ###   ########.fr       */
+/*   Updated: 2026/11/20 15:18:33 by damohame         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -98,4 +98,8 @@ class Router
 
         //POST method helpers
         std::string getFileFormat(const std::string& type);
+        void handleMultipart(const HttpRequest& request, HttpResponse& response, RouteDecision& result);
+        void handleMultipartError(const HttpRequest& request, HttpResponse& response, RouteDecision& result);
+        void handlePart(const std::string& part, const HttpRequest& request, HttpResponse& response, RouteDecision& result);
+        void saveFile(const std::string& format, const std::string& data, const HttpRequest& request, HttpResponse& response, RouteDecision& result);
 };

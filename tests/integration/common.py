@@ -13,6 +13,31 @@ RESPONSE_TIMEOUT = 3
 LOG_DIR = Path(__file__).resolve().parent / "logs"
 
 
+def start_server_simple(command):
+    print("[INFO] Starting server:", " ".join(command))
+    print("[INFO] Using config:", command[-1])
+    server = subprocess.Popen(command)
+    print("[PASS] Server process started with config")
+    return server
+
+
+def wait_for_server_simple(server):
+    deadline = time.monotonic() + STARTUP_TIMEOUT
+    while time.monotonic() < deadline:
+        if server.poll() is not None:
+            raise RuntimeError(
+                "Server exited with code " + str(server.returncode)
+            )
+        try:
+            probe = socket.create_connection((HOST, PORT), timeout=1)
+            probe.close()
+            print("[PASS] Config parsed and server is listening")
+            return
+        except OSError:
+            time.sleep(0.2)
+    raise RuntimeError("Server did not start")
+
+
 def start_server(command, name):
     LOG_DIR.mkdir(exist_ok=True)
     log_path = LOG_DIR / (name + ".server.log")

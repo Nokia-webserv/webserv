@@ -33,6 +33,12 @@ jobs:
       - name: Timeout tests 
         run: make timeout-test
         
+      - name: Error Handler tests
+        run: make error-handler
+
+      - name: Router tests
+        run: make router
+
       - name: GET integration tests
         run: bash tests/methods/test_get.sh
 
