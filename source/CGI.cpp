@@ -277,6 +277,10 @@ void CGI::runScript()
     close(pipeWrite[1]);
     pipeWrite[1] = -1;
 
+    childPid = pid;
+    // records itslef in client -> adds to poll
+    myPtrInMyClient = this;
+
     // sets fds to non-blocking mode
     for (int i = 0; i < 2; i++)
     {
@@ -294,10 +298,6 @@ void CGI::runScript()
             return;
         }
     }
-   
-    childPid = pid;
-    // records itslef in client -> adds to poll
-    myPtrInMyClient = this;
 }
 
 // writes to CGI input
