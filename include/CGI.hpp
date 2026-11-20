@@ -40,26 +40,28 @@ class CGI {
         void processOutput(); // processes CGI result
         bool reapProcess(); // cleans up child process
         void cleanUp(); // cleans up the object (pipes, ptrs)
-        void provideInput();
+        void provideInput(); // writes into CGI
         bool buildResponse();
 
     private:
         int pipeRead[2]; // pipe where CGI reads from
         int pipeWrite[2]; // pipe where CGI writes to
-        int pid; // process id
+        int childPid; // process id
         std::string scriptPath; // e.g. www/scripts/script.py
         std::vector<char*> argv; // for execve()
         std::vector<std::string> envp_str; // for execve()
         std::vector<char*> envp; // for execve()
         std::string cgiOutputBuffer; // collects partial CGI output
         std::string cgiInputBuffer; // collects partial CGI output
-        size_t bytesSent;
+        size_t bytesSent; // buffer cursor
         bool responseReady; // indicates http response completion
         int& error_code;
         bool termination_status; // indicates subprocess termination success
         time_t startTime; // holds CGI start time to enable timeout termination
+        std::string dir; // for chdir()
+        std::string file; // for chdir()
             
         void setArgv(const HttpRequest & request, const LocationConfig & location);
-        void setEnvp(const HttpRequest & request);
+        void setEnvp(const HttpRequest & request, const ServerConfig& servrer);
         int readOutput();
 };

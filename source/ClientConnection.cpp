@@ -157,7 +157,7 @@ bool ClientConnection::writeData()
         // all is sent
         if (writeOffset == sendBuffer.size())
         {
-            sendBuffer.clear();
+			sendBuffer.clear();
             writeOffset = 0;
         }
         return (true);
@@ -170,7 +170,7 @@ void ClientConnection::addDataToSend(const std::string &data)
 	// if there is new data
 	if (data.empty())
 		return;
-std::cout << "\nagain response \n" << data << "\n";
+
 	// if no data update lastwrite on empty buffer
 	// to mark the start of the time for the server to send
 	if (!hasDataToSend())

@@ -272,7 +272,6 @@ void Server::handleCGIevents(int client_fd, short revents, int poll_fd)
         cgi->setResponseReady();
     }
 
-    std::cout << "stop\n";
     // places response into the queue & deletes the object
     if (cgi->isResponseReady())
     {
@@ -475,7 +474,6 @@ void Server::checkCGItimeout()
         now = std::time(NULL);
         if (now - cgi->getStartTime() > GLOBAL_CLIENT_TIMEOUT_SECONDS)
         {
-            std::cout << "Terminating timedout CGI\n";
             handleCGIevents(int_cc->second->getFd(), POLLERR, -1); // handles as error
         }
     }
@@ -490,13 +488,11 @@ void Server::checkPendingPIDs()
 
     for (std::map<int, int>::iterator pid_killTries = pendingPIDs.begin(); pid_killTries != pendingPIDs.end(); ++pid_killTries)
     {
-        std::cout << "Killing pending PID " << pid_killTries->first << "\n";
         if (pid_killTries->second < attemptsToKill)
         {
             kill(pid_killTries->first, SIGKILL);
             if (waitpid(pid_killTries->first, &status, WNOHANG) == pid_killTries->first) // result needs to equal pid
             {
-                std::cout << pid_killTries->first << " successfully terminated\n";
                 killed.push_back(pid_killTries->first);
                 continue;
             }
