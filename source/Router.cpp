@@ -3,10 +3,10 @@
 /*                                                        :::      ::::::::   */
 /*   Router.cpp                                         :+:      :+:    :+:   */
 /*                                                    +:+ +:+         +:+     */
-/*   By: atammur <atammur@student.42berlin.de>      +#+  +:+       +#+        */
+/*   By: damohame <damohame@student.42berlin.d>     +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/11/06 22:50:16 by damohame          #+#    #+#             */
-/*   Updated: 2026/11/19 22:36:08 by atammur          ###   ########.fr       */
+/*   Updated: 2026/11/20 15:18:09 by damohame         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -23,6 +23,7 @@
 #include <fcntl.h>
 #include <unistd.h> 
 #include "utils.hpp"
+#include <cstdio> 
 
 Router::Router()
 {}
@@ -42,24 +43,41 @@ Router::~Router()
 // path = "/images/cat.jpg";
 // we need to get the longest correct paths
 // not the exact path
+// Require a path-segment boundary to avoid partial matches.
+// For example, /img should not match /imgfoo.
+// ex: GET /images/cats/luna.jpg HTTP/1.1 
+// location block : /images/cats 
 const LocationConfig* Router::matchLocation(const std::string& path, const ServerConfig& server) const
 {
     // to get the best longest match
     const LocationConfig* best = NULL;
     size_t longest = 0;
     
+    // loop through all locations
     for (size_t i = 0; i <server.locations.size(); i++)
     {
         // temp to save the location config of the server(config file)
         const LocationConfig& location = server.locations[i];
         
+        if (location.path.empty())
+            continue;
+            
         // Check if the location path is a prefix of the request path
+        // path = "/images/cats/luna.jpg";
         if (path.compare(0, location.path.size(), location.path) == 0)
         {
-            if (location.path.size() > longest)
+            // calculate the prefix length
+            // /images -> 7
+            size_t prefixLen = location.path.size();
+            // a valid path-segment boundary
+            bool boundary = (path.size() == prefixLen) // /images == /images 
+                            || (path.size() > prefixLen && path[prefixLen] == '/') // /images/cat.jpg  request has /
+                            || (location.path[prefixLen -1] == '/');    //   /images/
+            
+            if (boundary && prefixLen > longest)
             {
                 best = &location;
-                longest = location.path.size();
+                longest = prefixLen;
             }
         }
     }
@@ -273,7 +291,7 @@ RouteDecision Router::route(const HttpRequest& request, const Listener& listener
     else if (request.getMethod() == "POST")
         handlePost(request, response, result);
     else if (request.getMethod() == "DELETE")
-        handleDelete(request, response, *result.location);
+        handleDelete(request, response, result);
 
     return result;
 }
@@ -1239,10 +1257,52 @@ std::string Router::getFileFormat(const std::string& type) {
     return "";
 }
 
-void Router::handleDelete(const HttpRequest& request, HttpResponse& response, const LocationConfig& location)
+
+void Router::handleDelete(const HttpRequest& request, HttpResponse& response, RouteDecision& result)
 {
-    (void)request;
-    (void)response;
-    (void) location;
-    // to be implemented: Delete handler
+    //  1.build path from URL and locationConfig
+    std::string path = buildPath(request.getPath(), *result.location);
+
+    //  2. if the target exists
+    // check whats inside the path. we use sys/stat lib for that. 
+    // (stat() is specifically allowed in subject)
+    // S_ISREG (is regular file) and S_ISDIR are macros for st_mode from sys/stat.
+    struct stat info;
+    
+    //if cant get file info. handle file opening error
+    if (stat(path.c_str(), &info) == -1) {
+        handleFileError(errno, request, response, result);
+        return ;
+    }
+    //if regular file , delete it
+    else if (S_ISREG(info.st_mode))
+    {
+        // deletion error
+        if (std::remove(path.c_str()) != 0)
+        {
+            handleFileError(errno, request, response, result);
+            return ;
+        }
+        // successsful deletion: 204 no content
+        std::map<std::string, std::string> headers;
+        headers["Content-Length"] = "0";
+        
+        fillResponse(response, request.getVersion(), 204, headers, "");
+        result.type = RouteDecision::ROUTE_SERVE;
+    }
+    
+    //if directory reject deletion
+    else if (S_ISDIR(info.st_mode)) 
+    {
+        result.type = RouteDecision::ROUTE_ERROR;
+        result.errorCode = 403;
+        handleError(request, result, response);
+    }
+    //if no file nor dir
+    else
+    {
+        result.type = RouteDecision::ROUTE_ERROR;
+        result.errorCode = 403;
+        handleError(request, result, response);
+    }
 }

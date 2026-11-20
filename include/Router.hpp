@@ -3,10 +3,10 @@
 /*                                                        :::      ::::::::   */
 /*   Router.hpp                                         :+:      :+:    :+:   */
 /*                                                    +:+ +:+         +:+     */
-/*   By: atammur <atammur@student.42berlin.de>      +#+  +:+       +#+        */
+/*   By: damohame <damohame@student.42berlin.d>     +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/11/06 22:25:55 by damohame          #+#    #+#             */
-/*   Updated: 2026/11/19 22:36:17 by atammur          ###   ########.fr       */
+/*   Updated: 2026/11/20 15:18:33 by damohame         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -63,7 +63,7 @@ class Router
                 
         void handleGet(const HttpRequest& request, HttpResponse& response, RouteDecision& result);
         void handlePost(const HttpRequest& request, HttpResponse& response, RouteDecision& result);
-        void handleDelete(const HttpRequest& request, HttpResponse& response, const LocationConfig& location);
+        void handleDelete(const HttpRequest& request, HttpResponse& response, RouteDecision& result);
         
         void handleRedirect(const HttpRequest& request, int statusCode, const std::string& targetUrl, HttpResponse& response);
         std::string getRedirectCode(int code) const;

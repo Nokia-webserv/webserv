@@ -1,0 +1,44 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Webserv DELETE Test</title>
+</head>
+<body>
+    <h1>Delete Files</h1>
+    <p>Select a file to delete:</p>
+
+    <select id="filename">
+        <option value="bird.txt">bird.txt</option>
+        <option value="cat.txt">cat.txt</option>
+        <option value="dog.txt">dog.txt</option>
+        <option value="animals/">animals/ (directory)</option>
+    </select>
+
+    <button onclick="deleteFile()">Delete</button>
+
+    <p id="result"></p>
+
+    <script>
+        function deleteFile() {
+            var filename = document.getElementById("filename").value;
+            var result = document.getElementById("result");
+
+            if (!confirm("Delete " + filename + "?"))
+                return;
+
+            fetch("/delete/files/" + filename, {
+                method: "DELETE"
+            })
+            .then(function(response) {
+                result.textContent =
+                    "HTTP " + response.status + " " + response.statusText;
+            })
+            .catch(function(error) {
+                result.textContent = "Error: " + error.message;
+            });
+        }
+    </script>
+</body>
+</html>

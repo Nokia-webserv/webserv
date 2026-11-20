@@ -193,12 +193,27 @@ done < <(
 pass "Two pipelined redirects on one connection"
 
 # --------------------------------------------------
-# TEST 5: Prefix Location Matching
+# TEST 5: Location Prefix Matching With Boundaries
 # --------------------------------------------------
 
-check_status_and_location "/older" "301" "/new"
+# A nested path should match location /old.
+check_status_and_location "/old/page" "301" "/new"
 
-pass "Prefix location matching /older"
+pass "Valid location prefix matching /old/page"
+
+# /older must NOT match location /old.
+# It should fall back to location / and return 404.
+curl -sS --max-time 5 \
+    -D "$TMP_DIR/headers" \
+    -o "$TMP_DIR/body" \
+    "${BASE_URL}/older" \
+    || fail "GET /older request failed"
+
+tr -d '\r' < "$TMP_DIR/headers" |
+    grep -q '^HTTP/1.1 404 ' \
+    || fail "/older: expected 404 Not Found"
+
+pass "Location boundary protection /older"
 
 echo
-echo "[RESULT] All 5 redirect integration tests PASSED"
+echo "[RESULT] All 6 redirect integration checks PASSED"

@@ -74,4 +74,7 @@ error-handler: $(NAME)
 router: $(NAME)
 	bash tests/methods/router/test_router.sh
 
-.PHONY: all clean fclean re build startup config accept parser integration timeout-test redirect-test
+delete-test:
+	$(MAKE) -C tests/methods/delete
+
+.PHONY: all clean fclean re build startup config accept parser integration timeout-test redirect-test error-handler router delete-test
