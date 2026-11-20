@@ -588,7 +588,7 @@ void Server::processPendingHttpInput()
         it++;
 
         // if the client has a request in the buffer,
-        if (client->hasPendingHttpInput() && !client->shouldCloseAfterResponse())
+        if (client->hasPendingHttpInput() && !client->shouldCloseAfterResponse() && !client->hasRunningCGI())
         {
             // DEBUG START HTTP_POLL_LOOP
             // std::cout << "[HTTP] Resuming pending requests, fd="
@@ -736,7 +736,7 @@ int Server::getPollEventTimeout()
     for (std::map<int, ClientConnection*>::iterator it = clients.begin();
             it != clients.end(); ++it)
         {
-            if (it->second->hasPendingHttpInput())
+            if (it->second->hasPendingHttpInput() && !it->second->hasRunningCGI())
                 return (0);
         }
         return (timeout);
