@@ -651,7 +651,7 @@ void Server::processPendingHttpInput()
         it++;
 
         // if the client has a request in the buffer,
-        if (client->hasPendingHttpInput() && !client->shouldCloseAfterResponse())
+        if (client->hasPendingHttpInput() && !client->shouldCloseAfterResponse() && !client->hasRunningCGI())
         {
             // DEBUG START HTTP_POLL_LOOP
             // std::cout << "[HTTP] Resuming pending requests, fd="
@@ -683,7 +683,7 @@ void Server::processHttpInput(ClientConnection &client)
 
     // if the buffer contains multiple requests from that client and connection is open
     while (processedRequests < MAX_REQUESTS_PER_PASS 
-        && !client.shouldCloseAfterResponse())
+        && !client.shouldCloseAfterResponse() && !client.hasRunningCGI())
     {
         // run the parser and put the output in result
         HttpParsingResult result = client.callParser();
@@ -799,7 +799,7 @@ int Server::getPollEventTimeout()
     for (std::map<int, ClientConnection*>::iterator it = clients.begin();
             it != clients.end(); ++it)
         {
-            if (it->second->hasPendingHttpInput())
+            if (it->second->hasPendingHttpInput() && !it->second->hasRunningCGI())
                 return (0);
         }
         return (timeout);
