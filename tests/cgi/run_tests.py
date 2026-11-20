@@ -31,6 +31,7 @@ class Reporter:
     def __init__(self):
         self.results = []
         self.group = None
+        self.failures = []
 
     def case(self, group, name, expected, check, skip=None):
         if group != self.group:
@@ -46,6 +47,7 @@ class Reporter:
         except Exception as error:
             print("\033[31m[FAIL]\033[0m " + str(error), flush=True)
             self.results.append((group, "FAIL", name))
+            self.failures.append((group, name, str(error)))
         else:
             print("\033[32m[PASS]\033[0m " + name, flush=True)
             self.results.append((group, "PASS", name))
@@ -58,6 +60,10 @@ class Reporter:
             print("{}: passed {}, failed {}, skipped {}".format(group, *counts))
         counts = [sum(s == status for _, s, _ in self.results) for status in ("PASS", "FAIL", "SKIP")]
         print("TOTAL: passed {}, failed {}, skipped {}".format(*counts), flush=True)
+        if self.failures:
+            print("\nFAILED CHECKS:", flush=True)
+            for group, name, reason in self.failures:
+                print("- {} / {}: {}".format(group, name, reason), flush=True)
         return bool(counts[1])
 
 
@@ -95,10 +101,13 @@ def compile_binary(build, component=False):
     command = compiler + ["-std=c++98", "-Wall", "-Wextra", "-Werror", "-I" + str(ROOT / "include")]
     executable = build / ("cgi_component" if component else "webserv")
     if component:
-        header = (ROOT / "include/CGI.hpp").read_text()
+        headers = build / "include"
+        shutil.copytree(ROOT / "include", headers)
+        header = (headers / "CGI.hpp").read_text()
         require(header.count("class CGI {") == 1, "Cannot grant CGI test-peer access")
-        (build / "CGI.hpp").write_text(header.replace("class CGI {", "class CGI {\n    friend class CGITestPeer;", 1))
+        (headers / "CGI.hpp").write_text(header.replace("class CGI {", "class CGI {\n    friend class CGITestPeer;", 1))
         wrapper = '''#include "CGI.hpp"
+#include "ClientConnection.hpp"
 #include <fcntl.h>
 #include <iostream>
 #include <ctime>
@@ -107,16 +116,30 @@ int cgiTestPipe(int*);
 pid_t cgiTestFork();
 int cgiTestFcntl(int, int, int);
 ssize_t cgiTestWrite(int, const void*, size_t);
+ssize_t cgiTestRead(int, void*, size_t);
+int cgiTestDup2(int, int);
+int cgiTestChdir(const char*);
+int cgiTestExecve(const char*, char* const*, char* const*);
+int cgiTestPoll(pollfd*, nfds_t, int);
+int& cgiTestErrno();
 #define pipe cgiTestPipe
 #define fork cgiTestFork
 #define fcntl cgiTestFcntl
 #define write cgiTestWrite
+#define read cgiTestRead
+#define dup2 cgiTestDup2
+#define chdir cgiTestChdir
+#define execve cgiTestExecve
+#define poll cgiTestPoll
+#undef errno
+#define errno cgiTestErrno()
 '''
         (build / "cgi_instrumented.cpp").write_text(wrapper + '#include ' + json.dumps(str(ROOT / "source/CGI.cpp")) + '\n')
-        command.insert(len(compiler), "-I" + str(build))
+        # One shadow include tree keeps transitive CGI.hpp includes consistent.
+        command.insert(len(compiler), "-I" + str(headers))
         sources = [HERE / "component.cpp", build / "cgi_instrumented.cpp"]
         sources += [ROOT / "source" / (name + ".cpp") for name in (
-            "Router", "HttpRequest", "HttpResponse", "ServerConfig", "LocationConfig", "utils")]
+            "Router", "ClientConnection", "HttpParser", "HttpRequest", "HttpResponse", "ServerConfig", "LocationConfig", "utils")]
     else:
         command += ["-DWEBSERV_CLIENT_TIMEOUT_SECONDS=" + str(TIMEOUT)]
         sources = sorted((ROOT / "source").glob("*.cpp"))
@@ -127,12 +150,25 @@ ssize_t cgiTestWrite(int, const void*, size_t);
 
 def component_tests(report, build, fixtures):
     executable = compile_binary(build, component=True)
+    # A failed chdir must not accidentally execute a same-named script from
+    # the server's inherited working directory.
+    (build / "probe.py").write_text('import sys\nsys.stdout.write("Content-Type: text/plain\\n\\nwrong directory")\n')
 
     def invoke(mode, data=b"", *arguments):
-        run = subprocess.run([str(executable), mode, str(fixtures), *arguments], input=data,
-                             capture_output=True, timeout=8)
-        require(run.returncode == 0, "Component exited " + str(run.returncode) + ": " + run.stderr.decode("utf8", "replace"))
-        return run.stdout
+        environment = dict(os.environ, CGI_TEST_INTERPRETER=sys.executable)
+        process = subprocess.Popen([str(executable), mode, str(fixtures), *arguments],
+                                   stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                   start_new_session=True, cwd=build, env=environment)
+        try:
+            stdout, stderr = process.communicate(input=data, timeout=8)
+            require(process.returncode == 0, "Component exited " + str(process.returncode) + ": " + stderr.decode("utf8", "replace"))
+            return stdout
+        finally:
+            try:
+                os.killpg(process.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+            process.wait(timeout=3)
 
     def output(data, status=200, body=b"hello", invalid=False):
         meta, wire = invoke("output", data).split(b"\n", 1)
@@ -171,7 +207,8 @@ def component_tests(report, build, fixtures):
                 "SCRIPT_NAME": "/cgi/probe.py", "SERVER_PROTOCOL": "HTTP/1.1",
                 "SERVER_NAME": "example.test", "SERVER_PORT": "8123",
                 "CONTENT_LENGTH": "4", "CONTENT_TYPE": "application/octet-stream",
-                "HTTP_X_TEST_TOKEN": "AbC-123"}
+                "HTTP_X_TEST_TOKEN": "AbC-123",
+                "REMOTE_ADDR": "127.0.0.42", "REMOTE_PORT": "43210"}
     for key, value in expected.items():
         def check_env(k=key, v=value):
             actual = environment.get(k)
@@ -191,6 +228,8 @@ def component_tests(report, build, fixtures):
         require("ungated=0" in result, "runScript writes to stdin pipe before returning to the poll loop")
     report.case("C3 Process setup", "No parent pipe write before poll readiness",
                 "runScript performs zero writes before event-loop readiness", readiness_check)
+    from component_checks import extended_components
+    extended_components(report, invoke, parse_response, require, ROOT, build)
 
 
 class WireReader:
@@ -449,15 +488,10 @@ def integration_tests(report, build, fixtures):
                 for _ in range(TIMEOUT + 2):
                     server.curl("/static.txt", exact=b"static server still works\n")
                     time.sleep(0.9)
-                try:
-                    WireReader(connection).response(expected=(500, 502, 504))
-                except AssertionError as error:
-                    if str(error) != "Connection closed before a complete HTTP response":
-                        raise
-                    print("After:    timed-out connection closed without HTTP response", flush=True)
+                WireReader(connection).response(expected=(500, 502, 504))
                 require(time.monotonic() - started < TIMEOUT + 5, "CGI was not stopped within the bounded test deadline")
         report.case("I4 Subject: bounded lifetime", "Hung CGI with another active client",
-                    "Bounded error response or connection close; other client stays responsive", timeout_check)
+                    "HTTP 500/502/504 within timeout; empty connection close fails; other client stays responsive", timeout_check)
         def cleanup():
             pid_file = fixtures / "child.pid"
             pid_file.unlink(missing_ok=True)
@@ -491,7 +525,7 @@ def integration_tests(report, build, fixtures):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     layer = parser.add_mutually_exclusive_group()
-    layer.add_argument("--component", action="store_true", help="Only CGI output/env/setup checks; no TCP listener")
+    layer.add_argument("--component", action="store_true", help="CGI output/env/I/O/process/cleanup checks; no TCP listener")
     layer.add_argument("--integration", action="store_true", help="Only real-server curl/socket checks")
     args = parser.parse_args()
     report = Reporter()

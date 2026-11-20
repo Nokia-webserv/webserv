@@ -1,83 +1,135 @@
-# Mandatory CGI tests — 42 Webserv
+# Mandatory CGI checks
 
-From the repository root:
+From the repository root, run components and real-server checks together:
 
 ```sh
 bash tests/cgi/run_tests.sh
 ```
 
-Or run one layer:
+Or run a single layer:
 
 ```sh
 bash tests/cgi/run_tests.sh --component
 bash tests/cgi/run_tests.sh --integration
 ```
 
-Requires a C++98 compiler (`CXX` is supported), Python 3 and curl. Python is the
-only CGI interpreter required by this suite. Each case prints Before, Expected,
-After and a colored PASS/FAIL. Any failed check makes the command exit nonzero;
-results are grouped at the end.
+Requires a C++98 compiler (`CXX` is supported), Python 3 and curl. Components
+use Python as the one configured CGI interpreter; curl is used by integration
+tests. No cookies, sessions or additional CGI interpreters are required.
 
-## Mandatory scope
+Every case prints **Before**, **Expected**, **After** and a colored **PASS/FAIL**.
+The summary lists failed case names and reasons. Any failure makes the command
+exit nonzero. Known failures remain failures: there are no expected-failure
+exceptions or flags that skip error-handling checks.
 
-The scope follows the mandatory requirements and CGI remarks in the project
-subject. The subject requires at least one CGI, makes the full request and its
-arguments available to it, specifies chunked input/EOF output and the correct
-working directory, and requires nonblocking I/O, accurate responses, bounded
-requests, disconnect handling and availability under stress.
+## Coverage and requirements
 
-| Subject requirement | Checks |
+The project subject requires nonblocking, polled pipe I/O, unchanged request
+arguments, decoded chunked stdin with EOF, stdout completion at EOF, the correct
+working directory, accurate responses and bounded requests. The
+[mandatory evaluation checklist](https://42evals.slddl.ovh/Cursus/Webserv/)
+also asks for checked I/O results, no errno-based handling after I/O, CGI GET/POST,
+and visible errors for failing or looping scripts.
+
+| Group | Component checks |
 | --- | --- |
-| CGI selected by file extension | Actual `.py` handler configured and executed through the real server |
-| Request and arguments available to CGI | GET/POST/DELETE, method/path/protocol/host/port metadata, Content-Type, byte length, a custom request header and unchanged encoded query |
-| Request body and EOF | Empty/binary bodies, sizes around the 4096-byte read buffer, 64 KiB and 1 MiB, chunked input decoded before stdin, correct length and EOF |
-| Complete CGI response | LF/CRLF headers, default/explicit status, empty/binary/large bodies, headers/body split over several writes, output without Content-Length |
-| Correct working directory | Script opens a fixture using a relative path |
-| Nonblocking I/O through poll | Initial parent pipe write checked for readiness; simultaneous large stdin/stdout, eight concurrent clients, static response while CGI sleeps |
-| Accurate errors and server robustness | Basic unusable output, crash, missing script/interpreter, disallowed method, configured body limit, pipe/fork/fcntl setup failures and cleanup |
-| Bounded requests and client disconnects | Hung CGI finishes with an error or connection close; disconnected client's child is cleaned up; static requests still work |
+| C1 Output | LF/CRLF, explicit/default status, binary/empty/large bodies, missing separators, unusable headers, invalid status range and inconsistent Content-Length |
+| C2 Request environment | GET/POST/DELETE, exact raw query including empty/encoded values, body byte length, content metadata, custom headers, actual remote IP/port, interpreter arguments and valid envp pointers/terminator |
+| C3 Setup and resources | Both pipe failures, fork failure, either nonblocking fcntl failure, cleanup of running/completed CGI, all remaining pipe ends, client pointer clearing, reaped/tracked child and repeated cleanup with a reused descriptor |
+| C4 Stdin | Full/partial binary writes, exact offset after each write, final EOF, injected negative/zero write results, readiness and errno access |
+| C5 Stdout | Full/partial reads, positive/zero/negative results, no premature response before EOF, unusable output, at most one read per handler call, readiness and errno access |
+| C6 Real script execution | Empty through 1 MiB stdin, buffer boundaries, full stdout before consuming stdin, split output, relative file access, crashes, no/malformed output, chdir/dup2/execve failures and failed/zero/partial child error-report writes |
+| C7 Focused code checks | Traced child error-report write readiness; directly discarded I/O and chdir results in CGI.cpp |
 
-The main HTTP scenarios use HTTP/1.0 as the subject's suggested reference. The
-explicit chunked-input test uses HTTP/1.1 because the subject requires that input
-framing. Responses may use HTTP/1.0 or HTTP/1.1. Framing may use Content-Length,
-EOF, or chunking; adding a length header is not required when a valid
-connection-close response is used.
+All component pipe I/O is driven by a small test dispatcher. It exercises the
+real CGI class without starting the server or opening a TCP listener. The
+execution cases use real fork/exec and the configured Python interpreter.
 
-This suite does **not** test cookies/sessions, multiple CGI types, HTTP/1.1
-keep-alive/pipelining, inherited-socket hardening, HTTP_PROXY filtering, the
-GATEWAY_INTERFACE variable, implicit CGI redirects, repeated response headers or
-exhaustive malformed-header handling. They are outside this minimal mandatory
-assessment. Basic unusable-output/error checks remain so crashes and invalid
-responses do not get mistaken for working CGI.
+Integration groups additionally exercise the actual Router, parser and server
+poll loop using curl and controlled raw sockets. They cover CGI selection,
+GET/POST/DELETE, body limits, chunked input decoded before CGI, correct cwd,
+errors, concurrent clients, a static request during slow CGI, timeout and
+disconnect cleanup. These checks are necessary because the CGI class alone
+does not own server timeout scheduling or the main poll loop.
 
-For interpreting encoded query arguments, see
-[CGI QUERY_STRING](https://www.rfc-editor.org/rfc/rfc3875.html#section-4.1.7).
-This clarifies how to preserve request arguments; the suite does not require
-implementing the complete CGI/HTTP RFCs.
+## Error expectations
 
-## Test implementation
+- Unusable output can be rejected or corrected. If accepted, the emitted HTTP
+  response must have a valid status and Content-Length matching its body. A CGI
+  script's incorrect length must not cause HTTP framing errors.
+- A negative input write, or zero progress writing a nonempty buffer, must be
+  handled explicitly. This harness expects the module to expose a server error
+  through its existing error-code interface; it does not allow silent loss of
+  input or waiting indefinitely for another event.
+- A forced chdir failure has a same-named decoy script in the inherited cwd.
+  Running that script is a failure, even if it produces a valid HTTP 200.
+- The 2.5-second component deadline is a local test safeguard for immediate
+  setup errors and short fixtures, not a timeout value prescribed by the subject.
+- The real-server timeout build uses `WEBSERV_CLIENT_TIMEOUT_SECONDS=4`.
+  A looping CGI must produce HTTP 500, 502 or 504 within the bounded test
+  deadline while other clients still work. The checklist requires a visible
+  error; this suite checks for an HTTP error visible to the requesting client.
+  Empty connection close alone is a failure. The checklist does not prescribe
+  one exact error code or timeout duration.
 
-Component groups check output, request environment and process setup. They
-compile the actual CGI/Router/request/response implementation. A temporary copy
-of CGI.hpp grants a test peer access to output/environment; no production file
-is changed. Only CGI.cpp gets syscall wrappers: ordinary operations call the
-real functions, while selected cases inject pipe/fork/fcntl failures. The
-initial-write check detects parent writes inside runScript before returning to
-the poll loop; it does not prove readiness for every I/O call in the project.
-The harness cleans up any child left untracked by production error handling.
+## Current findings
 
-Integration groups build the real `source/*.cpp`, including main, configuration
-parser and poll loop. The server uses a temporary loopback port and scripts
-copied from probe.py. Normal requests use real curl. Raw sockets control chunked
-input, disconnects and requests held open while CGI runs. Script bodies are
-checked byte-for-byte, not merely by HTTP status or curl exit code.
+On CGI commit `ffb14bd`, the expanded checks identify these remaining areas
+(components: 69 passed / 14 failed; integration: 31 passed / 1 failed):
 
-The test build sets `WEBSERV_CLIENT_TIMEOUT_SECONDS=4` to keep lifetime checks
-short. Error tests accept reasonable equivalent server-error responses; a hung
-CGI may instead cause a bounded connection close. Missing scripts/interpreters
-must produce an error without hanging. Timing checks assume reasonable local/CI
-load. The suite is not a proof of absence of all leaks or resource exhaustion.
+1. `provideInput()` does not expose an error when write returns -1 or zero for
+   nonempty input.
+2. `buildResponse()` trusts an invalid/mismatched Content-Length and accepts
+   numeric statuses outside the HTTP range. Reject unusable output or normalize
+   framing before sending it.
+3. Both dup2 failure paths leave an output pipe write end open while the child
+   waits, so the parent cannot reach EOF and report the setup error promptly.
+4. The chdir result is ignored, allowing a same-named script in the old working
+   directory to execute.
+5. Child error-report writes do not first obtain POLLOUT readiness, and both
+   write return values are discarded.
+6. A looping CGI causes an empty connection close instead of an HTTP error.
+   Check coordination between generic client timeout and CGI timeout; the CGI
+   timeout loop must also continue past clients that have no CGI.
 
-All builds, configs, response files and script fixtures are temporary. Test
-server process groups are stopped on exit. No source, Makefile, workflow,
-tracked website or database is changed. GitHub Actions is not modified.
+Several failed cases exercise the same underlying problem. A failed-case count
+is not a count of independent bugs. Normal requests, partial transfers, large
+bodies and the tested descriptor/child cleanup paths pass.
+
+The existing `Server::handleCGIevents()` -> `Router::handleError()` path already
+builds configured/default error pages and response headers. Parent-side CGI
+failures can report through `decision.errorCode` and use that path. Errors in
+the forked child still need to reach the parent; changing child memory alone
+does not update the parent. GET/POST's private `Router::fillResponse()` helper
+only assigns fields: it does not validate statuses or calculate Content-Length,
+so it is not a drop-in fix for CGI output validation.
+
+## How instrumentation works and its limits
+
+The component build copies the entire include tree into its temporary directory
+and grants a test peer access in the copied CGI.hpp. Only the temporary CGI
+translation unit gets syscall wrappers. Selected cases inject syscall outcomes;
+other calls perform real I/O. The parent wrappers consume a readiness permission
+per call and record errno access after I/O. Child error-report writes are traced
+to a temporary regular file so their readiness can be checked from the parent.
+
+The resource tests verify the module's reaped-or-tracked contract. The harness
+then emulates pending-PID reaping to avoid leaving test children behind. This is
+not proof that the production server's periodic reaper handles every OS error.
+Each harness subprocess gets its own process group, cleaned up even on timeout.
+
+The source checks detect directly discarded call results, including `(void)`
+casts; they are focused checks, not a complete C++ control-flow analysis. Runtime
+readiness/errno assertions cover exercised paths, not every possible execution.
+The full-server single-poll architecture, long-running leak/stress checks and
+other server-wide requirements still need their own checks and code review.
+Ordinary disk files are exempt from poll in the supplied project subject; CGI
+pipes are not.
+
+This suite does not require full CGI/HTTP RFC compliance. It excludes cookies,
+sessions, multiple CGI interpreters, GATEWAY_INTERFACE, HTTP/1.1 keep-alive,
+implicit CGI redirects and exhaustive header validation. The invalid-output
+cases above check basic accurate HTTP framing and error handling.
+
+Builds, scripts, configs and responses are temporary. No production source,
+Makefile, workflow or tracked website content is changed by the tests.

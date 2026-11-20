@@ -1,4 +1,5 @@
 #include "Router.hpp"
+#include "../../client_context.hpp"
 
 #include <fstream>
 #include <iostream>
@@ -74,7 +75,8 @@ static void checkFile(const std::string& name, const std::string& root,
         Router router;
         HttpResponse response;
         HttpRequest request = makeRequest(uri, version, query);
-        RouteDecision decision = router.route(request, listener, response);
+        TestClientContext client(request, listener);
+        RouteDecision decision = router.route(client.connection(), response);
 
         require(decision.type == RouteDecision::ROUTE_SERVE, "GET returned an error");
         require(decision.errorCode == 0, "Unexpected routing error code");
@@ -113,7 +115,8 @@ static void checkError(const std::string& name, const std::string& root,
         Router router;
         HttpResponse response;
         HttpRequest request = makeRequest(uri, "HTTP/1.1", "");
-        RouteDecision decision = router.route(request, listener, response);
+        TestClientContext client(request, listener);
+        RouteDecision decision = router.route(client.connection(), response);
         require(decision.type == RouteDecision::ROUTE_ERROR, "Missing ROUTE_ERROR");
         require(decision.errorCode == expectedCode, "Wrong HTTP error code");
         const std::string wire = response.serialize();

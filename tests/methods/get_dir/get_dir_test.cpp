@@ -1,4 +1,5 @@
 #include "Router.hpp"
+#include "../../client_context.hpp"
 
 #include <fstream>
 #include <cstdlib>
@@ -72,7 +73,8 @@ static void checkDirectory(const std::string& name, const std::string& root,
         request.setRawQuery(query); // Supplied by HttpParser in the real server.
         Router router;
         HttpResponse response;
-        RouteDecision decision = router.route(request, listener, response);
+        TestClientContext client(request, listener);
+        RouteDecision decision = router.route(client.connection(), response);
 
         const std::string wire = response.serialize();
         const std::string::size_type separator = wire.find("\r\n\r\n");
