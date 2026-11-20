@@ -10,10 +10,13 @@ class HttpRequest {
         std::string _method;
         std::string _path;
         std::string _query;
+        std::string _rawQuery;
         std::string _version;
         std::map<std::string, std::string> _headers;
         std::string _body;
-        
+
+        size_t _headerSize;
+
     public:
         //OCF
         HttpRequest();
@@ -25,6 +28,7 @@ class HttpRequest {
         std::string getMethod() const;
         std::string getPath() const;
         std::string getQuery() const;
+        std::string getRawQuery() const;
         std::string getVersion() const;
         const std::map<std::string, std::string>& getHeaders() const;
         //std::string getHeader(const std::string& key) const; has a bug
@@ -34,11 +38,15 @@ class HttpRequest {
         void setMethod(const std::string& method);
         void setPath(const std::string& path);
         void setQuery(const std::string& query);
+        void setRawQuery(const std::string& rawQuery);
         void setVersion(const std::string& version);
         void setHeader(const std::string& key, const std::string& value);
         void setBody(const std::string& body);
 
         void clear(); // to reuse the object for the next request
+
+        void setHeaderSize(size_t size);
+        size_t getHeaderSize() const;
 };
 
 #endif

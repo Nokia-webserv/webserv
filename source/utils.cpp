@@ -1,4 +1,5 @@
 #include "utils.hpp"
+#include <sstream>
 
 // Changes all chars of a string to lowercase
 std::string strTolower(std::string str)
@@ -121,4 +122,50 @@ void trimStr(std::string & value)
         value.erase(0, 1);
     while (!value.empty() && (value[value.size()-1] == ' ' || value[value.size()-1] == '\t'))
         value.erase(value.size() - 1);
+}
+
+std::map<std::string, std::string> getMime() {
+    std::map<std::string, std::string> fileFormat;
+
+    // text and scripts
+    fileFormat["html"] = "text/html";
+    fileFormat["htm"] = "text/html";
+    fileFormat["css"] = "text/css";
+    fileFormat["js"] = "text/javascript";
+    fileFormat["txt"] = "text/plain";
+    fileFormat["json"] = "application/json";
+
+    // images
+    fileFormat["png"] = "image/png";
+    fileFormat["jpg"] = "image/jpeg";
+    fileFormat["jpeg"] = "image/jpeg";
+    fileFormat["gif"] = "image/gif";
+    fileFormat["svg"] = "image/svg+xml";
+    fileFormat["webp"] = "image/webp";
+    fileFormat["ico"] = "image/x-icon";
+
+    // fonts
+    fileFormat["woff"] = "font/woff";
+    fileFormat["woff2"] = "font/woff2";
+    fileFormat["ttf"] = "font/ttf";
+    fileFormat["otf"] = "font/otf";
+
+    // video
+    fileFormat["mp4"] = "video/mp4";
+    fileFormat["webm"] = "video/webm";
+
+    // audio
+    fileFormat["mp3"] = "audio/mpeg";
+    fileFormat["wav"] = "audio/wav";
+    fileFormat["ogg"] = "audio/ogg";
+    fileFormat["m4a"] = "audio/mp4";
+    fileFormat["aac"] = "audio/aac";
+
+    return fileFormat;
+}
+
+std::string toString(size_t val) {
+    std::ostringstream stream;
+    stream << val;
+    return stream.str();
 }
