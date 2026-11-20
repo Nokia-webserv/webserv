@@ -130,7 +130,7 @@ void CGI::setEnvp(const HttpRequest & request, const ServerConfig& server)
 
     // 1. meta-variables, set explicitly
     envp_str.push_back("REQUEST_METHOD=" + request.getMethod());
-    envp_str.push_back("QUERY_STRING=" + request.getQuery());
+    envp_str.push_back("QUERY_STRING=" + request.getRawQuery());
     envp_str.push_back("SCRIPT_NAME=" + request.getPath());
     envp_str.push_back("PATH_INFO="   + request.getPath());
     envp_str.push_back("SCRIPT_FILENAME=" + scriptPath);
@@ -139,7 +139,7 @@ void CGI::setEnvp(const HttpRequest & request, const ServerConfig& server)
     envp_str.push_back("SERVER_PORT=" + toString(matchServerPort(request.getHeaders(), server.hostPorts)));
     envp_str.push_back("REQUEST_URI=" + request.getPath() + (request.getQuery().empty() ? "" : "?" + request.getQuery()));
     envp_str.push_back("REMOTE_ADDR=" + myClient.getIp());
-    envp_str.push_back("REMOTE_PORT=" + myClient.getPort()); // use the real client port if you have it
+    envp_str.push_back("REMOTE_PORT=" + toString(myClient.getPort())); // use the real client port if you have it
     envp_str.push_back(getEnvPath());
 
     // 2. CONTENT_LENGTH / CONTENT_TYPE (no HTTP_ prefix)
