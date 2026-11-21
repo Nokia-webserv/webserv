@@ -22,8 +22,7 @@ static int fcntlCalls = 0, dupCalls = 0, readCalls = 0, writeCalls = 0;
 static int readResult = 1, writeResult = 1, errnoReads = 0, ioCalls = 0;
 static size_t readQuota = 4096, writeQuota = 1048576;
 static bool readPermit = false, writePermit = false;
-static int ungatedReads = 0, childAudit = -1;
-static std::map<int, short> childReady;
+static int ungatedReads = 0;
 int cgiTestPipe(int* fds) {
     ++pipeCalls;
     if (fault == pipeCalls) { errno = EMFILE; return -1; }
@@ -59,15 +58,6 @@ int cgiTestExecve(const char* path, char* const* args, char* const* env) {
     if (fault >= 11 && fault <= 14) { errno = ENOENT; return -1; }
     return ::execve(path, args, env);
 }
-int cgiTestPoll(pollfd* fds, nfds_t count, int timeout) {
-    int result = ::poll(fds, count, timeout);
-    if (::getpid() != owner) {
-        childReady.clear();
-        for (nfds_t i = 0; i < count; ++i)
-            childReady[fds[i].fd] = fds[i].revents;
-    }
-    return result;
-}
 int& cgiTestErrno() {
     if (ioCalls) ++errnoReads;
     return errno;
@@ -81,13 +71,6 @@ ssize_t cgiTestWrite(int fd, const void* data, size_t count) {
         if (writeResult == 0) return 0;
         return ::write(fd, data, std::min(count, writeQuota));
     }
-    if (childAudit != -1) {
-        std::ostringstream line;
-        line << "child-write ready=" << !!(childReady[fd] & POLLOUT) << '\n';
-        const std::string message = line.str();
-        (void)::write(childAudit, message.data(), message.size());
-    }
-    childReady[fd] = 0;
     if (fault == 12) { errno = EIO; return -1; }
     if (fault == 13) return 0;
     if (fault == 14) return ::write(fd, data, std::min(count, static_cast<size_t>(3)));
@@ -143,8 +126,6 @@ int main(int argc, char** argv) {
     if (argc < 3) return 2;
     signal(SIGPIPE, SIG_IGN);
     owner = getpid();
-    const char* auditPath = std::getenv("CGI_TEST_CHILD_AUDIT");
-    if (auditPath) childAudit = ::open(auditPath, O_WRONLY | O_CREAT | O_TRUNC, 0600);
     const std::string mode = argv[1];
     const std::string input((std::istreambuf_iterator<char>(std::cin)), std::istreambuf_iterator<char>());
     HttpRequest request;
@@ -215,6 +196,5 @@ int main(int argc, char** argv) {
                   << " orphan=" << orphan << '\n';
     } else return 2;
     delete cgi;
-    if (childAudit != -1) ::close(childAudit);
     return 0;
 }

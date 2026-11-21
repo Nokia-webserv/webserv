@@ -3,6 +3,7 @@
 #include <iostream>
 #include <ctime>
 #include <poll.h>
+#include <cstdlib>
 #include "ClientConnection.hpp"
 
 extern char **environ;
@@ -241,14 +242,14 @@ void CGI::runScript()
         // redirects pipe fds to standard streams (CGI can use only stdin and stdout)
         if (dup2(pipeRead[0], STDIN_FILENO) == -1 || dup2(pipeWrite[1], STDOUT_FILENO) == -1)
         {
-            /* dup error */
-            std::string buf = D_ERROR_MSG; // specific error message
-            // writes to parent listening end -> triggers POLLIN -> parent reads the output and handles the error
-            write(pipeWrite[1], buf.c_str(), buf.size());
-            close(STDOUT_FILENO); // closes the pipe end to send EOF
-            // freezes child process to disallow further code execution 
-            while (true)
-                poll(NULL, 0, -1); 
+
+            // dup2 failed: close all pipe ends
+            close(pipeRead[0]);
+            close(pipeRead[1]);
+            close(pipeWrite[1]);
+            close(pipeWrite[0]);
+
+            std::exit(EXIT_FAILURE);
         }
         close(pipeRead[0]); // after dup no pipe end is needed
         close(pipeRead[1]);
@@ -257,18 +258,15 @@ void CGI::runScript()
         
         // enables relative path file access (as per subject requirement)
         dir = scriptPath.substr(0, scriptPath.find_last_of("/"));
-        chdir(dir.c_str());
+        if (chdir(dir.c_str()) == -1)
+            std::exit(EXIT_FAILURE);
 
         execve(interpreterPath.c_str(), &argv[0], &envp[0]); // executes the CGI script and terminates child process
    
         /* execve error */
         // execve terminates child process. reaching this line indicates execve failure
-        // handling path is same as for dup error
-        std::string buf = D_ERROR_MSG; 
-        write(STDOUT_FILENO, buf.c_str(), buf.size());
-        close(STDOUT_FILENO);
-        while (true)
-            poll(NULL, 0, -1);
+        // handling is same as for dup error
+        std::exit(EXIT_FAILURE);
     }
     
     /* parent's path */
@@ -310,10 +308,29 @@ void CGI::runScript()
 void CGI::provideInput()
 {
     ssize_t bts = write(pipeRead[1], cgiInputBuffer.c_str() + bytesSent, cgiInputBuffer.size() - bytesSent);
+
+    // successful write (may be partial)
     if (bts > 0)
+    {
+        // update the number of bytes sent
         bytesSent += bts;
-    if (bytesSent == cgiInputBuffer.size())
+
+        // all input has been sent
+        // Close the pipe to signal EOF to the CGI
+        if (bytesSent == cgiInputBuffer.size())
+            closeReading();
+        return;
+    }
+    // write fails (-1)
+    // no progress (0)
+    if (bts <= 0)
+    {
+        // report error
+        error_code = 500;
+        // close pipe to prevent further writes
         closeReading();
+        return;
+    }
 }
 
 // reads until EOF then builds response
@@ -347,6 +364,11 @@ bool buildFirstLine(std::string str, HttpResponse& response)
     IntLongOverflow result = strToIntLongOverflow("int", codeStr);
     if (result.overflow != 1)
         return false;
+
+    // Reject invalid HTTP status codes
+    if (result.number < 100 || result.number > 599)
+        return false;
+    
     response.setStatusCode(result.number);
 
     response.setReasonPhrase(pos == std::string::npos ? "" : str.substr(pos + 1));
@@ -368,6 +390,11 @@ bool buildHeaders(std::string str, HttpResponse& response)
     if (strTolower(key) == "status")
         return buildFirstLine(value, response);
 
+    // ignore the CGI content-length - > might be calculated wrong
+    // calculate it from actual body later
+    if (strTolower(key) == "content-length")
+        return true;
+    
     response.setHeader(key, value);
     return true;
 }
@@ -401,8 +428,8 @@ bool CGI::buildResponse()
     std::string body = cgiOutputBuffer;         // everything left is the body
     response.setBody(body);
 
-    if (!response.checkHeader("content-length"))
-        response.setHeader("Content-Length", toString(body.size()));
+    // calculate the content-length using the actual body size
+    response.setHeader("Content-Length", toString(body.size()));
     setResponseReady();
     return true;
 }

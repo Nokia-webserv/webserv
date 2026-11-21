@@ -69,4 +69,13 @@ timeout-test: $(NAME)
 redirect-test: $(NAME)
 	bash tests/redirects/redirects.sh ./webserv tests/redirects/redirect_test.conf
 
-.PHONY: all clean fclean re build startup config accept parser integration timeout-test redirect-test
+error-handler: $(NAME)
+	bash tests/methods/error_handler/test_error_handler.sh
+
+router: $(NAME)
+	bash tests/methods/router/test_router.sh
+
+delete-test:
+	$(MAKE) -C tests/methods/delete
+
+.PHONY: all clean fclean re build startup config accept parser integration timeout-test redirect-test error-handler router delete-test

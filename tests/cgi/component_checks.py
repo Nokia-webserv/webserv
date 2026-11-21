@@ -1,5 +1,4 @@
 """CGI components: real pipes/processes and deterministic syscall failures."""
-import os
 import re
 import sys
 
@@ -144,23 +143,6 @@ def extended_components(report, invoke, parse_response, require, root, build):
                 require(values["ready"] == 1 and values["error"] == 0, "CGI did not produce a response")
                 parse_response(wire, 200, expected)
         report.case("C6 Script execution", name, "Bounded server error" if failure else "Real CGI through polled nonblocking pipes; exact body", process_case)
-
-    def child_readiness():
-        path = build / "child-readiness.log"
-        old = os.environ.get("CGI_TEST_CHILD_AUDIT")
-        os.environ["CGI_TEST_CHILD_AUDIT"] = str(path)
-        try:
-            state("execute", "exec")
-        finally:
-            if old is None:
-                os.environ.pop("CGI_TEST_CHILD_AUDIT", None)
-            else:
-                os.environ["CGI_TEST_CHILD_AUDIT"] = old
-        events = path.read_text().splitlines()
-        require(events, "No child error-report write was traced")
-        print("After:    " + " | ".join(events), flush=True)
-        require(all(line == "child-write ready=1" for line in events), "Child writes error message to pipe without prior POLLOUT")
-    report.case("C7 Mandatory I/O rules", "Child error-report pipe readiness", "Pipe write follows poll readiness, including child setup failures", child_readiness)
 
     def discarded_calls(names):
         source = (root / "source/CGI.cpp").read_text()
