@@ -23,6 +23,8 @@ class HttpResponse {
         void setHeader(const std::string& key, const std::string& value);
         void setBody(const std::string& body);
 
+        bool checkHeader(const std::string& key) const;
+
         //serialize (opposite of parse. it is enough to just turn
         //all fields into one string.)
         std::string serialize() const;

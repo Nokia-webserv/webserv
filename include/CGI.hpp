@@ -10,13 +10,13 @@
 #include <signal.h>
 #include <cerrno>
 
-#define D_ERROR_MSG "CGI_ERROR" // specific error message sent from child (CGI) to parent (server)
+#define D_ERROR_MSG "Status: 500 Internal Server Error" // specific error message sent from child (CGI) to parent (server)
 
 /* This class represents each isntance of a CGI script in http request */
 class CGI {
     public:
         CGI(const HttpRequest& request, HttpResponse& response, RouteDecision decision, const std::string& cgi_extension, 
-                CGI*& myPtrInMyClient, std::map<int, int>& pendingPIDs);
+                ClientConnection& client);
         ~CGI();
         
         const std::string extension;
@@ -25,35 +25,44 @@ class CGI {
         HttpResponse response;
         RouteDecision decision;
         CGI*& myPtrInMyClient; // ref to client class member holding ptr to this object
+        const ClientConnection& myClient;
         std::map<int, int>& pendingPIDs; // contains pids not correctly terminated during CGI destructions
         
-        int getFd() const;
+        int getFd(char end) const;
         int getErrorCode() const;
         time_t getStartTime() const;
         
         void setResponseReady(); // marks response ready for placing in send queue
         bool isResponseReady() const;
+        void closeReading();
+        bool isReadOpen() const;
         
         void runScript(); // runs CGI
         void processOutput(); // processes CGI result
         bool reapProcess(); // cleans up child process
         void cleanUp(); // cleans up the object (pipes, ptrs)
+        void provideInput(); // writes into CGI
+        bool buildResponse();
 
     private:
         int pipeRead[2]; // pipe where CGI reads from
         int pipeWrite[2]; // pipe where CGI writes to
-        int pid; // process id
+        int childPid; // process id
         std::string scriptPath; // e.g. www/scripts/script.py
         std::vector<char*> argv; // for execve()
         std::vector<std::string> envp_str; // for execve()
-        std::vector<const char*> envp; // for execve()
+        std::vector<char*> envp; // for execve()
         std::string cgiOutputBuffer; // collects partial CGI output
+        std::string cgiInputBuffer; // collects partial CGI output
+        size_t bytesSent; // buffer cursor
         bool responseReady; // indicates http response completion
         int& error_code;
         bool termination_status; // indicates subprocess termination success
         time_t startTime; // holds CGI start time to enable timeout termination
+        std::string dir; // for chdir()
+        std::string file; // for chdir()
             
         void setArgv(const HttpRequest & request, const LocationConfig & location);
-        void setEnvp(const HttpRequest & request);
-        void readOutput();
+        void setEnvp(const HttpRequest & request, const ServerConfig& servrer);
+        int readOutput();
 };

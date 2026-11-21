@@ -15,7 +15,8 @@ development flag no longer skips them.
 
 The real Router, index-file handling, directory listing, error responses and
 serialization are tested through `Router::route()`. A test-only Listener supplies
-configuration without opening sockets. No server or poll loop is started.
+configuration without opening sockets. A real `ClientConnection` holds the
+prepared request using a `/dev/null` descriptor. No server or poll loop is started.
 Fixtures and the binary are temporary and removed on exit.
 
 The 16 cases cover configured/missing/empty/nested indexes, index priority,

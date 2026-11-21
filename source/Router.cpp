@@ -24,6 +24,7 @@
 #include <fcntl.h>
 #include <unistd.h> 
 #include "utils.hpp"
+#include "ClientConnection.hpp"
 
 Router::Router()
 {}
@@ -199,8 +200,11 @@ bool Router::isHeaderSizeAllowed(const HttpRequest& request, const ServerConfig&
 // 6- methods handler
 // - Httpresponse
 // - error handler
-RouteDecision Router::route(const HttpRequest& request, const Listener& listener, HttpResponse& response, CGI*& cgiRef, std::map<int, int>& pendingPIDs)
+RouteDecision Router::route(ClientConnection& client, HttpResponse& response)
 {
+    const HttpRequest& request = client.getHttpRequest();
+    const Listener& listener = client.getListener();
+
     RouteDecision result;
     result.errorCode = 0;
     // 1- virtual server selection
@@ -222,6 +226,9 @@ RouteDecision Router::route(const HttpRequest& request, const Listener& listener
         handleError(request, result, response);
         return result;
     }
+
+    // std::cout << request.getMethod() << "\n";
+    // sleep(3);
 
     // extra step--- check for limit size validation
     if (!isHeaderSizeAllowed(request, *result.server, *result.location))
@@ -268,7 +275,7 @@ RouteDecision Router::route(const HttpRequest& request, const Listener& listener
     std::string ext;
     if (hasCGIextension(request.getPath(), result.location->cgi_handlers, ext))
     {
-        handleCGI(request, response, result, ext, cgiRef, pendingPIDs);
+        handleCGI(request, response, result, ext, client);
         if (result.errorCode)
         {
             result.type = RouteDecision::ROUTE_ERROR;
@@ -317,7 +324,7 @@ bool Router::hasCGIextension(const std::string & path, const std::map<std::strin
     
     if (!inCGIextensionList(extensionList, extension)) // searches extracted extension in cgi handlers (from location block in configs)
         return false;
-    
+
     ext = extension;
     return true;
 }
@@ -988,12 +995,12 @@ void Router::handleDelete(const HttpRequest& request, HttpResponse& response, co
     // to be implemented: Delete handler
 }
 
-void Router::handleCGI(const HttpRequest& request, HttpResponse& response, RouteDecision& result, const std::string& extension, CGI*& cgiRef, std::map<int, int>& pendingPIDs)
+void Router::handleCGI(const HttpRequest& request, HttpResponse& response, RouteDecision& result, const std::string& extension, ClientConnection& client)
 {
     CGI* cgi;
     
     try {
-        cgi = new CGI(request, response, result, extension, cgiRef, pendingPIDs);
+        cgi = new CGI(request, response, result, extension, client);
     }
     catch (...) {
         result.errorCode = 500;

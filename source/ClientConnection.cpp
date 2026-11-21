@@ -137,9 +137,7 @@ bool ClientConnection::writeData()
     // no data to send
     if (!hasDataToSend())
 		return (true);
-	bytesSent = send(clientSocket_fd,
-        sendBuffer.c_str() + writeOffset,
-        sendBuffer.size() - writeOffset, 0);
+	bytesSent = send(clientSocket_fd, sendBuffer.c_str() + writeOffset, sendBuffer.size() - writeOffset, 0);
 	if (bytesSent > 0)
 	{
 		// TEMPORARY: Test partial writes
@@ -159,7 +157,7 @@ bool ClientConnection::writeData()
         // all is sent
         if (writeOffset == sendBuffer.size())
         {
-            sendBuffer.clear();
+			sendBuffer.clear();
             writeOffset = 0;
         }
         return (true);
