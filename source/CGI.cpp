@@ -243,13 +243,7 @@ void CGI::runScript()
         if (dup2(pipeRead[0], STDIN_FILENO) == -1 || dup2(pipeWrite[1], STDOUT_FILENO) == -1)
         {
             /* dup error */
-            std::string buf = D_ERROR_MSG; // specific error message
-            // writes to parent listening end -> triggers POLLIN -> parent reads the output and handles the error
-            write(pipeWrite[1], buf.c_str(), buf.size());
-            close(STDOUT_FILENO); // closes the pipe end to send EOF
-            // freezes child process to disallow further code execution 
-            while (true)
-                poll(NULL, 0, -1); 
+            std::exit(EXIT_FAILURE);
         }
         close(pipeRead[0]); // after dup no pipe end is needed
         close(pipeRead[1]);
