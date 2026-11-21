@@ -259,12 +259,8 @@ void CGI::runScript()
    
         /* execve error */
         // execve terminates child process. reaching this line indicates execve failure
-        // handling path is same as for dup error
-        std::string buf = D_ERROR_MSG; 
-        write(STDOUT_FILENO, buf.c_str(), buf.size());
-        close(STDOUT_FILENO);
-        while (true)
-            poll(NULL, 0, -1);
+        // handling is same as for dup error
+        std::exit(EXIT_FAILURE);
     }
     
     /* parent's path */
