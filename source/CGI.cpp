@@ -242,7 +242,13 @@ void CGI::runScript()
         // redirects pipe fds to standard streams (CGI can use only stdin and stdout)
         if (dup2(pipeRead[0], STDIN_FILENO) == -1 || dup2(pipeWrite[1], STDOUT_FILENO) == -1)
         {
-            /* dup error */
+
+            // dup2 failed: close all pipe ends
+            close(pipeRead[0]);
+            close(pipeRead[1]);
+            close(pipeWrite[1]);
+            close(pipeWrite[0]);
+
             std::exit(EXIT_FAILURE);
         }
         close(pipeRead[0]); // after dup no pipe end is needed
@@ -358,6 +364,11 @@ bool buildFirstLine(std::string str, HttpResponse& response)
     IntLongOverflow result = strToIntLongOverflow("int", codeStr);
     if (result.overflow != 1)
         return false;
+
+    // Reject invalid HTTP status codes
+    if (result.number < 100 || result.number > 599)
+        return false;
+    
     response.setStatusCode(result.number);
 
     response.setReasonPhrase(pos == std::string::npos ? "" : str.substr(pos + 1));
@@ -379,6 +390,11 @@ bool buildHeaders(std::string str, HttpResponse& response)
     if (strTolower(key) == "status")
         return buildFirstLine(value, response);
 
+    // ignore the CGI content-length - > might be calculated wrong
+    // calculate it from actual body later
+    if (strTolower(key) == "content-length")
+        return true;
+    
     response.setHeader(key, value);
     return true;
 }
@@ -412,8 +428,8 @@ bool CGI::buildResponse()
     std::string body = cgiOutputBuffer;         // everything left is the body
     response.setBody(body);
 
-    if (!response.checkHeader("content-length"))
-        response.setHeader("Content-Length", toString(body.size()));
+    // calculate the content-length using the actual body size
+    response.setHeader("Content-Length", toString(body.size()));
     setResponseReady();
     return true;
 }
