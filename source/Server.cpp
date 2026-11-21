@@ -6,7 +6,7 @@
 /*   By: damohame <damohame@student.42berlin.d>     +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/10/02 16:24:40 by damohame          #+#    #+#             */
-/*   Updated: 2026/11/20 15:16:55 by damohame         ###   ########.fr       */
+/*   Updated: 2026/11/21 04:55:50 by damohame         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -245,8 +245,12 @@ void Server::handleCGIevents(int client_fd, short revents, int poll_fd)
     if (!cgi)
         return;
     
-    // processes any kind of error at this stage
-    if (revents & (POLLNVAL | POLLERR)) 
+    // Handle CGI timeout separately from poll errors
+    if (poll_fd == -1 && (revents & POLLERR))
+        cgi->decision.errorCode = 504;
+    
+        // processes any kind of error at this stage
+    else if (revents & (POLLNVAL | POLLERR))
         cgi->decision.errorCode = 500;
     
     /* Valid handling */
