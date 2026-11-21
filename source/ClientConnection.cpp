@@ -1,10 +1,18 @@
 #include "ClientConnection.hpp"
 
-ClientConnection::ClientConnection(int fd,
-	sockaddr_in *addr, const Listener* listener) : clientSocket_fd(fd), addressInfo(addr),
-    writeOffset(0), clientLastActive(std::time(NULL)), readClosed(false),
- 	httpParser(recvBuffer) ,httpRequest(httpParser.getRequest()),
-    closedAfterResponse(false), pendingHttpInput(false), listener(listener),
+ClientConnection::ClientConnection(int fd, sockaddr_in *addr, const Listener* listener, std::map<int, int>& pendingPIDs)
+:	cgi(NULL),
+	pendingPIDs(pendingPIDs),
+	clientSocket_fd(fd), 
+	addressInfo(addr),
+	writeOffset(0), 
+	clientLastActive(std::time(NULL)), 
+	readClosed(false),
+	closeAfterResponse(false),
+	pendingHttpInput(false),
+	httpParser(recvBuffer),
+	httpRequest(httpParser.getRequest()),
+    listener(listener),
 	serverLastWrite(std::time(NULL))
 {
 	defineMaxBodySize();
@@ -13,8 +21,9 @@ ClientConnection::ClientConnection(int fd,
       
 ClientConnection::~ClientConnection()
 {
-	delete	addressInfo;
-
+	delete cgi;
+	cgi = NULL;
+	delete addressInfo;
 	close(clientSocket_fd);
 }
 
@@ -41,13 +50,13 @@ int ClientConnection::getPort() const
 		// convert network byte order to host byte order
 }
 
-bool ClientConnection::hasDataToSend()
+bool ClientConnection::hasDataToSend() const
 {
 	return (writeOffset < sendBuffer.size());
 }
 
 // return readClosed 
-bool ClientConnection::isReadClosed()
+bool ClientConnection::isReadClosed() const
 {
 	return (readClosed);
 }
@@ -128,9 +137,7 @@ bool ClientConnection::writeData()
     // no data to send
     if (!hasDataToSend())
 		return (true);
-	bytesSent = send(clientSocket_fd,
-        sendBuffer.c_str() + writeOffset,
-        sendBuffer.size() - writeOffset, 0);
+	bytesSent = send(clientSocket_fd, sendBuffer.c_str() + writeOffset, sendBuffer.size() - writeOffset, 0);
 	if (bytesSent > 0)
 	{
 		// TEMPORARY: Test partial writes
@@ -150,7 +157,7 @@ bool ClientConnection::writeData()
         // all is sent
         if (writeOffset == sendBuffer.size())
         {
-            sendBuffer.clear();
+			sendBuffer.clear();
             writeOffset = 0;
         }
         return (true);
@@ -240,18 +247,17 @@ const std::string& ClientConnection::getRecvBuffer() const
     return recvBuffer;
 }
 
-
 // true -> connection should be closed.
 // false -> keep the connection open
-bool ClientConnection::shouldCloseAfterResponse()
+bool ClientConnection::shouldCloseAfterResponse() const
 {
-	return (closedAfterResponse);
+	return (closeAfterResponse);
 }
 
 // mark the connection for closing after sending
 void ClientConnection::setCloseAfterResponse()
 {
-	closedAfterResponse = true;
+	closeAfterResponse = true;
 	// if the server decided to close
 	// set pending to false 
 	// ignore the rest
@@ -261,7 +267,7 @@ void ClientConnection::setCloseAfterResponse()
 
 // true when the server needs to continue processing
 // pending data in buffer must resume in later-event loop
-bool ClientConnection::hasPendingHttpInput()
+bool ClientConnection::hasPendingHttpInput() const
 {
 	return (pendingHttpInput);
 }
@@ -283,7 +289,6 @@ bool ClientConnection::hasIncompleteRequest() const
 {
 	return httpParser.hasIncompleteRequest();
 }
-
 
 // 1- get the listener's ServerConfigs
 // check server-level limits
@@ -362,10 +367,16 @@ void ClientConnection::defineMaxHeaderSize()
 time_t ClientConnection::getServerLastWrite() const
 {
 	return serverLastWrite;
-
 }
 
 void ClientConnection::updateServerLastWrite()
 {
 	serverLastWrite = std::time(NULL);
+}
+
+bool ClientConnection::hasRunningCGI() const
+{
+	if (cgi)
+		return true;
+	return false;
 }

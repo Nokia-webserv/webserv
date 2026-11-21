@@ -1,7 +1,7 @@
 NAME = webserv
 
 CXX = c++
-CXXFLAGS = -Wall -Wextra -Werror -std=c++98
+CXXFLAGS = -Wall -Wextra -Werror -std=c++98 -g
 SPECIAL_FLAGS ?=
 
 INCLUDES = -Iinclude
@@ -19,7 +19,8 @@ SRCS = source/main.cpp \
        source/ServerConfig.cpp \
        source/LocationConfig.cpp \
 	   source/utils.cpp \
-	   source/Router.cpp
+	   source/Router.cpp \
+	   source/CGI.cpp
 
 OBJS = $(patsubst source/%.cpp,objects/%.o,$(SRCS))
 

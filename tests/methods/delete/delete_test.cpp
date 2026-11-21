@@ -1,4 +1,5 @@
 #include "Router.hpp"
+#include "../../client_context.hpp"
 
 #include <cerrno>
 #include <cstdio>
@@ -80,7 +81,8 @@ static void checkDelete(const std::string& name, const std::string& root,
 
         Router router;
         HttpResponse response;
-        RouteDecision decision = router.route(request, listener, response);
+        TestClientContext clientContext(request, listener);
+        RouteDecision decision = router.route(clientContext.connection(), response);
 
         const std::string wire = response.serialize();
         const std::string::size_type sep = wire.find("\r\n\r\n");

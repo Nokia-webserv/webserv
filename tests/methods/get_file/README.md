@@ -13,7 +13,9 @@ reported as failures, not passing tests.
 
 The tests call the real public `Router::route()` and check the resulting
 `HttpResponse::serialize()`. A test-only `Listener` supplies configuration
-without opening sockets. No server, HTTP parser, poll loop or network is used.
+without opening sockets. A real `ClientConnection` holds the prepared request;
+its descriptor points to `/dev/null`. No HTTP parsing, server loop or network
+I/O is performed.
 Fixtures and the executable are created in the system temporary directory and
 removed when the script exits; no generated binary is left in the repository.
 

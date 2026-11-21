@@ -12,6 +12,9 @@ if ! "${CXX:-c++}" -std=c++98 -Wall -Wextra -Werror \
     -I"$PROJECT_ROOT/include" \
     "$SCRIPT_DIR/error_handler_test.cpp" \
     "$PROJECT_ROOT/source/Router.cpp" \
+    "$PROJECT_ROOT/source/CGI.cpp" \
+    "$PROJECT_ROOT/source/ClientConnection.cpp" \
+    "$PROJECT_ROOT/source/HttpParser.cpp" \
     "$PROJECT_ROOT/source/HttpRequest.cpp" \
     "$PROJECT_ROOT/source/HttpResponse.cpp" \
     "$PROJECT_ROOT/source/ServerConfig.cpp" \

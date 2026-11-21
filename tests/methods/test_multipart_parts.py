@@ -4,6 +4,7 @@
 import os
 from pathlib import Path
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -186,14 +187,16 @@ def main():
         sys.exit("[BLOCKED] Cannot find Router declaration.")
     with tempfile.TemporaryDirectory(prefix="webserv-multipart-parts-") as temporary:
         build = Path(temporary)
-        (build / "Router.hpp").write_text(header)
+        headers = build / "include"
+        shutil.copytree(root / "include", headers)
+        (headers / "Router.hpp").write_text(header)
         (build / "Router.cpp").write_text(source)
         (build / "parts_test.cpp").write_text(TEST)
         executable = build / "parts_test"
         command = [os.environ.get("CXX", "c++"), "-std=c++98", "-Wall", "-Wextra", "-Werror",
-                   "-I" + str(build), "-I" + str(root / "include"), str(build / "parts_test.cpp"), str(build / "Router.cpp")]
+                   "-I" + str(headers), "-I" + str(root / "include"), str(build / "parts_test.cpp"), str(build / "Router.cpp")]
         command += [str(root / "source" / name) for name in (
-            "HttpRequest.cpp", "HttpResponse.cpp", "ServerConfig.cpp", "LocationConfig.cpp", "utils.cpp")]
+            "CGI.cpp", "ClientConnection.cpp", "HttpParser.cpp", "HttpRequest.cpp", "HttpResponse.cpp", "ServerConfig.cpp", "LocationConfig.cpp", "utils.cpp")]
         command += ["-o", str(executable)]
         print("Building multipart splitting component tests (C++98)...", flush=True)
         subprocess.run(command, check=True)

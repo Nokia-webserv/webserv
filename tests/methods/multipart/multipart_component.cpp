@@ -1,4 +1,5 @@
 #include "Router.hpp"
+#include "../../client_context.hpp"
 #include "raw_upload_faults.hpp"
 
 #include <cstdlib>
@@ -55,7 +56,8 @@ int main(int argc, char** argv)
         RouteDecision result;
         {
             CaptureDebug debug;
-            result = router.route(request, listener, response);
+            TestClientContext clientContext(request, listener);
+            result = router.route(clientContext.connection(), response);
         }
         const std::string wire = response.serialize();
         std::ofstream output(argv[2], std::ios::binary);

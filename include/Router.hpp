@@ -18,7 +18,8 @@
 #include "HttpResponse.hpp"
 #include "HttpParser.hpp"
 #include <string>
-#include <map>
+
+class ClientConnection;
 
 struct RouteDecision
 {
@@ -47,10 +48,12 @@ class Router
         Router();
         ~Router();
 
-        RouteDecision route(const HttpRequest& request, const Listener& listener, HttpResponse& response);
+        RouteDecision route(ClientConnection& client, HttpResponse& response);
         void handleParserError(const HttpRequest& request, const Listener &listener, HttpRequestError error, HttpResponse& response);
         void handleError(const HttpRequest& request, const RouteDecision& result, HttpResponse& response);
         const ServerConfig* selectServer(const HttpRequest& request, const Listener& listener) const;
+        // to enable calling from CGI object
+        static std::string buildPath(const std::string& requestPath, const LocationConfig& location);
 
     private:
 
@@ -60,7 +63,10 @@ class Router
         bool readHtmlPages(const std::string& path, std::string& content);
         std::string getErrorReason(int code) const;
         void setAllowedMethodHeader(const LocationConfig& location, HttpResponse& response);
+
+        bool hasCGIextension(const std::string & path, const std::map<std::string, std::string> & extensionList, std::string & ext) const;
                 
+        void handleCGI(const HttpRequest& request, HttpResponse& response, RouteDecision& result, const std::string& extension, ClientConnection& client);
         void handleGet(const HttpRequest& request, HttpResponse& response, RouteDecision& result);
         void handlePost(const HttpRequest& request, HttpResponse& response, RouteDecision& result);
         void handleDelete(const HttpRequest& request, HttpResponse& response, RouteDecision& result);
@@ -78,7 +84,6 @@ class Router
         bool isHeaderSizeAllowed(const HttpRequest& request, const ServerConfig& server, const LocationConfig& location) const;
 
         //common methods helpers
-        std::string buildPath(const std::string& requestPath, const LocationConfig& location);
         void handleFileError(int errorNum, const HttpRequest& request, HttpResponse& response, RouteDecision& result);
         void fillResponse(
             HttpResponse& response, 

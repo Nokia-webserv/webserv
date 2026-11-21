@@ -1,4 +1,5 @@
 #include "Router.hpp"
+#include "../../client_context.hpp"
 
 #include <fstream>
 #include <iostream>
@@ -234,7 +235,8 @@ static void testMatchLocationLongestPrefix(const std::string& tmpDir)
     HttpResponse response;
     HttpRequest req = makeRequest("GET", "/images/cat.jpg");
 
-    router.route(req, listener, response);
+    TestClientContext clientContext(req, listener);
+    router.route(clientContext.connection(), response);
     const ParsedResponse r = parse(response.serialize());
 
     runCase("matchLocation longest prefix: /images/cat.jpg -> /images location",
@@ -274,7 +276,8 @@ static void testMatchLocationBoundaryCheck(const std::string& tmpDir)
         Router router;
         HttpResponse response;
         HttpRequest req = makeRequest("GET", "/imgfoo");
-        router.route(req, listener, response);
+        TestClientContext clientContext(req, listener);
+        router.route(clientContext.connection(), response);
         const ParsedResponse r = parse(response.serialize());
 
         // With boundary check: /img does NOT match /imgfoo -> rootDir -> "from-root" (200)
@@ -308,7 +311,8 @@ static void testMatchLocationBoundaryCheck(const std::string& tmpDir)
         Router router;
         HttpResponse response;
         HttpRequest req = makeRequest("GET", "/img/foo");
-        router.route(req, listener, response);
+        TestClientContext clientContext(req, listener);
+        router.route(clientContext.connection(), response);
         const ParsedResponse r = parse(response.serialize());
 
         runCase("matchLocation boundary B: /img/foo matches /img location",
@@ -336,7 +340,8 @@ static void testMatchLocationExact(const std::string& tmpDir)
     HttpResponse response;
     HttpRequest req = makeRequest("GET", "/health/index.html");
 
-    router.route(req, listener, response);
+    TestClientContext clientContext(req, listener);
+    router.route(clientContext.connection(), response);
     const ParsedResponse r = parse(response.serialize());
 
     runCase("matchLocation exact prefix: /health/index.html -> /health location",
@@ -358,7 +363,8 @@ static void testMatchLocationNoMatch(const std::string& tmpDir)
     HttpResponse response;
     HttpRequest req = makeRequest("GET", "/other/path");
 
-    router.route(req, listener, response);
+    TestClientContext clientContext(req, listener);
+    router.route(clientContext.connection(), response);
     const ParsedResponse r = parse(response.serialize());
 
     runCase("matchLocation no match: /other/path with only /api -> 404",

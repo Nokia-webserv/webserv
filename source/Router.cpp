@@ -11,6 +11,7 @@
 /* ************************************************************************** */
 
 #include "Router.hpp"
+#include "CGI.hpp"
 #include "HttpResponse.hpp"
 #include <cctype>
 #include <iomanip>
@@ -23,6 +24,7 @@
 #include <fcntl.h>
 #include <unistd.h> 
 #include "utils.hpp"
+#include "ClientConnection.hpp"
 #include <cstdio> 
 
 Router::Router()
@@ -216,10 +218,13 @@ bool Router::isHeaderSizeAllowed(const HttpRequest& request, const ServerConfig&
 // 6- methods handler
 // - Httpresponse
 // - error handler
-RouteDecision Router::route(const HttpRequest& request, const Listener& listener, HttpResponse& response)
+RouteDecision Router::route(ClientConnection& client, HttpResponse& response)
 {
-    RouteDecision result;
+    const HttpRequest& request = client.getHttpRequest();
+    const Listener& listener = client.getListener();
 
+    RouteDecision result;
+    result.errorCode = 0;
     // 1- virtual server selection
     result.server = selectServer(request, listener);
     if (result.server == NULL)
@@ -239,6 +244,9 @@ RouteDecision Router::route(const HttpRequest& request, const Listener& listener
         handleError(request, result, response);
         return result;
     }
+
+    // std::cout << request.getMethod() << "\n";
+    // sleep(3);
 
     // extra step--- check for limit size validation
     if (!isHeaderSizeAllowed(request, *result.server, *result.location))
@@ -282,8 +290,19 @@ RouteDecision Router::route(const HttpRequest& request, const Listener& listener
     // example:
     // ".py" -> "/usr/bin/python3"
     // ".php" -> "/usr/bin/php-cgi"
-    // to be later implemented
-
+    std::string ext;
+    if (hasCGIextension(request.getPath(), result.location->cgi_handlers, ext))
+    {
+        handleCGI(request, response, result, ext, client);
+        if (result.errorCode)
+        {
+            result.type = RouteDecision::ROUTE_ERROR;
+            handleError(request, result, response);
+            return result;
+        }
+        result.type = RouteDecision::ROUTE_CGI;
+        return result;
+    }
     
     // 6- method handler one request at a time
     if (request.getMethod() == "GET")
@@ -294,6 +313,38 @@ RouteDecision Router::route(const HttpRequest& request, const Listener& listener
         handleDelete(request, response, result);
 
     return result;
+}
+
+std::string extractExtension(const std::string & path)
+{
+    size_t dotPos = path.find_last_of(".");
+    if (dotPos == std::string::npos)
+        return "";
+
+    std::string ext = path.substr(dotPos);
+    return ext;
+}
+
+// searches extracted extension in cgi handlers from location block in configs
+bool inCGIextensionList(const std::map<std::string, std::string> & extensionList, const std::string & extension)
+{
+    std::map<std::string, std::string>::const_iterator it = extensionList.find(extension);
+    if (it == extensionList.end())
+        return false;
+    return true;
+}
+
+bool Router::hasCGIextension(const std::string & path, const std::map<std::string, std::string> & extensionList, std::string& ext) const
+{
+    std::string extension = extractExtension(path);
+    if (extension.empty())
+        return false;
+    
+    if (!inCGIextensionList(extensionList, extension)) // searches extracted extension in cgi handlers (from location block in configs)
+        return false;
+
+    ext = extension;
+    return true;
 }
 
 // prepare the response for error_pages and redirect
@@ -421,7 +472,6 @@ void Router::handleError(const HttpRequest& request, const RouteDecision& result
     // get the HTTP reason phrase based on the code sent
     std::string reason;
     reason = getErrorReason(result.errorCode);
-    
     // set the basic http info
     // example:
     // HTTP/1.1 404 Not Found
@@ -1304,5 +1354,31 @@ void Router::handleDelete(const HttpRequest& request, HttpResponse& response, Ro
         result.type = RouteDecision::ROUTE_ERROR;
         result.errorCode = 403;
         handleError(request, result, response);
+    }
+}
+
+void Router::handleCGI(const HttpRequest& request, HttpResponse& response, RouteDecision& result, const std::string& extension, ClientConnection& client)
+{
+    CGI* cgi;
+    
+    try {
+        cgi = new CGI(request, response, result, extension, client);
+    }
+    catch (...) {
+        result.errorCode = 500;
+        return;
+    }
+    
+    // Test 1: allocation error
+    // the following block will replace the block above
+    /* std::cout << "=== TEST: Imitating allocation error ===\n";
+    result.errorCode = 500;
+    return; */
+
+    cgi->runScript(); // creates pipes, forks process, runs the script
+    if (cgi->getErrorCode()) // handles pipe and fork errors
+    {
+        delete cgi;
+        result.errorCode = 500;
     }
 }

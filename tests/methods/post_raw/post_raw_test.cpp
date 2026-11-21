@@ -1,4 +1,5 @@
 #include "Router.hpp"
+#include "../../client_context.hpp"
 #include "raw_upload_faults.hpp"
 
 #include <algorithm>
@@ -224,7 +225,8 @@ static void check(const Case& item, const std::string& fixtures, size_t index)
         for (unsigned attempt = 0; attempt < repetitions; ++attempt)
         {
             HttpResponse resultResponse;
-            const RouteDecision decision = router.route(request, listener, resultResponse);
+            TestClientContext clientContext(request, listener);
+            const RouteDecision decision = router.route(clientContext.connection(), resultResponse);
             const Response result = response(resultResponse, item.status, request.getVersion());
             if (item.status == 201)
             {

@@ -1,5 +1,6 @@
 #include "HttpResponse.hpp"
 #include <sstream>
+#include "utils.hpp"
 
 HttpResponse::HttpResponse() : _statusCode(0) {}
 
@@ -49,6 +50,7 @@ void HttpResponse::setBody(const std::string& body) {
 // ...headers
 // \r\n
 // body
+
 std::string HttpResponse::serialize() const {
     std::stringstream ss;
     ss << _version << " " << _statusCode << " " << _reasonPhrase << "\r\n";
@@ -56,9 +58,20 @@ std::string HttpResponse::serialize() const {
     //attach all headers
     for (std::map<std::string, std::string>::const_iterator it = _headers.begin(); it != _headers.end(); ++it)
     {
-    ss << it->first << ": " << it->second << "\r\n";
+        ss << it->first << ": " << it->second << "\r\n";
     }
-    
+
     ss << "\r\n" << _body;
     return ss.str();
+}
+
+bool HttpResponse::checkHeader(const std::string& key) const
+{
+    std::map<std::string, std::string>::const_iterator it = _headers.begin();
+    for (; it != _headers.end(); ++it)
+    {
+        if (strTolower(key) == strTolower(it->first))
+            return true;
+    }
+    return false;
 }
