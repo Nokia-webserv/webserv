@@ -45,6 +45,9 @@ jobs:
       - name: Raw POST integration tests
         run: bash tests/methods/test_post_raw.sh --integration
 
+      - name: CGI component and integration tests
+        run: bash tests/cgi/run_tests.sh
+
       - name: Run DELETE tests
         run: bash tests/methods/delete/test_delete.sh
 

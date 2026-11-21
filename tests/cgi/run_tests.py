@@ -120,7 +120,6 @@ ssize_t cgiTestRead(int, void*, size_t);
 int cgiTestDup2(int, int);
 int cgiTestChdir(const char*);
 int cgiTestExecve(const char*, char* const*, char* const*);
-int cgiTestPoll(pollfd*, nfds_t, int);
 int& cgiTestErrno();
 #define pipe cgiTestPipe
 #define fork cgiTestFork
@@ -130,7 +129,6 @@ int& cgiTestErrno();
 #define dup2 cgiTestDup2
 #define chdir cgiTestChdir
 #define execve cgiTestExecve
-#define poll cgiTestPoll
 #undef errno
 #define errno cgiTestErrno()
 '''

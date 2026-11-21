@@ -13,32 +13,30 @@ bash tests/cgi/run_tests.sh --component
 bash tests/cgi/run_tests.sh --integration
 ```
 
+The GitHub Actions workflow in `.github/workflows/ci.yml` runs the full command
+in its **CGI component and integration tests** step. The workflow triggers on
+pushes and pull requests. A failing CGI check fails that step.
+
 Requires a C++98 compiler (`CXX` is supported), Python 3 and curl. Components
 use Python as the one configured CGI interpreter; curl is used by integration
 tests. No cookies, sessions or additional CGI interpreters are required.
 
 Every case prints **Before**, **Expected**, **After** and a colored **PASS/FAIL**.
-The summary lists failed case names and reasons. Any failure makes the command
-exit nonzero. Known failures remain failures: there are no expected-failure
-exceptions or flags that skip error-handling checks.
+The summary groups results and lists failed case names and reasons. Any failure
+makes the command exit nonzero.
 
-The existing integration groups include six GET/POST checks for literal
+The integration groups include six GET/POST checks for literal
 `while True: pass`, a Python syntax error and an uncaught Python exception.
 The scripts are embedded in `run_tests.py` and generated only in its temporary
 test directory. They need no additional repository files. The loop checks an
 HTTP timeout error, another client served during the loop, child cleanup and
 a successful request afterwards. Use the default command or `--integration`;
-`--component` does not run real-server cases. The sleeping-loop regression
-also remains enabled.
+`--component` does not run real-server cases. Sleeping loops are also tested.
 
-## Coverage and requirements
+## Coverage
 
-The project subject requires nonblocking, polled pipe I/O, unchanged request
-arguments, decoded chunked stdin with EOF, stdout completion at EOF, the correct
-working directory, accurate responses and bounded requests. The
-[mandatory evaluation checklist](https://42evals.slddl.ovh/Cursus/Webserv/)
-also asks for checked I/O results, no errno-based handling after I/O, CGI GET/POST,
-and visible errors for failing or looping scripts.
+Component checks exercise the CGI class, its request environment, pipe I/O,
+script execution, response construction and resource cleanup.
 
 | Group | Component checks |
 | --- | --- |
@@ -47,8 +45,8 @@ and visible errors for failing or looping scripts.
 | C3 Setup and resources | Both pipe failures, fork failure, either nonblocking fcntl failure, cleanup of running/completed CGI, all remaining pipe ends, client pointer clearing, reaped/tracked child and repeated cleanup with a reused descriptor |
 | C4 Stdin | Full/partial binary writes, exact offset after each write, final EOF, injected negative/zero write results, readiness and errno access |
 | C5 Stdout | Full/partial reads, positive/zero/negative results, no premature response before EOF, unusable output, at most one read per handler call, readiness and errno access |
-| C6 Real script execution | Empty through 1 MiB stdin, buffer boundaries, full stdout before consuming stdin, split output, relative file access, crashes, no/malformed output, chdir/dup2/execve failures and failed/zero/partial child error-report writes |
-| C7 Focused code checks | Traced child error-report write readiness; directly discarded I/O and chdir results in CGI.cpp |
+| C6 Real script execution | Empty through 1 MiB stdin, buffer boundaries, full stdout before consuming stdin, split output, relative file access, crashes, no/malformed output and chdir/dup2/execve failures |
+| C7 Focused code checks | Directly discarded I/O and chdir results in CGI.cpp |
 
 All component pipe I/O is driven by a small test dispatcher. It exercises the
 real CGI class without starting the server or opening a TCP listener. The
@@ -58,9 +56,9 @@ Integration groups additionally exercise the actual Router, parser and server
 poll loop using curl and controlled raw sockets. They cover CGI selection,
 GET/POST/DELETE, body limits, chunked input decoded before CGI, correct cwd,
 errors, concurrent clients, a static request during slow CGI, timeout and
-disconnect cleanup. Groups I2 and I4 also exercise broken Python files
-and active infinite CPU loops through GET and POST. These checks are necessary because the CGI class alone
-does not own server timeout scheduling or the main poll loop.
+disconnect cleanup. Groups I2 and I4 exercise broken Python files and active
+infinite CPU loops through GET and POST. Integration tests run the production
+server timeout scheduling and poll loop.
 
 ## Error expectations
 
@@ -77,47 +75,8 @@ does not own server timeout scheduling or the main poll loop.
   setup errors and short fixtures, not a timeout value prescribed by the subject.
 - The real-server timeout build uses `WEBSERV_CLIENT_TIMEOUT_SECONDS=4`.
   A looping CGI must produce HTTP 500, 502 or 504 within the bounded test
-  deadline while other clients still work. The checklist requires a visible
-  error; this suite checks for an HTTP error visible to the requesting client.
-  Empty connection close alone is a failure. The checklist does not prescribe
-  one exact error code or timeout duration.
-
-## Historical findings
-
-On CGI commit `ffb14bd`, the expanded checks identify these remaining areas
-(components: 69 passed / 14 failed; integration: 31 passed / 1 failed):
-
-This is an older baseline, not the current test result. After merging main in
-`5470839`, the timeout regression passes: running CGI is excluded from generic
-idle cleanup and CGI timeout scanning continues past clients without CGI.
-Use the current runner output to assess subsequent fixes, including chdir.
-
-1. `provideInput()` does not expose an error when write returns -1 or zero for
-   nonempty input.
-2. `buildResponse()` trusts an invalid/mismatched Content-Length and accepts
-   numeric statuses outside the HTTP range. Reject unusable output or normalize
-   framing before sending it.
-3. Both dup2 failure paths leave an output pipe write end open while the child
-   waits, so the parent cannot reach EOF and report the setup error promptly.
-4. The chdir result is ignored, allowing a same-named script in the old working
-   directory to execute.
-5. Child error-report writes do not first obtain POLLOUT readiness, and both
-   write return values are discarded.
-6. A looping CGI causes an empty connection close instead of an HTTP error.
-   Check coordination between generic client timeout and CGI timeout; the CGI
-   timeout loop must also continue past clients that have no CGI.
-
-Several failed cases exercise the same underlying problem. A failed-case count
-is not a count of independent bugs. Normal requests, partial transfers, large
-bodies and the tested descriptor/child cleanup paths pass.
-
-The existing `Server::handleCGIevents()` -> `Router::handleError()` path already
-builds configured/default error pages and response headers. Parent-side CGI
-failures can report through `decision.errorCode` and use that path. Errors in
-the forked child still need to reach the parent; changing child memory alone
-does not update the parent. GET/POST's private `Router::fillResponse()` helper
-only assigns fields: it does not validate statuses or calculate Content-Length,
-so it is not a drop-in fix for CGI output validation.
+  deadline while other clients still work. Empty connection close alone fails
+  this check. The loop's child process must also be killed and reaped.
 
 ## How instrumentation works and its limits
 
@@ -125,8 +84,7 @@ The component build copies the entire include tree into its temporary directory
 and grants a test peer access in the copied CGI.hpp. Only the temporary CGI
 translation unit gets syscall wrappers. Selected cases inject syscall outcomes;
 other calls perform real I/O. The parent wrappers consume a readiness permission
-per call and record errno access after I/O. Child error-report writes are traced
-to a temporary regular file so their readiness can be checked from the parent.
+per call and record errno access after I/O.
 
 The resource tests verify the module's reaped-or-tracked contract. The harness
 then emulates pending-PID reaping to avoid leaving test children behind. This is
