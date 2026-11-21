@@ -6,7 +6,7 @@
 /*   By: damohame <damohame@student.42berlin.d>     +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/11/06 22:25:55 by damohame          #+#    #+#             */
-/*   Updated: 2026/11/17 23:56:41 by damohame         ###   ########.fr       */
+/*   Updated: 2026/11/20 15:18:33 by damohame         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -68,8 +68,8 @@ class Router
                 
         void handleCGI(const HttpRequest& request, HttpResponse& response, RouteDecision& result, const std::string& extension, ClientConnection& client);
         void handleGet(const HttpRequest& request, HttpResponse& response, RouteDecision& result);
-        void handlePost(const HttpRequest& request, HttpResponse& response, const LocationConfig& location);
-        void handleDelete(const HttpRequest& request, HttpResponse& response, const LocationConfig& location);
+        void handlePost(const HttpRequest& request, HttpResponse& response, RouteDecision& result);
+        void handleDelete(const HttpRequest& request, HttpResponse& response, RouteDecision& result);
         
         void handleRedirect(const HttpRequest& request, int statusCode, const std::string& targetUrl, HttpResponse& response);
         std::string getRedirectCode(int code) const;
@@ -100,4 +100,11 @@ class Router
         std::string generateFilesList(std::string& dirPath, std::string& requestPath);
         std::string urlEncodePath(std::string path);
         std::string escapeHtml(std::string input);
+
+        //POST method helpers
+        std::string getFileFormat(const std::string& type);
+        void handleMultipart(const HttpRequest& request, HttpResponse& response, RouteDecision& result);
+        void handleMultipartError(const HttpRequest& request, HttpResponse& response, RouteDecision& result);
+        void handlePart(const std::string& part, const HttpRequest& request, HttpResponse& response, RouteDecision& result);
+        void saveFile(const std::string& format, const std::string& data, const HttpRequest& request, HttpResponse& response, RouteDecision& result);
 };
