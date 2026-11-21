@@ -257,7 +257,8 @@ void CGI::runScript()
         
         // enables relative path file access (as per subject requirement)
         dir = scriptPath.substr(0, scriptPath.find_last_of("/"));
-        chdir(dir.c_str());
+        if (chdir(dir.c_str()) == -1)
+            _exit(127);
 
         execve(interpreterPath.c_str(), &argv[0], &envp[0]); // executes the CGI script and terminates child process
    

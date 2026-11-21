@@ -455,6 +455,14 @@ def integration_tests(report, build, fixtures):
         for name, mode, status, data in cases:
             report.case("I2 Subject: CGI responses", name, "HTTP " + str(status) + ", valid framing and complete body",
                         lambda m=mode, s=status, d=data: server.curl("/cgi/probe.py?mode=" + m, expected=s, exact=d))
+        for script in ("syntax_error.py", "runtime_error.py"):
+            for method in ("GET", "POST"):
+                def broken_script(name=script, verb=method):
+                    server.curl("/cgi/" + name, method=verb,
+                                body=b"abc" if verb == "POST" else None, expected=(500, 502))
+                    server.curl("/static.txt", exact=b"static server still works\n")
+                report.case("I2 Subject: CGI responses", method + " " + script,
+                            "HTTP 500/502 with valid framing; server serves the next request", broken_script)
         report.case("I2 Subject: CGI responses", "Interpreter does not exist", "HTTP 500 or 502; server remains alive",
                     lambda: server.curl("/bad-interpreter/probe.py", expected=(500, 502)))
         report.case("I2 Subject: CGI responses", "Script does not exist", "An HTTP error response; no hang",
@@ -516,6 +524,36 @@ def integration_tests(report, build, fixtures):
             raise AssertionError("Disconnected client's CGI process still exists: PID " + str(pid))
         report.case("I4 Subject: bounded lifetime", "Client disconnects while CGI is running",
                     "Child is killed/reaped within timeout; server stays responsive", cleanup)
+        for method in ("GET", "POST"):
+            def infinite_loop(verb=method):
+                pid_file = fixtures / "infinite-loop.pid"
+                pid_file.unlink(missing_ok=True)
+                with server.connect() as connection:
+                    started = time.monotonic()
+                    connection.sendall(server.request_bytes("/cgi/infinite_loop.py", verb,
+                                                           b"abc" if verb == "POST" else b""))
+                    deadline = time.monotonic() + 2
+                    while not pid_file.exists() and time.monotonic() < deadline:
+                        time.sleep(0.02)
+                    require(pid_file.exists(), "Infinite-loop CGI did not start")
+                    pid = int(pid_file.read_text())
+                    # Check responsiveness while the CGI is consuming CPU.
+                    server.curl("/static.txt", exact=b"static server still works\n", timeout=2)
+                    WireReader(connection).response(expected=(500, 502, 504))
+                    require(time.monotonic() - started < TIMEOUT + 4,
+                            "Infinite-loop CGI exceeded the bounded timeout deadline")
+                deadline = time.monotonic() + 2
+                while time.monotonic() < deadline:
+                    try:
+                        os.kill(pid, 0)
+                    except ProcessLookupError:
+                        print("After:    infinite-loop child killed/reaped", flush=True)
+                        server.curl("/static.txt", exact=b"static server still works\n")
+                        return
+                    time.sleep(0.05)
+                raise AssertionError("Infinite-loop CGI process still exists: PID " + str(pid))
+            report.case("I4 Subject: bounded lifetime", method + " while True: pass",
+                        "HTTP timeout error; other clients work; looping child killed and reaped", infinite_loop)
         report.case("I4 Subject: bounded lifetime", "Static GET after all error/stress cases", "Server still serves static content",
                     lambda: server.curl("/static.txt", exact=b"static server still works\n"))
     finally:
@@ -534,6 +572,15 @@ def main():
         fixtures = build / "scripts"
         fixtures.mkdir()
         shutil.copyfile(HERE / "probe.py", fixtures / "probe.py")
+        # Error scripts are part of this runner and exist only in the temporary
+        # test directory. The syntax-error case must be a genuinely broken file.
+        scripts = {
+            "infinite_loop.py": 'import os\nfrom pathlib import Path\nPath("infinite-loop.pid").write_text(str(os.getpid()))\nwhile True:\n    pass\n',
+            "syntax_error.py": "def broken(:\n    pass\n",
+            "runtime_error.py": 'raise RuntimeError("intentional CGI test exception")\n',
+        }
+        for name, source in scripts.items():
+            (fixtures / name).write_text(source)
         (fixtures / "relative.txt").write_bytes(b"relative path works\n")
         if not args.integration:
             component_tests(report, build, fixtures)

@@ -22,6 +22,15 @@ The summary lists failed case names and reasons. Any failure makes the command
 exit nonzero. Known failures remain failures: there are no expected-failure
 exceptions or flags that skip error-handling checks.
 
+The existing integration groups include six GET/POST checks for literal
+`while True: pass`, a Python syntax error and an uncaught Python exception.
+The scripts are embedded in `run_tests.py` and generated only in its temporary
+test directory. They need no additional repository files. The loop checks an
+HTTP timeout error, another client served during the loop, child cleanup and
+a successful request afterwards. Use the default command or `--integration`;
+`--component` does not run real-server cases. The sleeping-loop regression
+also remains enabled.
+
 ## Coverage and requirements
 
 The project subject requires nonblocking, polled pipe I/O, unchanged request
@@ -49,7 +58,8 @@ Integration groups additionally exercise the actual Router, parser and server
 poll loop using curl and controlled raw sockets. They cover CGI selection,
 GET/POST/DELETE, body limits, chunked input decoded before CGI, correct cwd,
 errors, concurrent clients, a static request during slow CGI, timeout and
-disconnect cleanup. These checks are necessary because the CGI class alone
+disconnect cleanup. Groups I2 and I4 also exercise broken Python files
+and active infinite CPU loops through GET and POST. These checks are necessary because the CGI class alone
 does not own server timeout scheduling or the main poll loop.
 
 ## Error expectations
@@ -72,10 +82,15 @@ does not own server timeout scheduling or the main poll loop.
   Empty connection close alone is a failure. The checklist does not prescribe
   one exact error code or timeout duration.
 
-## Current findings
+## Historical findings
 
 On CGI commit `ffb14bd`, the expanded checks identify these remaining areas
 (components: 69 passed / 14 failed; integration: 31 passed / 1 failed):
+
+This is an older baseline, not the current test result. After merging main in
+`5470839`, the timeout regression passes: running CGI is excluded from generic
+idle cleanup and CGI timeout scanning continues past clients without CGI.
+Use the current runner output to assess subsequent fixes, including chdir.
 
 1. `provideInput()` does not expose an error when write returns -1 or zero for
    nonempty input.
