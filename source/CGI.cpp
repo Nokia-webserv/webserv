@@ -302,10 +302,29 @@ void CGI::runScript()
 void CGI::provideInput()
 {
     ssize_t bts = write(pipeRead[1], cgiInputBuffer.c_str() + bytesSent, cgiInputBuffer.size() - bytesSent);
+
+    // successful write (may be partial)
     if (bts > 0)
+    {
+        // update the number of bytes sent
         bytesSent += bts;
-    if (bytesSent == cgiInputBuffer.size())
+
+        // all input has been sent
+        // Close the pipe to signal EOF to the CGI
+        if (bytesSent == cgiInputBuffer.size())
+            closeReading();
+        return;
+    }
+    // write fails (-1)
+    // no progress (0)
+    if (bts <= 0)
+    {
+        // report error
+        error_code = 500;
+        // close pipe to prevent further writes
         closeReading();
+        return;
+    }
 }
 
 // reads until EOF then builds response
